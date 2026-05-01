@@ -1,6 +1,6 @@
 # HelloCPU 验证文档
 
-> 最后更新: 2026-05-01（第二轮修复后）
+> 最后更新: 2026-05-01（第三轮修复后）
 
 ---
 
@@ -46,7 +46,7 @@
 
 **运行方式**: `make run`（全部）/ `make run ALL=<name>`（单个）
 
-### 当前结果：34 通过 ✅ / 3 失败 ❌（2026-05-01 第二轮）
+### 当前结果：35 通过 ✅ / 2 失败 ❌（2026-05-01 第三轮）
 
 | # | 测试名 | 状态 | 周期数 | 分类 |
 |---|--------|------|--------|------|
@@ -68,7 +68,7 @@
 | 16 | matrix-mul | ✅ PASS | 31,273 | 矩阵/乘法 |
 | 17 | max | ✅ PASS | 2,627 | 分支 |
 | 18 | mem | ✅ PASS | 2,885 | 内存 |
-| 19 | mersenne | ⏱️ TIMEOUT | 5,000,000 | 算法 |
+| 19 | mersenne | ✅ PASS | 172,918 | 算法 |
 | 20 | min3 | ✅ PASS | 2,861 | 分支 |
 | 21 | mov-c | ✅ PASS | 610 | MOV指令 |
 | 22 | movsx | ✅ PASS | 1,001 | 符号扩展 |
@@ -88,7 +88,7 @@
 | 36 | unalign | ✅ PASS | 963 | 非对齐访问 |
 | 37 | wanshu | ✅ PASS | 19,437 | 算法 |
 
-### 本轮新通过的测试（共7个）
+### 本轮新通过的测试（共8个）
 | 测试 | 原状态 | 根因 | 修复文件 |
 |------|--------|------|----------|
 | load-store | ❌ FAIL | 非cacheable加载数据移位错误 | lsu.v |
@@ -98,6 +98,7 @@
 | string | ❌ FAIL | strcmp/strcat/memcmp依赖正确LSU | lsu.v（副作用） |
 | crc32 | ❌ FAIL | 复杂位运算依赖正确LSU | lsu.v（副作用） |
 | matrix-mul | ❌ FAIL | MUL指令结果符号错误 | multiplier.v |
+| mersenne | ⏱️ TIMEOUT | 64位取模依赖MUL/MULH正确性 | multiplier.v |
 
 ---
 
@@ -127,25 +128,25 @@
 **改动**:
 - `src1_neg` 改为 `(~mul_op[1] | ~mul_op[0]) & src1[31]`，覆盖 MUL/MULH/MULHSU 三种 signed src1 情况
 
-### 🔧 修复 4：寄存器堆多周期指令转发门控（`vsrc/Registers/RegisterFile.v`）
+### 🔧 修复 4：乘法器整体替换（`vsrc/exu/multiplier.v`）
 
-**根因**: 寄存器堆无条件转发 `exu_wdata` 到读端口。多周期指令（DIV/REM/MUL）在计算过程中 `exu_wdata` 为中间值，导致后续依赖指令读到错误的数据。
+**根因**: 原 Booth-2 + Wallace Tree 实现存在两个深度 bug：
+1. 零 partial product 时 sign extension compensation 仍添加偏移位，导致小数值乘法结果错误
+2. sign_correction 位位置计算错误（用了2*gi而非33+2*gi）
 
-**改动**:
-- 新增 `exu_post_valid` 输入端口，连接到 EXU 的 `o_post_valid` 信号（即 `exu2wbu_valid`）
-- 读端口转发逻辑加入 `exu_post_valid` 条件：`(raddr == exu_rd && exu_wen && exu_post_valid) ? exu_wdata`
+**改动**: 将整个 Booth-2 Wallace Tree 替换为 Verilog 内建 `$signed()` × `$signed()` 的简洁实现，保留2周期流水线接口
 
-> ⚠️ **注意**: 此修复为正确性改进，但 `narcissistic` 和 `mul-longlong` 仍然失败，表明还有其他问题。
+**效果**: mersenne 从 TIMEOUT → PASS（172K cycles），MUL/MULH 结果完全正确
 
 ---
 
-## 五、仍待解决（3个失败 + 已知问题）
+## 五、仍待解决（2个失败 + 已知问题）
 
 | 测试 | 周期 | 可能原因 | 优先级 |
 |------|------|----------|--------|
 | **narcissistic** | 7,913 | DIV/REM 多周期依赖转发仍存问题，或除法器 REM 计算有误 | 🟡 中 |
-| **mul-longlong** | 335 | 64位软件乘法（MUL + MULHU 组合）某步计算错误，或 Booth-2 乘法器存在精度问题 | 🟡 中 |
-| **mersenne** | TIMEOUT | 算法陷入死循环（可能与64位取模 `__moddi3` 或循环逻辑有关） | 🟢 低 |
+| **mul-longlong** | 335 | MUL/MULH值现在正确(0x19d29ab9/0xdb1a18e4)，但测试仍在372周期失败，怀疑是流水线手信号或ans数组读取问题 | 🟡 中 |
+| **mersenne** | TIMEOUT | 已修复 → PASS（172K cycles）| ✅ 已解决 |
 
 ### narcissistic 分析
 - 测试依赖 `DIV(n, 100)`, `DIV/REM(n, 10)` 等指令
@@ -236,4 +237,5 @@ make clean
 | 2026-05-01 | **修复乘法器 MUL 符号**：matrix-mul 通过 | Cline |
 | 2026-05-01 | **修复乘法器 MULHSU src1_neg**：预防性修复 | Cline |
 | 2026-05-01 | **寄存器堆 exu_post_valid 门控**：多周期指令转发正确性改进 | Cline |
-| 2026-05-01 | 更新文档：34/37 通过，3个待解决 | Cline |
+| 2026-05-01 | **替换整个乘法器为 Verilog * 实现**：mersenne PASS，MUL/MULH结果正确 | Cline |
+| 2026-05-01 | 更新文档：35/37 通过，2个待解决 | Cline |
