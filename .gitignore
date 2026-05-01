@@ -1,4 +1,5 @@
 build/
+sw/build/
 wave.vcd
 *.o
 *.d
