@@ -1,4 +1,4 @@
-module ysyx_23060124_stdrst(
+module hcpu_stdrst(
   input clock,
   input i_rst_n,
   output o_rst_n_sync

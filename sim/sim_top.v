@@ -31,7 +31,7 @@ wire        m_rlast;
 wire [ 3:0] m_rid;
 
 // CPU instance
-ysyx_23060124 cpu (
+hcpu cpu (
     .clock              (clock),
     .reset              (reset),
     .io_interrupt       (1'b0),

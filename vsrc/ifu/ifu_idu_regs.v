@@ -1,4 +1,4 @@
-module ysyx_23060124_ifu_idu_regs (
+module hcpu_ifu_idu_regs (
     input              [  31:0]         i_pc                       ,
     input              [  31:0]         i_ins                      ,
     output reg         [  31:0]         o_pc                       ,

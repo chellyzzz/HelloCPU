@@ -1,4 +1,4 @@
-// AXI4-Lite Style RAM with burst support — Minimal Verified Design
+// AXI4-Lite Style RAM with burst support 鈥?Minimal Verified Design
 //
 // Design principle (standard AXI VIP pattern):
 //   - AR channel: always ready, single-cycle handshake
@@ -57,7 +57,7 @@ module axi_ram (
     import "DPI-C" function void pmem_write(input int addr, input int data, input int strb);
 
     // ========================================================================
-    // Read Channel — Minimal 2-phase FSM: IDLE / BURST
+    // Read Channel 鈥?Minimal 2-phase FSM: IDLE / BURST
     // ========================================================================
     localparam R_IDLE  = 1'b0;
     localparam R_BURST = 1'b1;
@@ -68,7 +68,7 @@ module axi_ram (
     reg [ 7:0] r_cnt;
     reg [ 3:0] r_id;
 
-    // Combinational read lookup — uses DPI-C on every eval
+    // Combinational read lookup 鈥?uses DPI-C on every eval
     wire [31:0] r_lookup_addr;
     wire [31:0] r_lookup_data;
     reg  [31:0] r_lookup_data_reg;
@@ -132,7 +132,7 @@ module axi_ram (
     assign rresp = 2'b00;
 
     // ========================================================================
-    // Write Channel — Burst-aware with address increment
+    // Write Channel 鈥?Burst-aware with address increment
     // ========================================================================
     localparam W_IDLE = 2'd0;
     localparam W_DATA = 2'd1;
@@ -155,10 +155,10 @@ module axi_ram (
                 W_IDLE: begin
                     bvalid <= 1'b0;
                     if (awvalid && awready && wvalid && wready) begin
-                        // AW + W combined — first beat
+                        // AW + W combined 鈥?first beat
                         pmem_write(awaddr, wdata, wstrb);
                         if (wlast) begin
-                            // Single beat — go directly to B response
+                            // Single beat 鈥?go directly to B response
                             bid     <= awid;
                             bvalid  <= 1'b1;
                             w_state <= W_RESP;
@@ -168,7 +168,7 @@ module axi_ram (
                             w_state <= W_DATA;
                         end
                     end else if (awvalid && awready) begin
-                        // AW only — latch address, wait for W beats
+                        // AW only 鈥?latch address, wait for W beats
                         w_addr  <= awaddr;
                         w_id    <= awid;
                         awready <= 1'b0;

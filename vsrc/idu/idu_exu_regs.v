@@ -1,4 +1,4 @@
-module ysyx_23060124_idu_exu_regs (
+module hcpu_idu_exu_regs (
     input              [  31:0]         i_pc                       ,
     input                               clock                      ,
     input                               reset                      ,

@@ -1,4 +1,4 @@
-module ysyx_23060124_exu_wbu_regs (
+module hcpu_exu_wbu_regs (
     input                               clock                      ,
     input                               reset                      ,
     input                               i_brch                     ,

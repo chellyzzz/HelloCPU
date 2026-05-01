@@ -1,4 +1,4 @@
-module ysyx_23060124_CSR_RegisterFile (
+module hcpu_CSR_RegisterFile (
     input                               clock                      ,
     input                               reset                        ,
     input                               i_csr_wen                  ,
@@ -15,11 +15,11 @@ module ysyx_23060124_CSR_RegisterFile (
     output             [  31:0]         o_mepc                     ,
     output             [  31:0]         o_mtvec                    
 );
-// ysyx_23060124
+// hcpu
 wire [31:0] mvendorid , marchid;
 wire [31:0] mcause;
 assign mvendorid    = 32'h79737978;
-assign marchid      = 32'h23060124;
+assign marchid      = 32'h00000001;
 assign mcause       = 32'd11;
 
 reg [12:0] mstatus;

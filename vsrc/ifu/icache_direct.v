@@ -1,4 +1,4 @@
-// module ysyx_23060124__icache #(
+// module hcpu_icache #(
 //     parameter                           ADDR_WIDTH      = 32       ,
 //     parameter                           DATA_WIDTH      = 32       ,
 //     parameter                           SET_NUMS        = 4        ,// Number of cache sets
@@ -44,7 +44,7 @@
 // // ============================================================
 // // Cache Storage
 // // ============================================================
-// // cache_data[set][word] — each entry is DATA_WIDTH bits
+// // cache_data[set][word] 鈥?each entry is DATA_WIDTH bits
 // reg [DATA_WIDTH-1:0]  cache_data  [SET_NUMS-1:0][WORDS_PER_BLOCK-1:0];
 // reg [TAG_BITS-1:0]    cache_tag   [SET_NUMS-1:0];
 // reg [SET_NUMS-1:0]    cache_valid;
@@ -124,7 +124,7 @@
 // end
 
 // // ============================================================
-// // Read Address Channel — AR handshake
+// // Read Address Channel 鈥?AR handshake
 // // ============================================================
 // always @(posedge clock or negedge rst_n_sync) begin
 //     if (~rst_n_sync) begin
@@ -162,7 +162,7 @@
 // end
 
 // // ============================================================
-// // Read Data Channel — R handshake
+// // Read Data Channel 鈥?R handshake
 // // ============================================================
 // always @(posedge clock or negedge rst_n_sync) begin
 //     if (~rst_n_sync) begin

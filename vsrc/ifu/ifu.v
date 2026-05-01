@@ -1,4 +1,4 @@
-module ysyx_23060124_IFU
+module hcpu_IFU
 (
     input              [  31:0]         i_pc_next                  ,
     input                               clock                      ,

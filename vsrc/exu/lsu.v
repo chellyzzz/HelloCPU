@@ -1,4 +1,4 @@
-module ysyx_23060124_LSU #(
+module hcpu_LSU #(
     parameter ADDR_WIDTH      = 32,
     parameter DATA_WIDTH      = 32,
     parameter SET_NUMS        = 4,
@@ -205,6 +205,8 @@ wire [3:0] wstrb_shifted = wstrb_base << lat_shift;
 wire [31:0] wdata_shifted = lat_store_src << lat_shift8;
 wire [3:0] eff_wstrb = lat_cacheable ? wstrb_shifted : wstrb_base;
 wire [31:0] eff_wdata = lat_cacheable ? wdata_shifted : lat_store_src;
+wire [3:0] eff_wstrb = lat_cacheable ? wstrb_shifted : wstrb_base;
+wire [31:0] eff_wdata = lat_cacheable ? wdata_shifted : lat_store_src;
 
 // ============================================================
 // AXI Control Registers
@@ -285,7 +287,7 @@ always @(posedge clock or posedge reset) begin
         done_reg <= 1'b0;  // default: clear done pulse
 
         case (state)
-        // ─────────────────────────────────────────
+        // 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
         S_IDLE: begin
             if (txn_pulse_load || txn_pulse_store) begin
                 // Latch request
@@ -299,23 +301,23 @@ always @(posedge clock or posedge reset) begin
             end
         end
 
-        // ─────────────────────────────────────────
+        // 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
         // S_CHECK: address latched last cycle, hit/miss detection now valid
-        // ─────────────────────────────────────────
+        // 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
         S_CHECK: begin
             if (lat_is_load) begin
-                // ── Load path ──
+                // 鈹€鈹€ Load path 鈹€鈹€
                 if (lat_cacheable && cache_hit) begin
-                    // Load hit → return data next cycle
+                    // Load hit 鈫?return data next cycle
                     state <= S_CACHE_HIT;
                     `ifdef DCACHE_DEBUG
                     $display("[DCACHE] LOAD HIT : set=%0d way=%0d addr=0x%0h", addr_index, hit_way, lat_addr);
                     `endif
                 end
                 else if (lat_cacheable) begin
-                    // Load miss → check if victim is dirty
+                    // Load miss 鈫?check if victim is dirty
                     if (victim_is_dirty) begin
-                        // Dirty victim → writeback first
+                        // Dirty victim 鈫?writeback first
                         axi_awvalid <= 1'b1;
                         wb_addr_lat <= wb_addr;
                         wb_way_lat  <= victim_way;
@@ -328,7 +330,7 @@ always @(posedge clock or posedge reset) begin
                         `endif
                     end
                     else begin
-                        // Clean victim → refill directly
+                        // Clean victim 鈫?refill directly
                         axi_arvalid <= 1'b1;
                         state       <= S_REFILL_AR;
                         `ifdef DCACHE_DEBUG
@@ -338,22 +340,22 @@ always @(posedge clock or posedge reset) begin
                     end
                 end
                 else begin
-                    // Uncacheable load → single-beat AXI read
+                    // Uncacheable load 鈫?single-beat AXI read
                     axi_arvalid <= 1'b1;
                     state       <= S_UNCACHE_AR;
                 end
             end
             else begin
-                // ── Store path ──
+                // 鈹€鈹€ Store path 鈹€鈹€
                 if (lat_cacheable && cache_hit) begin
-                    // Store hit → write cache only, mark dirty, done in 1 cycle
+                    // Store hit 鈫?write cache only, mark dirty, done in 1 cycle
                     state <= S_STORE_HIT;
                     `ifdef DCACHE_DEBUG
                     $display("[DCACHE] STORE HIT: set=%0d way=%0d addr=0x%0h", addr_index, hit_way, lat_addr);
                     `endif
                 end
                 else if (lat_cacheable) begin
-                    // Store miss → write-allocate: evict victim (if dirty), refill, then write
+                    // Store miss 鈫?write-allocate: evict victim (if dirty), refill, then write
                     if (victim_is_dirty) begin
                         axi_awvalid <= 1'b1;
                         wb_addr_lat <= wb_addr;
@@ -376,24 +378,24 @@ always @(posedge clock or posedge reset) begin
                     end
                 end
                 else begin
-                    // Uncacheable store → single-beat AXI write
+                    // Uncacheable store 鈫?single-beat AXI write
                     axi_awvalid <= 1'b1;
                     state       <= S_UNCACHE_AW;
                 end
             end
         end
 
-        // ─────────────────────────────────────────
-        // S_CACHE_HIT: load hit → output data, done
-        // ─────────────────────────────────────────
+        // 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+        // S_CACHE_HIT: load hit 鈫?output data, done
+        // 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
         S_CACHE_HIT: begin
             done_reg <= 1'b1;
             state    <= S_IDLE;
         end
 
-        // ─────────────────────────────────────────
-        // S_STORE_HIT: store hit → cache updated in separate block, done
-        // ─────────────────────────────────────────
+        // 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+        // S_STORE_HIT: store hit 鈫?cache updated in separate block, done
+        // 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
         S_STORE_HIT: begin
             done_reg <= 1'b1;
             state    <= S_IDLE;
@@ -403,9 +405,9 @@ always @(posedge clock or posedge reset) begin
             `endif
         end
 
-        // ─────────────────────────────────────────
+        // 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
         // Writeback dirty victim: AW + W handshake (single beat per word)
-        // ─────────────────────────────────────────
+        // 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
         S_WB_AW: begin
             // Deassert each channel independently on handshake
             if (M_AXI_AWREADY && axi_awvalid) begin
@@ -418,7 +420,7 @@ always @(posedge clock or posedge reset) begin
             end
             if (M_AXI_WREADY && wb_wvalid)
                 wb_wvalid <= 1'b0;
-            // Both AW and W handshakes complete → wait B
+            // Both AW and W handshakes complete 鈫?wait B
             if ((M_AXI_AWREADY || !axi_awvalid) && (M_AXI_WREADY || !wb_wvalid)) begin
                 axi_awvalid    <= 1'b0;
                 wb_wvalid      <= 1'b0;
@@ -427,9 +429,9 @@ always @(posedge clock or posedge reset) begin
             end
         end
 
-        // ─────────────────────────────────────────
+        // 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
         // Writeback dirty victim: wait B response, loop or refill
-        // ─────────────────────────────────────────
+        // 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
         S_WB_B: begin
             if (M_AXI_BVALID && ~axi_bready) begin
                 axi_bready <= 1'b1;
@@ -437,7 +439,7 @@ always @(posedge clock or posedge reset) begin
             else if (axi_bready) begin
                 axi_bready <= 1'b0;
                 if (wb_cnt == REFILL_ARLEN[WORD_IDX_BITS-1:0]) begin
-                    // All words written back → start refill
+                    // All words written back 鈫?start refill
                     axi_arvalid <= 1'b1;
                     state       <= S_REFILL_AR;
                     `ifdef DCACHE_DEBUG
@@ -446,7 +448,7 @@ always @(posedge clock or posedge reset) begin
                     `endif
                 end
                 else begin
-                    // More words to write → next word
+                    // More words to write 鈫?next word
                     wb_cnt      <= wb_cnt + 1;
                     axi_awvalid <= 1'b1;
                     wb_wvalid   <= 1'b1;
@@ -455,7 +457,7 @@ always @(posedge clock or posedge reset) begin
             end
         end
 
-        // ─────────────────────────────────────────
+        // 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
         S_REFILL_AR: begin
             if (M_AXI_ARREADY && axi_arvalid) begin
                 axi_arvalid    <= 1'b0;
@@ -466,7 +468,7 @@ always @(posedge clock or posedge reset) begin
             end
         end
 
-        // ─────────────────────────────────────────
+        // 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
         S_REFILL_R: begin
             if (M_AXI_RVALID && ~refill_rready) begin
                 refill_rready <= 1'b1;
@@ -488,7 +490,7 @@ always @(posedge clock or posedge reset) begin
             end
         end
 
-        // ─────────────────────────────────────────
+        // 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
         S_UNCACHE_AR: begin
             if (M_AXI_ARREADY && axi_arvalid) begin
                 axi_arvalid <= 1'b0;
@@ -500,7 +502,7 @@ always @(posedge clock or posedge reset) begin
             end
         end
 
-        // ─────────────────────────────────────────
+        // 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
         S_UNCACHE_R: begin
             if (M_AXI_RVALID && ~axi_rready) begin
                 axi_rready <= 1'b1;
@@ -516,23 +518,23 @@ always @(posedge clock or posedge reset) begin
             end
         end
 
-        // ─────────────────────────────────────────
+        // 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
         // Uncacheable store: AW + W handshake (single beat)
-        // ─────────────────────────────────────────
+        // 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
         S_UNCACHE_AW: begin
             // WVALID is driven combinationally from axi_awvalid in this state
             if (M_AXI_AWREADY && axi_awvalid)
                 axi_awvalid <= 1'b0;
-            // Both AW and W done → wait B
+            // Both AW and W done 鈫?wait B
             if ((M_AXI_AWREADY || !axi_awvalid) && (M_AXI_WREADY || !axi_awvalid)) begin
                 axi_awvalid <= 1'b0;
                 state       <= S_UNCACHE_B;
             end
         end
 
-        // ─────────────────────────────────────────
+        // 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
         // Uncacheable store: wait B response
-        // ─────────────────────────────────────────
+        // 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
         S_UNCACHE_B: begin
             if (M_AXI_BVALID && ~axi_bready) begin
                 axi_bready <= 1'b1;
@@ -544,9 +546,9 @@ always @(posedge clock or posedge reset) begin
             end
         end
 
-        // ─────────────────────────────────────────
+        // 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
         // S_STORE_FILL: store miss post-refill, write store data into cache
-        // ─────────────────────────────────────────
+        // 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
         S_STORE_FILL: begin
             // Cache data write happens in the cache data write block below
             done_reg <= 1'b1;
@@ -615,18 +617,18 @@ always @(posedge clock or posedge reset) begin
     else if (state == S_REFILL_R && M_AXI_RVALID && refill_rready && M_AXI_RLAST) begin
         // Refill done: validate line
         cache_valid[addr_index][victim_way_lat] <= 1'b1;
-        // Don't mark dirty here for store miss — that's done in S_STORE_FILL
+        // Don't mark dirty here for store miss 鈥?that's done in S_STORE_FILL
         `ifdef DCACHE_DEBUG
         $display("[DCACHE] FILL OK : set=%0d way=%0d tag=0x%0h dirty=%0d",
                  addr_index, victim_way_lat, addr_tag, !lat_is_load);
         `endif
     end
     else if (state == S_STORE_HIT) begin
-        // Store hit → mark dirty
+        // Store hit 鈫?mark dirty
         cache_dirty[addr_index][hit_way] <= 1'b1;
     end
     else if (state == S_STORE_FILL) begin
-        // Store miss post-refill → mark dirty
+        // Store miss post-refill 鈫?mark dirty
         cache_dirty[addr_index][victim_way_lat] <= 1'b1;
     end
 end
@@ -668,6 +670,7 @@ wire [31:0] raw_word = (state == S_CACHE_HIT)  ? hit_word :
                        (state == S_UNCACHE_R)   ? M_AXI_RDATA :
                        32'b0;
 wire [31:0] shifted_data = raw_word >> lat_shift8;
+wire [31:0] load_src     = lat_cacheable ? shifted_data : raw_word;
 wire [31:0] load_src     = lat_cacheable ? shifted_data : raw_word;
 
 always @(posedge clock or posedge reset) begin

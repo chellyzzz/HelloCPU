@@ -1,4 +1,4 @@
-module ysyx_23060124_ALU (
+module hcpu_ALU (
     input       signed [  31:0]         src1                       ,
     input       signed [  31:0]         src2                       ,
     input              [   9:0]         opt                        ,

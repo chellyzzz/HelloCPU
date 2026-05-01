@@ -1,4 +1,4 @@
-module ysyx_23060124_EXU(
+module hcpu_EXU(
     input                               clock                      ,
     input                               reset                      ,
     input              [  31:0]         i_src1                     ,
@@ -159,7 +159,7 @@ assign o_pc_next =    i_jal             ? i_pc    + i_imm :
                       i_mret            ? i_src1          : 
                       i_pc + 4;
 
-ysyx_23060124_ALU exu_alu(
+hcpu_ALU exu_alu(
     .src1                              (alu_src1                  ),
     .src2                              (alu_src2                  ),
     .opt                               (i_alu_opt                 ),
@@ -169,7 +169,7 @@ ysyx_23060124_ALU exu_alu(
 // ============================================================================
 // Multiplier (2-cycle)
 // ============================================================================
-ysyx_23060124_multiplier exu_mul(
+hcpu_multiplier exu_mul(
     .clock                             (clock                     ),
     .reset                             (reset                     ),
     .src1                              (i_src1                    ),
@@ -183,7 +183,7 @@ ysyx_23060124_multiplier exu_mul(
 // ============================================================================
 // Divider (16-cycle)
 // ============================================================================
-ysyx_23060124_divider exu_div(
+hcpu_divider exu_div(
     .clock                             (clock                     ),
     .reset                             (reset                     ),
     .src1                              (i_src1                    ),
@@ -197,7 +197,7 @@ ysyx_23060124_divider exu_div(
 // ============================================================================
 // LSU
 // ============================================================================
-ysyx_23060124_LSU exu_lsu(
+hcpu_LSU exu_lsu(
     .clock                             (clock                     ),
     .reset                             (reset                     ),
     .store_src                         (i_src2                    ),

@@ -1,5 +1,5 @@
 // ============================================================================
-// Radix-2 Non-Restoring Divider — 32 cycles
+// Radix-2 Non-Restoring Divider 鈥?32 cycles
 // Supports: DIV (func3=100), DIVU (101), REM (110), REMU (111)
 // 
 // Modular Architecture:
@@ -12,7 +12,7 @@
 // Submodule 1: Pre-processing Stage
 // Extracts signs, absolute values, and identifies special cases (e.g. div-by-0)
 // ----------------------------------------------------------------------------
-module ysyx_23060124_divider_pre (
+module hcpu_divider_pre (
     input  [31:0] src1,
     input  [31:0] src2,
     input  [1:0]  div_op,
@@ -44,7 +44,7 @@ endmodule
 // Submodule 2: Non-Restoring Next Remainder Calculation
 // Computes the new partial remainder and next quotient bit
 // ----------------------------------------------------------------------------
-module ysyx_23060124_divider_iter (
+module hcpu_divider_iter (
     input  [33:0] partial_rem,
     input  [31:0] partial_q,
     input  [33:0] divisor,
@@ -60,7 +60,7 @@ endmodule
 // Submodule 3: Post-processing Stage
 // Reconstructs result, corrects negative remainder, and applies signs
 // ----------------------------------------------------------------------------
-module ysyx_23060124_divider_post (
+module hcpu_divider_post (
     input  [31:0] raw_q,         // Final raw quotient
     input  [33:0] raw_rem,       // Final partial remainder
     input  [33:0] divisor,       // Normalized positive divisor
@@ -93,7 +93,7 @@ endmodule
 // Top Module: Non-Restoring Divider Core
 // Connects the FSM, iterative datapath, and modular stages
 // ============================================================================
-module ysyx_23060124_divider (
+module hcpu_divider (
     input         clock,
     input         reset,
     input  [31:0] src1,          // dividend
@@ -112,7 +112,7 @@ module ysyx_23060124_divider (
     wire        is_special;
     wire [31:0] special_q, special_r;
     
-    ysyx_23060124_divider_pre u_pre (
+    hcpu_divider_pre u_pre (
         .src1         (src1),
         .src2         (src2),
         .div_op       (div_op),
@@ -167,7 +167,7 @@ module ysyx_23060124_divider (
     wire [33:0] next_partial_rem;
     wire [31:0] next_quotient;
     
-    ysyx_23060124_divider_iter u_iter (
+    hcpu_divider_iter u_iter (
         .partial_rem(partial_rem),
         .partial_q  (quotient),
         .divisor    (divisor_reg),
@@ -219,7 +219,7 @@ module ysyx_23060124_divider (
     // ------------------------------------------------------------------------
     // Stage 5: Output Post-processing
     // ------------------------------------------------------------------------
-    ysyx_23060124_divider_post u_post (
+    hcpu_divider_post u_post (
         .raw_q       (quotient),
         .raw_rem     (partial_rem),
         .divisor     (divisor_reg),

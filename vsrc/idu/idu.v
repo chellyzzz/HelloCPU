@@ -1,5 +1,5 @@
 
-module ysyx_23060124_IDU (
+module hcpu_IDU (
     input                               clock                      ,
     input              [  31:0]         ins                        ,
     input                               reset                      ,

@@ -1,4 +1,4 @@
-module ysyx_23060124_WBU (
+module hcpu_WBU (
     input                               clock                      ,
     input                               reset                      ,
     input                               i_pre_valid                ,

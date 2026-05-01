@@ -1,4 +1,4 @@
-module ysyx_23060124_RegisterFile (
+module hcpu_RegisterFile (
     input                               clock                      ,
     input                               reset                      ,
     input              [  31:0]         wdata                      ,

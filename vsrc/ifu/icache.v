@@ -1,4 +1,4 @@
-module ysyx_23060124__icache #(
+module hcpu_icache #(
     parameter                           ADDR_WIDTH      = 32       ,
     parameter                           DATA_WIDTH      = 32       ,
     parameter                           SET_NUMS        = 4        ,// Number of cache sets
@@ -62,7 +62,7 @@ reg                  cache_valid [SET_NUMS-1:0][WAY_NUMS-1:0];
 //
 // plru[b]=0 means "left subtree is LRU (victim side)"
 // plru[s][0]=b0 (top), [1]=b1 (left child), [2]=b2 (right child)
-// Victim = { b0, b0 ? b2 : b1 }  → b0=0 picks left half, b0=1 picks right half
+// Victim = { b0, b0 ? b2 : b1 }  鈫?b0=0 picks left half, b0=1 picks right half
 // ============================================================
 
 reg [WAY_NUMS-2:0] plru [SET_NUMS-1:0]; // 3 bits per set
@@ -139,7 +139,7 @@ wire hit_way3 = cache_valid[hit_index][3] && (cache_tag[hit_index][3] == hit_tag
 
 assign hit = hit_way0 | hit_way1 | hit_way2 | hit_way3;
 
-// Which way hit? (one-hot → 2-bit encoding)
+// Which way hit? (one-hot 鈫?2-bit encoding)
 wire [1:0] hit_way_sel = hit_way0 ? 2'd0 :
                          hit_way1 ? 2'd1 :
                          hit_way2 ? 2'd2 : 2'd3;
@@ -156,7 +156,7 @@ assign data = hit_way0 ? cache_data[hit_index][0][hit_offset[OFFSET_BITS-1:2]] :
 // ============================================================
 wire [1:0] victim_way = {plru[index][0],
                          plru[index][0] ? plru[index][2] : plru[index][1]};
-// victim_way is COMBINATIONAL — only use it to determine the next victim.
+// victim_way is COMBINATIONAL 鈥?only use it to determine the next victim.
 // During a refill, always use victim_way_lat (latched at AR handshake).
 reg [1:0] victim_way_lat; // latched at AR handshake, stable for entire burst
 
@@ -174,11 +174,11 @@ end
 //     b[~w[1]]: already correct, update the leaf pointer
 //     b[w[1]+1] <= ~w[0]        (mid: point to opposite leaf)
 //
-//  plru stored as {b2, b1, b0} → index [2]=b2, [1]=b1, [0]=b0
-//   hit W0 (00): b0<=1, b1<=1 → {b2, 1, 1}
-//   hit W1 (01): b0<=1, b1<=0 → {b2, 0, 1}
-//   hit W2 (10): b0<=0, b2<=1 → {1, b1, 0}
-//   hit W3 (11): b0<=0, b2<=0 → {0, b1, 0}
+//  plru stored as {b2, b1, b0} 鈫?index [2]=b2, [1]=b1, [0]=b0
+//   hit W0 (00): b0<=1, b1<=1 鈫?{b2, 1, 1}
+//   hit W1 (01): b0<=1, b1<=0 鈫?{b2, 0, 1}
+//   hit W2 (10): b0<=0, b2<=1 鈫?{1, b1, 0}
+//   hit W3 (11): b0<=0, b2<=0 鈫?{0, b1, 0}
 // ============================================================
 always @(posedge clock or negedge rst_n_sync) begin
     integer s;
@@ -191,7 +191,7 @@ always @(posedge clock or negedge rst_n_sync) begin
             plru[s] <= 3'b0;
     end
     else if (M_AXI_RLAST && M_AXI_RVALID && axi_rready) begin
-        // Refill 完成，更新 victim way 的 PLRU (使用锁存值)
+        // Refill 瀹屾垚锛屾洿鏂?victim way 鐨?PLRU (浣跨敤閿佸瓨鍊?
         case (victim_way_lat)
             2'd0: plru[index] <= {plru[index][2], 1'b1, 1'b1};
             2'd1: plru[index] <= {plru[index][2], 1'b0, 1'b1};
@@ -200,7 +200,7 @@ always @(posedge clock or negedge rst_n_sync) begin
         endcase
     end
     else if (hit) begin
-        // Cache hit，更新 PLRU
+        // Cache hit锛屾洿鏂?PLRU
         case (hit_way_sel)
             2'd0: plru[hit_index] <= {plru[hit_index][2], 1'b1, 1'b1};
             2'd1: plru[hit_index] <= {plru[hit_index][2], 1'b0, 1'b1};
@@ -230,7 +230,7 @@ always @(posedge clock or negedge rst_n_sync) begin
         `endif
     end
     else if (M_AXI_ARVALID && M_AXI_ARREADY) begin
-        // AR 握手：写 tag，用组合 victim_way（将同时被锁存到 victim_way_lat）
+        // AR 鎻℃墜锛氬啓 tag锛岀敤缁勫悎 victim_way锛堝皢鍚屾椂琚攣瀛樺埌 victim_way_lat锛?
         cache_tag[index][victim_way]   <= tag;
         cache_valid[index][victim_way] <= 1'b0;
         `ifdef ICACHE_DEBUG
@@ -239,7 +239,7 @@ always @(posedge clock or negedge rst_n_sync) begin
         `endif
     end
     else if (M_AXI_RLAST && M_AXI_RVALID && axi_rready) begin
-        // RLAST：用锁存值 victim_way_lat，确保与 AR 握手时一致
+        // RLAST锛氱敤閿佸瓨鍊?victim_way_lat锛岀‘淇濅笌 AR 鎻℃墜鏃朵竴鑷?
         cache_valid[index][victim_way_lat] <= 1'b1;
         `ifdef ICACHE_DEBUG
         $display("[ICACHE] FILL OK: set=%0d way=%0d tag=0x%0h",
@@ -272,7 +272,7 @@ always @(posedge clock or negedge rst_n_sync) begin
 end
 
 // ============================================================
-// Read Address Channel — AR handshake
+// Read Address Channel 鈥?AR handshake
 // ============================================================
 always @(posedge clock or negedge rst_n_sync) begin
     if (~rst_n_sync) begin
@@ -290,14 +290,14 @@ always @(posedge clock or negedge rst_n_sync) begin
 end
 
 // ============================================================
-// Read Data Channel — R handshake
+// Read Data Channel 鈥?R handshake
 // ============================================================
 always @(posedge clock or negedge rst_n_sync) begin
     if (~rst_n_sync) begin
         axi_rready <= 1'b0;
     end
     else if (M_AXI_RVALID && ~axi_rready) begin
-        // 每拍数据到来时 assert 一个周期
+        // 姣忔媿鏁版嵁鍒版潵鏃?assert 涓€涓懆鏈?
         axi_rready <= 1'b1;
     end
     else if (axi_rready) begin

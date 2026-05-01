@@ -1,4 +1,4 @@
-module ysyx_23060124_Xbar(
+module hcpu_Xbar(
     input                               clock                      ,
     input                               RESETN                      ,
     // IFU AXI-FULL Interface
