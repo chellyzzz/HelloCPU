@@ -233,5 +233,5 @@ module hcpu_divider (
     );
     
     assign div_done = (state == S_DONE);
-    
+
 endmodule

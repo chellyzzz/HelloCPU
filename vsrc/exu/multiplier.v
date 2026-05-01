@@ -1,6 +1,5 @@
 // ============================================================================
-// Simple Correct Multiplier — 2-cycle pipeline using Verilog * operator
-// Supports: MUL (func3=000), MULH (001), MULHSU (010), MULHU (011)
+// Booth-2 Sign Handling + Verilog * Core Multiplier — 2-cycle pipeline
 // ============================================================================
 module hcpu_multiplier (
     input                               clock                      ,
@@ -13,52 +12,54 @@ module hcpu_multiplier (
     output                              mul_done                    
 );
 
-// Signed and unsigned 64-bit products
-wire signed [63:0] s_product;
-wire        [63:0] u_product;
+// ============================================================================
+// Sign handling (identical to original Booth-2 design)
+// ============================================================================
+wire src1_neg = (~mul_op[1] | ~mul_op[0]) & src1[31];
+wire src2_neg = ~mul_op[1] & ~mul_op[0] & src2[31] |
+                ~mul_op[1] &  mul_op[0] & src2[31];
+wire src2_is_signed = ~mul_op[1];
 
-assign s_product = $signed(src1) * $signed(src2);
-assign u_product = src1 * src2;
+wire [31:0] abs_a = src1_neg ? (~src1 + 1'b1) : src1;
+wire [31:0] abs_b = (src2_is_signed & src2[31]) ? (~src2 + 1'b1) : src2;
+wire result_neg = src1_neg ^ (src2_is_signed & src2[31]);
 
-// For MULHSU: signed src1 * unsigned src2
-wire signed [63:0] su_product;
-assign su_product = $signed(src1) * $unsigned(src2);
+// ============================================================================
+// Core multiply: use Verilog * for absolute values (always correct)
+// ============================================================================
+wire [63:0] unsigned_product_64;
+assign unsigned_product_64 = {32'd0, abs_a} * {32'd0, abs_b};
 
-// Result mux
-wire [63:0] result_64;
-assign result_64 = (mul_op == 2'b00) ? s_product                 :  // MUL:    signed × signed, low 32
-                   (mul_op == 2'b01) ? s_product                 :  // MULH:   signed × signed, high 32
-                   (mul_op == 2'b10) ? su_product                :  // MULHSU: signed × unsigned, high 32
-                                       u_product;                   // MULHU:  unsigned × unsigned, high 32
-
-// Result selection: MUL returns low 32, all others return high 32
-wire [31:0] next_result;
-assign next_result = (mul_op == 2'b00) ? result_64[31:0] : result_64[63:32];
-
+// ============================================================================
 // Pipeline register
-reg [31:0] pipe_result;
-reg        pipe_valid;
+// ============================================================================
+reg [63:0] pipe_prod;
 reg [1:0]  pipe_op;
-reg [31:0] pipe_src1;
-reg [31:0] pipe_src2;
+reg        pipe_valid;
+reg        pipe_neg;
 
 always @(posedge clock or posedge reset) begin
-    if (reset) begin
-        pipe_result <= 32'b0;
-        pipe_valid  <= 1'b0;
-        pipe_op     <= 2'b0;
-        pipe_src1   <= 32'b0;
-        pipe_src2   <= 32'b0;
-    end else begin
-        pipe_result <= next_result;
-        pipe_valid  <= mul_valid;
-        pipe_op     <= mul_op;
-        pipe_src1   <= src1;
-        pipe_src2   <= src2;
-    end
+  if (reset) begin
+    pipe_prod  <= 64'b0;
+    pipe_op    <= 2'b0;
+    pipe_valid <= 1'b0;
+    pipe_neg   <= 1'b0;
+  end else begin
+    pipe_prod  <= unsigned_product_64;
+    pipe_op    <= mul_op;
+    pipe_valid <= mul_valid;
+    pipe_neg   <= result_neg;
+  end
 end
 
-assign mul_result = pipe_result;
-assign mul_done   = pipe_valid;
+// ============================================================================
+// Cycle 2: sign correction + result selection
+// ============================================================================
+wire [63:0] signed_product = pipe_neg ? (~pipe_prod + 1'b1) : pipe_prod;
+
+assign mul_result = (pipe_op == 2'b00) ? signed_product[31:0] :
+                                           signed_product[63:32];
+
+assign mul_done = pipe_valid;
 
 endmodule
