@@ -281,6 +281,11 @@ assign mul_result = (pipe_op == 2'b00) ? signed_product[31:0] :  // MUL: low 32
 
 assign mul_done = pipe_valid;
 
+always @(posedge clock) begin
+  if (pipe_valid)
+    $display("[MUL] op=%b neg=%b result=%d (0x%x) uprod=%x sprod=%x", pipe_op, pipe_neg, mul_result, mul_result, unsigned_product, signed_product);
+end
+
 // ============================================================================
 // Debug display (disabled)
 // ============================================================================

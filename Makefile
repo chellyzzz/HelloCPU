@@ -23,7 +23,7 @@ VERILATOR_FLAGS += --timescale "1ns/1ns" --no-timing
 VERILATOR_FLAGS += -j 8
 
 # Tests
-TESTS := $(basename $(notdir $(wildcard $(SW_DIR)/tests/*.c)))
+TESTS := $(basename $(notdir $(wildcard $(SW_DIR)/tests/cpu-tests/*.c)))
 
 # === Targets ===
 
