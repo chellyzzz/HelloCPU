@@ -1,0 +1,5 @@
+build/
+wave.vcd
+*.o
+*.d
+*.a
