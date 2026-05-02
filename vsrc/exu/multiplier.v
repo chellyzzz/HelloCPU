@@ -1,5 +1,6 @@
 // ============================================================================
 // Booth-2 Sign Handling + Verilog * Core Multiplier — 2-cycle pipeline
+// Fixed: mul_done is 1-cycle pulse, not level signal
 // ============================================================================
 module hcpu_multiplier (
     input                               clock                      ,
@@ -31,12 +32,13 @@ wire [63:0] unsigned_product_64;
 assign unsigned_product_64 = {32'd0, abs_a} * {32'd0, abs_b};
 
 // ============================================================================
-// Pipeline register
+// Pipeline register — with mul_busy for proper 1-cycle pulse on mul_done
 // ============================================================================
 reg [63:0] pipe_prod;
 reg [1:0]  pipe_op;
 reg        pipe_valid;
 reg        pipe_neg;
+reg        mul_busy;
 
 always @(posedge clock or posedge reset) begin
   if (reset) begin
@@ -44,11 +46,25 @@ always @(posedge clock or posedge reset) begin
     pipe_op    <= 2'b0;
     pipe_valid <= 1'b0;
     pipe_neg   <= 1'b0;
+    mul_busy   <= 1'b0;
   end else begin
     pipe_prod  <= unsigned_product_64;
     pipe_op    <= mul_op;
-    pipe_valid <= mul_valid;
     pipe_neg   <= result_neg;
+    
+    if (mul_valid && !mul_busy) begin
+      // First cycle: start computing
+      mul_busy   <= 1'b1;
+      pipe_valid <= 1'b0;
+    end else if (mul_busy) begin
+      // Second cycle: result ready — 1-cycle pulse
+      mul_busy   <= 1'b0;
+      pipe_valid <= 1'b1;
+    end else begin
+      // Idle
+      mul_busy   <= 1'b0;
+      pipe_valid <= 1'b0;
+    end
   end
 end
 
