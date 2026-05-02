@@ -45,6 +45,8 @@ HelloCPU/
 | **仿真引擎** | Verilator 5.008 |
 | **交叉编译** | riscv64-linux-gnu-gcc |
 | **AXI RAM** | DPI-C 访问 C++ 内存数组 |
+| **CSR** | mstatus, mepc, mtvec, mcause, mvendorid, marchid, **mcycle** |
+| **基准测试** | CoreMark 0.510 CoreMark/MHz |
 | **乘法器** | Booth-2 符号处理 + Verilog `*` 核心，2 周期流水线 |
 | **除法器** | Radix-2 Non-Restoring, 34 周期 |
 
@@ -160,8 +162,12 @@ HelloCPU/
 | `vsrc/idu/idu.v` | 译码单元 | ✅ 逻辑重构，命名规范化 |
 | `vsrc/ifu/ifu.v` | 取指单元 | - |
 | `vsrc/wbu/wbu.v` | 写回单元 | - |
+| `vsrc/Registers/Csrs.v` | CSR 寄存器 | ✅ mcycle 计数器 |
+| `vsrc/include/Xbar.v` | AXI 交叉开关 | - |
 | `sim/sim_top.v` | 仿真顶层 | - |
 | `sim/sim_main.cpp` | Verilator 主程序 | - |
+| `sw/benchmark/coremark/` | CoreMark 基准测试 | ✅ 移植完成 |
+| `sw/link.ld` | 链接脚本 | ✅ flash→dram |
 
 ---
 
@@ -206,4 +212,5 @@ gtkwave wave.vcd             # 查看波形
 | 2026-05-01 | 消除 ysyx-workbench 符号链接依赖 | 35/37 |
 | 2026-05-02 | 模块命名规范化 (ysyx_23060124 → hcpu) | 37/37 |
 | 2026-05-02 | 测试重组为 cpu-tests/，引入 CoreMark benchmark | 37/37 |
-| 2026-05-02 | **IDU 解码逻辑重构** — func3 命名、源选择简化 | 37/37 |
+| 2026-05-02 | **CoreMark 移植** — mcycle CSR, UART printf, 0.510 CoreMark/MHz | 37/37 |
+| 2026-05-02 | link.ld 内存命名 flash → dram | 37/37 |
