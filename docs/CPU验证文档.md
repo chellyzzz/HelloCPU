@@ -1,10 +1,45 @@
 # HelloCPU 验证文档
 
-> 最后更新: 2026-05-02 | 状态: **37/37 全部通过 (100%)**
+> 最后更新: 2026-05-02 | 状态: **37/37 全部通过 (100%)** | 性能计数器: ✅
+
+### 性能计数器
+
+CPU 内置一套可选的性能计数器系统，通过 DPI-C 导出至仿真环境，运行结束时自动打印详细分析报告。
+
+**宏开关控制** (`vsrc/include/perf_counters.vh`)：
+
+```
+`define PERF_COUNTERS      ← 总开关（注释掉即禁用所有计数器）
+ ├─ `define PERF_INST_MIX  ← 指令类型细分
+ ├─ `define PERF_STALL     ← 流水线停顿统计
+ ├─ `define PERF_CACHE     ← ICache 命中/缺失
+ └─ `define PERF_BUS       ← AXI 总线事务计数
+```
+
+**计数器统计内容**：
+
+| 类别 | 计数项 | 说明 |
+|------|--------|------|
+| 指令执行 | inst_cnt | 总提交指令数 (IPC = inst/cycle) |
+| 指令混合 | alu/brch/jal/load/store/mul/div/csr/sys/fence | 各类型指令占比 |
+| 流水线 | stall_cnt | 无指令提交的周期数 |
+| ICache | hit/miss, hit rate | 指令缓存命中率 |
+| AXI 总线 | IFU fetch, load/store xact | 总线事务数量 |
+
+**输出示例** (add 测试)：
+```
+Total cycles         :         2426
+Total instructions   :          833 (IPC = 0.343)
+Stall cycles         :         1594 (65.7%)
+ALU ops              :        490 ( 58.8%)
+Branches             :        134 ( 16.1%)
+ICache hit rate      :       99.1%
+IFU fetches          :         20 / done: 20
+```
+
+**禁用方法**：注释 `vsrc/include/perf_counters.vh` 中的 `define PERF_COUNTERS`，重新 `make sim`。计数器全部编译为空洞，零仿真开销。
 
 ---
-
-## 一、项目概述
 
 **HelloCPU** 是一个自研 RISC-V 处理器（RV32IM）的 Verilator 仿真验证环境。
 
@@ -318,18 +353,20 @@ HelloCPU/
 
 | 文件 | 说明 | 修改 |
 |------|------|------|
-| `vsrc/top/hcpu.v` | CPU 顶层 | ✅ exu_post_valid 连接 |
+| `vsrc/top/hcpu.v` | CPU 顶层 | ✅ 性能计数器 `always` 块 + exu_post_valid 连接 |
 | `vsrc/exu/lsu.v` | 加载存储单元 | ✅ non-cacheable 移位 |
 | `vsrc/exu/multiplier.v` | Booth-2 + Wallace Tree 乘法器 | ✅ MUL符号+MULHSU+mul_done脉冲+全符号扩展 |
 | `vsrc/Registers/RegisterFile.v` | 寄存器堆 | ✅ exu_post_valid 门控 |
 | `vsrc/idu/idu.v` | 译码单元 | ✅ 逻辑重构，命名规范化 |
 | `vsrc/Registers/Csrs.v` | CSR 寄存器 | ✅ mcycle 计数器 |
+| `vsrc/exu/exu_wbu_regs.v` | EXU→WBU 管线寄存器 | ✅ 新增指令类型传递 (load/store/muldiv/fence_i/is_brch/is_div) |
+| `vsrc/include/perf_counters.vh` | 性能计数器宏开关 | ✅ 新建 |
 | `vsrc/exu/divider.v` | 除法器 (34 周期) | - |
 | `vsrc/exu/alu.v` | ALU | - |
 | `vsrc/exu/exu.v` | 执行单元顶层 | - |
 | `vsrc/ifu/ifu.v` | 取指单元 | - |
 | `vsrc/wbu/wbu.v` | 写回单元 | - |
-| `sim/sim_main.cpp` | Verilator 主程序 | - |
+| `sim/sim_main.cpp` | Verilator 主程序 | ✅ 计数器实现 + 性能摘要打印 |
 | `sim/axi_ram.v` | AXI RAM 模型 | - |
 
 ---
@@ -362,3 +399,4 @@ gtkwave wave.vcd             # 查看波形
 | 2026-05-01 | LSU 移位修复 (+6) + 乘法器 MUL 符号 (+1) + exu_post_valid | 92% |
 | 2026-05-01 | 消除 ysyx-workbench 符号链接依赖；mul_done 脉冲修复 (+2) | 100% |
 | 2026-05-02 | Booth-2 全符号扩展替代 sign extension prevention | 100% |
+| 2026-05-02 | 新增性能计数器系统（宏开关 + DPI-C + 自动摘要） | 100% |
