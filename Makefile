@@ -63,6 +63,12 @@ run: sim sw
 	@$(BUILD_DIR)/V$(TOPNAME) $(SW_DIR)/build/$(ALL).bin
 endif
 
+# Run benchmark
+bench: sim sw
+	$(MAKE) -C $(SW_DIR) benchmark
+	@echo "=== CoreMark ==="
+	@$(BUILD_DIR)/V$(TOPNAME) $(SW_DIR)/build/coremark.bin
+
 # Wave for debugging
 wave:
 	gtkwave wave.vcd

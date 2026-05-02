@@ -1,20 +1,20 @@
 ENTRY(_start)
 
 MEMORY {
-    flash : ORIGIN = 0x30000000, LENGTH = 64M
+    dram : ORIGIN = 0x30000000, LENGTH = 64M
 }
 
 SECTIONS {
-    . = ORIGIN(flash);
+    . = ORIGIN(dram);
 
     .text : {
         *(.entry)
         *(.text*)
-    } > flash
+    } > dram
 
-    .rodata : { *(.rodata*) } > flash
-    .data   : { *(.data*) }   > flash
-    .bss    : { *(.bss*) *(COMMON) } > flash
+    .rodata : { *(.rodata*) } > dram
+    .data   : { *(.data*) }   > dram
+    .bss    : { *(.bss*) *(COMMON) } > dram
 
     . = ALIGN(16);
     _stack_top = . + 0x8000;
