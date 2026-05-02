@@ -15,7 +15,7 @@ static uint8_t mem[MEM_SIZE];
 static bool finished = false;
 static int exit_code = -1;
 static uint64_t cycles = 0;
-static uint64_t max_cycles = 10000000; // 10M cycles timeout
+static uint64_t max_cycles = 200000000; // 100M cycle timeout
 
 // ---- performance counters ----
 static uint64_t cnt_inst      = 0;

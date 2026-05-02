@@ -419,4 +419,35 @@ gtkwave wave.vcd             # 查看波形
 | 2026-05-02 | Booth-2 全符号扩展替代 sign extension prevention | 100% |
 | 2026-05-02 | DCache: 修正 cacheable 范围 (0xA000→0x3000)，修复 refill 期间 load_res 覆盖、删除重复声明 | 100% |
 | 2026-05-02 | ICache/DCache 容量 256B→4KB (SET_NUMS 4→64)；CoreMark ITER 可配置 | 100% |
+| 2026-05-02 | 性能计数器启用 (PERF_COUNTERS/INST_MIX/STALL/BUS/CACHE)；bus 计数器 double-count 修复 | 100% |
+
+---
+
+## 十一、性能计数器
+
+### 概述
+
+hwcpu 内置完整的 DPI-C 性能计数器，编译时通过 Verilator `+define+PERF_*` 控制：
+
+| 宏 | 控制范围 |
+|-----|---------|
+| `PERF_COUNTERS` | 总开关 |
+| `PERF_INST_MIX` | IPC + 指令分类 (ALU/Branch/Load/Store/Mul/Div/CSR/Sys/Fence) |
+| `PERF_STALL` | 流水线停顿周期计数 |
+| `PERF_BUS` | AXI 总线事务 (读/写 start & end) |
+| `PERF_CACHE` | ICache hit/miss + IFU fetch/done |
+
+计数器通过 DPI-C 从 RTL 传递到 `sim_main.cpp` 中的 static 变量，仿真结束后 `print_perf_summary()` 自动打印性能汇总。
+
+### CoreMark 实测 (ITER=100)
+
+| 指标 | 数值 |
+|------|------|
+| IPC | 0.484 |
+| Stall rate | 51.6% |
+| ICache hit rate | 99.9% |
+| Load refills (DCache miss) | 209 |
+| Dirty writebacks | ~150 |
+
+详见 `CoreMark跑分记录.md` 第三节。
 | 2026-05-02 | 新增性能计数器系统（宏开关 + DPI-C + 自动摘要） | 100% |

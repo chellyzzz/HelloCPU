@@ -21,6 +21,11 @@ VERILATOR_FLAGS += -O3 --x-assign fast --x-initial fast
 VERILATOR_FLAGS += -Wno-fatal -Wno-style
 VERILATOR_FLAGS += --timescale "1ns/1ns" --no-timing
 VERILATOR_FLAGS += -j 8
+VERILATOR_FLAGS += "+define+PERF_COUNTERS"
+VERILATOR_FLAGS += "+define+PERF_INST_MIX"
+VERILATOR_FLAGS += "+define+PERF_STALL"
+VERILATOR_FLAGS += "+define+PERF_BUS"
+VERILATOR_FLAGS += "+define+PERF_CACHE"
 
 # Tests
 TESTS := $(basename $(notdir $(wildcard $(SW_DIR)/tests/cpu-tests/*.c)))

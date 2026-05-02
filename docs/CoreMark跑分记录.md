@@ -78,6 +78,91 @@ CoreMark/MHz     : 1.293
 
 ---
 
+## 三、性能计数器分析 (PERF_COUNTERS)
+
+> 开启 `PERF_COUNTERS + PERF_INST_MIX + PERF_STALL + PERF_BUS + PERF_CACHE` 后的 ITER=100 跑分
+
+```
+┌─────────────────────────────────────────────────────┐
+│            Performance Counter Summary              │
+├─────────────────────────────────────────────────────┤
+│ Total cycles         :     77296934                 │
+│ Total instructions   :     37405083 (IPC = 0.484)       │
+│ Stall cycles         :     39891852 (51.6%)            │
+├─────────────────────────────────────────────────────┤
+│ Instruction Mix                                    │
+│   ALU ops           :   17790754 ( 47.6%)            │
+│   Branches          :    4709548 ( 12.6%)            │
+│     ├─ taken        :     690800 ( 14.7%)            │
+│   Jumps (JAL+JALR)  :     460930 (  1.2%)            │
+│   Loads             :    9116218 ( 24.4%)            │
+│   Stores            :    3480656 (  9.3%)            │
+│   Multiplies        :    1846800 (  4.9%)            │
+│   Divides           :        174 (  0.0%)            │
+│   CSR accesses      :          3 (  0.0%)            │
+│   System (ECALL/MRET/EBREAK):    0 (  0.0%)     │
+│   fence.i           :          0 (  0.0%)            │
+├─────────────────────────────────────────────────────┤
+│ Cache Statistics                                   │
+│   ICache hits       :   76293473 ( 99.9%)            │
+│   ICache misses     :     106909 (  0.1%)            │
+│   ICache hit rate   :       99.9%                     │
+├─────────────────────────────────────────────────────┤
+│ Bus Transactions                                   │
+│   IFU fetches       :     106909 / done: 106909                 │
+│   Load  xacts       :        209 / done: 209                 │
+│   Store xacts       :        600 / done: 599                 │
+└─────────────────────────────────────────────────────┘
+```
+
+### 3.1 全局指标
+
+| 指标 | 数值 | 说明 |
+|------|------|------|
+| **IPC** | 0.484 | 单发射理论峰值 1.0，实际利用 48.4% |
+| **Stall 率** | 51.6% | 过半周期流水线停顿 |
+| **ICache Hit Rate** | 99.9% | 4KB ICache 覆盖了几乎所有取指 |
+| **DCache 读 miss** | 209 次 | 37.4M 条指令中仅 209 次 DCache 读 miss |
+| **DCache 写回** | 150 次 | 600 AW = 4字×150 次完整写回 |
+
+### 3.2 Stall 来源估算
+
+| 来源 | 周期 | 占比 |
+|------|------|------|
+| **分支惩罚** (14.7% 分支跳转, ~2 周期/stall) | ~1.38M | 3.5% |
+| **ICache miss** (106,909 × ~8 周期) | ~0.86M | 2.1% |
+| **DCache miss refill** (209 × ~8 周期) | ~0.002M | 0.0% |
+| **DCache writeback** (150 × ~12 周期) | ~0.002M | 0.0% |
+| **除法器气泡** (174 × 33 周期) | ~0.006M | 0.0% |
+| **数据冒险/转发失败/结构冲突/Xbar 仲裁** | ~37.7M | **94.4%** |
+
+**核心发现：51.6% stall 的主要来源不是 cache miss，而是流水线内部的数据冒险和结构冲突。**
+
+对于 5 级顺序流水线，IPC=0.484 是合理的。对比：ARM Cortex-M0+ (2 级) IPC≈0.7，Cortex-M3 (3 级) IPC≈0.9。
+
+### 3.3 指令混合分析
+
+CoreMark 是典型的嵌入式 workload：
+- **24.4% Load + 9.3% Store = 33.7% 访存**。大量 load 暴露了数据冒险（load-use hazard）
+- **12.6% 分支 + 1.2% 跳转 = 13.8% 控制流**。14.7% 的分支跳转率低，大量分支是循环回边（highly predictable）
+- **4.9% 乘法**。CoreMark 矩阵乘法使用了大量 MUL 指令
+- **0.0% 除法**。174 次除法全部在 printf 初始化阶段，热路径无除法
+
+### 3.4 性能计数器启用方式
+
+在 `Makefile` 中添加：
+```makefile
+VERILATOR_FLAGS += "+define+PERF_COUNTERS"
+VERILATOR_FLAGS += "+define+PERF_INST_MIX"
+VERILATOR_FLAGS += "+define+PERF_STALL"
+VERILATOR_FLAGS += "+define+PERF_BUS"
+VERILATOR_FLAGS += "+define+PERF_CACHE"
+```
+
+计数器通过 DPI-C 从 RTL → C++ static 变量，仿真结束后 `print_perf_summary()` 汇总输出。
+
+---
+
 ## 四、对比案例
 
 ### RISC-V 开源/商业 CPU

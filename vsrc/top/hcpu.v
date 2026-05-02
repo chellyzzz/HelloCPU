@@ -767,13 +767,6 @@ end
 `ifdef PERF_BUS
 always @(posedge clock) begin
   if (!reset) begin
-    if (LSU_SRAM_AXI_ARVALID && LSU_SRAM_AXI_ARREADY) load_cnt_dpic();
-    if (LSU_SRAM_AXI_AWVALID && LSU_SRAM_AXI_AWREADY) store_cnt_dpic();
-  end
-end
-
-always @(posedge clock) begin
-  if (!reset) begin
     if (LSU_SRAM_AXI_ARVALID && LSU_SRAM_AXI_ARREADY)    load_start();
     if (LSU_SRAM_AXI_RVALID && LSU_SRAM_AXI_RREADY && LSU_SRAM_AXI_RLAST) load_end();
     if (LSU_SRAM_AXI_AWVALID && LSU_SRAM_AXI_AWREADY)   store_start();
