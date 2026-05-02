@@ -312,6 +312,24 @@ HelloCPU/
 
 **修复**: 放弃 sign extension prevention 技巧，改为标准全符号扩展 `{{34{pp_val[32]}}, pp_val[31:0]}`。保留 neg_correction 和 Wallace Tree CSA 树。
 
+### Bug 6: DCache 从未被触发 — cacheable 范围与内存不匹配 (`vsrc/exu/lsu.v`)
+
+**根因**: `CACHE_START=0xA0000000`，但程序内存基址为 `0x30000000`，所有访存走 uncacheable 路径。
+
+**修复**: `CACHE_START` 改为 `0x30000000`，`CACHE_END` 改为 `0x40000000`。
+
+### Bug 7: DCache refill 期间 load_res 被覆盖 (`vsrc/exu/lsu.v`)
+
+**根因**: `state == S_REFILL_R` 条件在 refill 的每一拍都更新 `load_res`，导致数据被非目标 word 的 stale cache 数据覆盖。
+
+**修复**: 改为 `refill_hit_word` 仅在目标 word 到达的拍更新 `load_res`。
+
+### Bug 8: ICache/DCache 容量过小导致极度 thrashing
+
+**根因**: 256B (16 条缓存行) 无法容纳 CoreMark 15KB .text 或测试程序的数据工作集，IPC 跌至 ~0.0005。
+
+**修复**: ICache/DCache 的 SET_NUMS 从 4 增加到 64 (256B→4KB)，CoreMark/MHz 从 0.66 提升到 1.29。
+
 ---
 
 ## 七、关键源文件
@@ -362,3 +380,5 @@ gtkwave wave.vcd             # 查看波形
 | 2026-05-01 | LSU 移位修复 (+6) + 乘法器 MUL 符号 (+1) + exu_post_valid | 92% |
 | 2026-05-01 | 消除 ysyx-workbench 符号链接依赖；mul_done 脉冲修复 (+2) | 100% |
 | 2026-05-02 | Booth-2 全符号扩展替代 sign extension prevention | 100% |
+| 2026-05-02 | DCache: 修正 cacheable 范围 (0xA000→0x3000)，修复 refill 期间 load_res 覆盖、删除重复声明 | 100% |
+| 2026-05-02 | ICache/DCache 容量 256B→4KB (SET_NUMS 4→64)；CoreMark ITER 可配置 | 100% |

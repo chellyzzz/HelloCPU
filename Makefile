@@ -64,15 +64,20 @@ run: sim sw
 endif
 
 # Run benchmark
+#   make bench               → ITERATIONS=1 (quick functional check)
+#   make bench ITER=100       → standard performance run
+#   make bench_only ITER=200   → without rebuilding all tests
+ITER ?= 1
+
 bench: sim sw
-	$(MAKE) -C $(SW_DIR) benchmark
-	@echo "=== CoreMark ==="
+	$(MAKE) -C $(SW_DIR) benchmark ITER=$(ITER)
+	@echo "=== CoreMark (ITER=$(ITER)) ==="
 	@$(BUILD_DIR)/V$(TOPNAME) $(SW_DIR)/build/coremark.bin
 
 # Run benchmark without rebuilding all tests
 bench_only: sim
-	$(MAKE) -C $(SW_DIR) benchmark
-	@echo "=== CoreMark ==="
+	$(MAKE) -C $(SW_DIR) benchmark ITER=$(ITER)
+	@echo "=== CoreMark (ITER=$(ITER)) ==="
 	@$(BUILD_DIR)/V$(TOPNAME) $(SW_DIR)/build/coremark.bin
 
 # Wave for debugging

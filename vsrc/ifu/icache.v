@@ -1,7 +1,7 @@
 module hcpu_icache #(
     parameter                           ADDR_WIDTH      = 32       ,
     parameter                           DATA_WIDTH      = 32       ,
-    parameter                           SET_NUMS        = 4        ,// Number of cache sets
+    parameter                           SET_NUMS        = 64       ,// Number of cache sets
     parameter                           WAY_NUMS        = 4        ,// Number of ways (associativity)
     parameter                           WORDS_PER_BLOCK = 4         // Number of 32-bit words per block (16 bytes)
 )

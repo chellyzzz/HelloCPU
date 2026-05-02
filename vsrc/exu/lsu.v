@@ -1,11 +1,11 @@
 module hcpu_LSU #(
     parameter ADDR_WIDTH      = 32,
     parameter DATA_WIDTH      = 32,
-    parameter SET_NUMS        = 4,
+    parameter SET_NUMS        = 64,
     parameter WAY_NUMS        = 4,
     parameter WORDS_PER_BLOCK = 4,
-    parameter CACHE_START     = 32'ha0000000,
-    parameter CACHE_END       = 32'hc0000000
+    parameter CACHE_START     = 32'h30000000,
+    parameter CACHE_END       = 32'h40000000
 )(
     input                               clock                      ,
     input                               reset                      ,
@@ -203,8 +203,6 @@ wire [3:0] wstrb_base = (lat_exu_opt == SB) ? 4'b0001 :
                        (lat_exu_opt == SW) ? 4'b1111 : 4'b0000;
 wire [3:0] wstrb_shifted = wstrb_base << lat_shift;
 wire [31:0] wdata_shifted = lat_store_src << lat_shift8;
-wire [3:0] eff_wstrb = lat_cacheable ? wstrb_shifted : wstrb_base;
-wire [31:0] eff_wdata = lat_cacheable ? wdata_shifted : lat_store_src;
 wire [3:0] eff_wstrb = lat_cacheable ? wstrb_shifted : wstrb_base;
 wire [31:0] eff_wdata = lat_cacheable ? wdata_shifted : lat_store_src;
 
@@ -671,14 +669,13 @@ wire [31:0] raw_word = (state == S_CACHE_HIT)  ? hit_word :
                        32'b0;
 wire [31:0] shifted_data = raw_word >> lat_shift8;
 wire [31:0] load_src     = lat_cacheable ? shifted_data : raw_word;
-wire [31:0] load_src     = lat_cacheable ? shifted_data : raw_word;
 
 always @(posedge clock or posedge reset) begin
   if (reset) begin
     load_res <= 32'b0;
   end
   else begin
-    if (state == S_CACHE_HIT || state == S_REFILL_R || (state == S_UNCACHE_R && M_AXI_RVALID)) begin
+    if (state == S_CACHE_HIT || refill_hit_word || (state == S_UNCACHE_R && M_AXI_RVALID)) begin
       case (lat_exu_opt)
           LB:      load_res <= {{24{load_src[7]}},  load_src[7:0]};
           LH:      load_res <= {{16{load_src[15]}}, load_src[15:0]};
