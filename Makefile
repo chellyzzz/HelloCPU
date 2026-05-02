@@ -27,7 +27,7 @@ TESTS := $(basename $(notdir $(wildcard $(SW_DIR)/tests/cpu-tests/*.c)))
 
 # === Targets ===
 
-.PHONY: all sim sw clean run_% run_all
+.PHONY: all sim sw clean run_% run_all bench bench_only
 
 all: sim sw
 
@@ -65,6 +65,12 @@ endif
 
 # Run benchmark
 bench: sim sw
+	$(MAKE) -C $(SW_DIR) benchmark
+	@echo "=== CoreMark ==="
+	@$(BUILD_DIR)/V$(TOPNAME) $(SW_DIR)/build/coremark.bin
+
+# Run benchmark without rebuilding all tests
+bench_only: sim
 	$(MAKE) -C $(SW_DIR) benchmark
 	@echo "=== CoreMark ==="
 	@$(BUILD_DIR)/V$(TOPNAME) $(SW_DIR)/build/coremark.bin
