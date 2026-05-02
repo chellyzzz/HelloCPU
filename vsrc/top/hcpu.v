@@ -1,3 +1,5 @@
+`include "perf_counters.vh"
+
 module hcpu
 (
     input                               clock                        ,
@@ -444,7 +446,42 @@ wire                                    exu2wbu_mret               ;
 wire                                    exu2wbu_ecall              ;
 wire                   [  31:0]         exu2wbu_res                ;
 wire                                    exu2wbu_ebreak             ;
+wire                                    exu2wbu_load               ;
+wire                                    exu2wbu_store              ;
+wire                                    exu2wbu_muldiv             ;
+wire                                    exu2wbu_fence_i            ;
+wire                                    exu2wbu_is_brch            ;
+wire                                    exu2wbu_is_div             ;
 // wire                                    exu2wbu_next               ;
+
+// ===========================================================================
+// Delay idu2exu instruction-type signals by 1 cycle to align with EXU latency
+// These delayed versions are used ONLY for perf counter accuracy.
+// ===========================================================================
+reg  idu2exu_load_d;
+reg  idu2exu_store_d;
+reg  idu2exu_muldiv_d;
+reg  idu2exu_fence_i_d;
+reg  idu2exu_brch_d;
+reg  idu2exu_is_div_d;
+
+always @(posedge clock or posedge reset) begin
+  if (reset) begin
+    idu2exu_load_d    <= 1'b0;
+    idu2exu_store_d   <= 1'b0;
+    idu2exu_muldiv_d  <= 1'b0;
+    idu2exu_fence_i_d <= 1'b0;
+    idu2exu_brch_d    <= 1'b0;
+    idu2exu_is_div_d  <= 1'b0;
+  end else begin
+    idu2exu_load_d    <= idu2exu_load;
+    idu2exu_store_d   <= idu2exu_store;
+    idu2exu_muldiv_d  <= idu2exu_muldiv;
+    idu2exu_fence_i_d <= idu2exu_fence_i;
+    idu2exu_brch_d    <= idu2exu_brch;
+    idu2exu_is_div_d  <= idu2exu_muldiv && idu2exu_exu_opt[2];
+  end
+end
 
 hcpu_exu_wbu_regs exu_wbu_regs (
     .clock                             (clock                     ),
@@ -458,6 +495,12 @@ hcpu_exu_wbu_regs exu_wbu_regs (
     .i_ebreak                          (idu2exu_ebreak            ),
     .i_mret                            (idu2exu_mret              ),
     .i_ecall                           (idu2exu_ecall             ),
+    .i_load                            (idu2exu_load_d            ),
+    .i_store                           (idu2exu_store_d           ),
+    .i_muldiv                          (idu2exu_muldiv_d          ),
+    .i_fence_i                         (idu2exu_fence_i_d         ),
+    .i_is_brch                         (idu2exu_brch_d            ),
+    .i_is_div                          (idu2exu_is_div_d          ),
     .i_res                             (exu_res                   ),
     .i_pc_next                         (exu_pc_next               ),
     .i_csr_addr                        (idu2exu_csr_addr          ),
@@ -475,6 +518,12 @@ hcpu_exu_wbu_regs exu_wbu_regs (
     .o_ecall                           (exu2wbu_ecall             ),
     .o_res                             (exu2wbu_res               ),
     .o_ebreak                          (exu2wbu_ebreak            ),
+    .o_load                            (exu2wbu_load              ),
+    .o_store                           (exu2wbu_store             ),
+    .o_muldiv                          (exu2wbu_muldiv            ),
+    .o_fence_i                         (exu2wbu_fence_i           ),
+    .o_is_brch                         (exu2wbu_is_brch           ),
+    .o_is_div                          (exu2wbu_is_div            ),
     // .o_next                            (exu2wbu_next              ),
     .i_post_ready                      (wbu2exu_ready             ),
     .o_post_valid                      (exu2wbu_valid             ) 
@@ -652,6 +701,7 @@ CLINT clint
 );
 
 
+// ---- DPI-C imports (always declared for linker) ----
 import "DPI-C" function void csr_cnt_dpic    ();
 import "DPI-C" function void brch_cnt_dpic   ();
 import "DPI-C" function void jal_cnt_dpic    ();
@@ -667,82 +717,84 @@ import "DPI-C" function void load_end        ();
 import "DPI-C" function void store_start     ();
 import "DPI-C" function void store_end       ();
 
+`ifdef PERF_COUNTERS
+import "DPI-C" function void brch_tkn_dpic   ();
+import "DPI-C" function void load_dpic       ();
+import "DPI-C" function void store_dpic      ();
+import "DPI-C" function void mul_cnt_dpic    ();
+import "DPI-C" function void div_cnt_dpic    ();
+import "DPI-C" function void alu_cnt_dpic    ();
+import "DPI-C" function void sys_cnt_dpic    ();
+import "DPI-C" function void fence_cnt_dpic  ();
+import "DPI-C" function void stall_cnt_dpic  ();
+
 // ===========================================================================
-// Performance Counters 鈥?Instruction Mix
-// Counts at WBU commit point (exu2wbu signals are valid after exu_wbu_regs)
-// ===========================================================================
+`ifdef PERF_INST_MIX
 always @(posedge clock) begin
   if (!reset && exu2wbu_valid) begin
     inst_cnt_dpic();
-    if (exu2wbu_brch) begin
+    if (idu2exu_brch_d) begin
       brch_cnt_dpic();
+      if (exu_brch) brch_tkn_dpic();
     end
-    if (exu2wbu_jal || exu2wbu_jalr) begin
-      jal_cnt_dpic();
+    if (exu2wbu_jal || exu2wbu_jalr)  jal_cnt_dpic();
+    if (exu2wbu_csr_wen)               csr_cnt_dpic();
+    if (idu2exu_load_d)                load_dpic();
+    if (idu2exu_store_d)               store_dpic();
+    if (idu2exu_muldiv_d) begin
+      if (idu2exu_is_div_d)  div_cnt_dpic();
+      else                   mul_cnt_dpic();
     end
-    if (exu2wbu_csr_wen) begin
-      csr_cnt_dpic();
-    end
+    if (!idu2exu_load_d && !idu2exu_store_d && !idu2exu_muldiv_d &&
+        !exu2wbu_jal && !exu2wbu_jalr && !idu2exu_brch_d &&
+        !exu2wbu_mret && !exu2wbu_ecall && !exu2wbu_ebreak &&
+        !exu2wbu_csr_wen && !idu2exu_fence_i_d)
+      alu_cnt_dpic();
+    if (exu2wbu_ecall || exu2wbu_mret || exu2wbu_ebreak) sys_cnt_dpic();
+    if (idu2exu_fence_i_d)  fence_cnt_dpic();
   end
 end
+`endif // PERF_INST_MIX
 
 // ===========================================================================
-// Performance Counters 鈥?Load / Store Instruction Count
+`ifdef PERF_STALL
+always @(posedge clock) begin
+  if (!reset && !exu2wbu_valid) stall_cnt_dpic();
+end
+`endif // PERF_STALL
+
 // ===========================================================================
+`ifdef PERF_BUS
 always @(posedge clock) begin
   if (!reset) begin
-    if (LSU_SRAM_AXI_ARVALID && LSU_SRAM_AXI_ARREADY) begin
-      load_cnt_dpic();
-    end
-    if (LSU_SRAM_AXI_AWVALID && LSU_SRAM_AXI_AWREADY) begin
-      store_cnt_dpic();
-    end
+    if (LSU_SRAM_AXI_ARVALID && LSU_SRAM_AXI_ARREADY) load_cnt_dpic();
+    if (LSU_SRAM_AXI_AWVALID && LSU_SRAM_AXI_AWREADY) store_cnt_dpic();
   end
 end
 
+always @(posedge clock) begin
+  if (!reset) begin
+    if (LSU_SRAM_AXI_ARVALID && LSU_SRAM_AXI_ARREADY)    load_start();
+    if (LSU_SRAM_AXI_RVALID && LSU_SRAM_AXI_RREADY && LSU_SRAM_AXI_RLAST) load_end();
+    if (LSU_SRAM_AXI_AWVALID && LSU_SRAM_AXI_AWREADY)   store_start();
+    if (LSU_SRAM_AXI_BVALID && LSU_SRAM_AXI_BREADY)      store_end();
+  end
+end
+`endif // PERF_BUS
+
 // ===========================================================================
-// Performance Counters 鈥?IFU Access Latency & ICache
-// - ifu_start : AR handshake (cache miss, fetch begins)
-// - ifu_end   : last read-data beat (fetch completes)
-// - icache_end: cache hit   (1-cycle access)
-// - cache_miss: every AR handshake is a cache miss
-// ===========================================================================
+`ifdef PERF_CACHE
 always @(posedge clock) begin
   if (!reset) begin
     if (IFU_SRAM_AXI_ARVALID && IFU_SRAM_AXI_ARREADY) begin
-      ifu_start();
-      cache_miss();
+      ifu_start(); cache_miss();
     end
-    if (IFU_SRAM_AXI_RVALID && IFU_SRAM_AXI_RREADY && IFU_SRAM_AXI_RLAST) begin
-      ifu_end();
-    end
-    if (icache_hit) begin
-      icache_end();
-    end
+    if (IFU_SRAM_AXI_RVALID && IFU_SRAM_AXI_RREADY && IFU_SRAM_AXI_RLAST) ifu_end();
+    if (icache_hit) icache_end();
   end
 end
+`endif // PERF_CACHE
 
-// ===========================================================================
-// Performance Counters 鈥?LSU Access Latency
-// - load_start / load_end   : AR handshake 鈫?last R beat
-// - store_start / store_end : AW handshake 鈫?B response
-// ===========================================================================
-always @(posedge clock) begin
-  if (!reset) begin
-    if (LSU_SRAM_AXI_ARVALID && LSU_SRAM_AXI_ARREADY) begin
-      load_start();
-    end
-    if (LSU_SRAM_AXI_RVALID && LSU_SRAM_AXI_RREADY && LSU_SRAM_AXI_RLAST) begin
-      load_end();
-    end
-
-    if (LSU_SRAM_AXI_AWVALID && LSU_SRAM_AXI_AWREADY) begin
-      store_start();
-    end
-    if (LSU_SRAM_AXI_BVALID && LSU_SRAM_AXI_BREADY) begin
-      store_end();
-    end
-  end
-end
+`endif // PERF_COUNTERS
 
 endmodule

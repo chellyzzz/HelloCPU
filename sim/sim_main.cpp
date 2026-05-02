@@ -17,6 +17,90 @@ static int exit_code = -1;
 static uint64_t cycles = 0;
 static uint64_t max_cycles = 10000000; // 10M cycles timeout
 
+// ---- performance counters ----
+static uint64_t cnt_inst      = 0;
+static uint64_t cnt_brch      = 0;
+static uint64_t cnt_brch_tkn  = 0;
+static uint64_t cnt_jal       = 0;
+static uint64_t cnt_load      = 0;
+static uint64_t cnt_store     = 0;
+static uint64_t cnt_mul       = 0;
+static uint64_t cnt_div       = 0;
+static uint64_t cnt_alu       = 0;
+static uint64_t cnt_csr       = 0;
+static uint64_t cnt_sys       = 0;
+static uint64_t cnt_fence     = 0;
+static uint64_t cnt_stall     = 0;
+static uint64_t cnt_icache_hit   = 0;
+static uint64_t cnt_icache_miss  = 0;
+static uint64_t cnt_ifu_fetch    = 0;
+static uint64_t cnt_ifu_done     = 0;
+static uint64_t cnt_load_bus     = 0;
+static uint64_t cnt_load_done    = 0;
+static uint64_t cnt_store_bus    = 0;
+static uint64_t cnt_store_done   = 0;
+
+// ---- performance summary printer ----
+static void print_perf_summary() {
+    uint64_t total_clk = cycles / 2;
+    if (total_clk == 0) total_clk = 1;
+    printf("\n");
+    printf("┌─────────────────────────────────────────────────────┐\n");
+    printf("│            Performance Counter Summary              │\n");
+    printf("├─────────────────────────────────────────────────────┤\n");
+    printf("│ Total cycles         : %12lu                 │\n", total_clk);
+    printf("│ Total instructions   : %12lu (IPC = %.3f)       │\n",
+           cnt_inst, (double)cnt_inst / total_clk);
+    printf("│ Stall cycles         : %12lu (%.1f%%)            │\n",
+           cnt_stall, 100.0 * cnt_stall / total_clk);
+    printf("├─────────────────────────────────────────────────────┤\n");
+    printf("│ Instruction Mix                                    │\n");
+    if (cnt_inst > 0) {
+        printf("│   ALU ops           : %10lu (%5.1f%%)            │\n",
+               cnt_alu, 100.0 * cnt_alu / cnt_inst);
+        printf("│   Branches          : %10lu (%5.1f%%)            │\n",
+               cnt_brch, 100.0 * cnt_brch / cnt_inst);
+        printf("│     ├─ taken        : %10lu (%5.1f%%)            │\n",
+               cnt_brch_tkn, 100.0 * cnt_brch_tkn / (cnt_brch ? cnt_brch : 1));
+        printf("│   Jumps (JAL+JALR)  : %10lu (%5.1f%%)            │\n",
+               cnt_jal, 100.0 * cnt_jal / cnt_inst);
+        printf("│   Loads             : %10lu (%5.1f%%)            │\n",
+               cnt_load, 100.0 * cnt_load / cnt_inst);
+        printf("│   Stores            : %10lu (%5.1f%%)            │\n",
+               cnt_store, 100.0 * cnt_store / cnt_inst);
+        printf("│   Multiplies        : %10lu (%5.1f%%)            │\n",
+               cnt_mul, 100.0 * cnt_mul / cnt_inst);
+        printf("│   Divides           : %10lu (%5.1f%%)            │\n",
+               cnt_div, 100.0 * cnt_div / cnt_inst);
+        printf("│   CSR accesses      : %10lu (%5.1f%%)            │\n",
+               cnt_csr, 100.0 * cnt_csr / cnt_inst);
+        printf("│   System (ECALL/MRET/EBREAK): %4lu (%5.1f%%)     │\n",
+               cnt_sys, 100.0 * cnt_sys / cnt_inst);
+        printf("│   fence.i           : %10lu (%5.1f%%)            │\n",
+               cnt_fence, 100.0 * cnt_fence / cnt_inst);
+    }
+    printf("├─────────────────────────────────────────────────────┤\n");
+    printf("│ Cache Statistics                                   │\n");
+    uint64_t ic_total = cnt_icache_hit + cnt_icache_miss;
+    if (ic_total > 0) {
+        printf("│   ICache hits       : %10lu (%5.1f%%)            │\n",
+               cnt_icache_hit, 100.0 * cnt_icache_hit / ic_total);
+        printf("│   ICache misses     : %10lu (%5.1f%%)            │\n",
+               cnt_icache_miss, 100.0 * cnt_icache_miss / ic_total);
+        printf("│   ICache hit rate   : %10.1f%%                     │\n",
+               100.0 * cnt_icache_hit / ic_total);
+    }
+    printf("├─────────────────────────────────────────────────────┤\n");
+    printf("│ Bus Transactions                                   │\n");
+    printf("│   IFU fetches       : %10lu / done: %lu                 │\n",
+           cnt_ifu_fetch, cnt_ifu_done);
+    printf("│   Load  xacts       : %10lu / done: %lu                 │\n",
+           cnt_load_bus, cnt_load_done);
+    printf("│   Store xacts       : %10lu / done: %lu                 │\n",
+           cnt_store_bus, cnt_store_done);
+    printf("└─────────────────────────────────────────────────────┘\n");
+}
+
 // DPI-C: memory read
 extern "C" void pmem_read(int addr, int *data) {
     uint32_t offset = (uint32_t)addr - MEM_BASE;
@@ -41,7 +125,6 @@ extern "C" void pmem_write(int addr, int data, int strb) {
     }
     uint32_t offset = (uint32_t)addr - MEM_BASE;
     if (offset < MEM_SIZE) {
-        // Apply byte strobe
         uint8_t *p = mem + offset;
         for (int i = 0; i < 4; i++) {
             if (strb & (1 << i)) {
@@ -51,21 +134,32 @@ extern "C" void pmem_write(int addr, int data, int strb) {
     }
 }
 
-// DPI-C stubs for performance counters in CPU
-extern "C" void csr_cnt_dpic() {}
-extern "C" void brch_cnt_dpic() {}
-extern "C" void jal_cnt_dpic() {}
-extern "C" void load_cnt_dpic() {}
-extern "C" void store_cnt_dpic() {}
-extern "C" void inst_cnt_dpic() {}
-extern "C" void ifu_start() {}
-extern "C" void ifu_end() {}
-extern "C" void icache_end() {}
-extern "C" void cache_miss() {}
-extern "C" void load_start() {}
-extern "C" void load_end() {}
-extern "C" void store_start() {}
-extern "C" void store_end() {}
+// DPI-C performance counters
+extern "C" void inst_cnt_dpic()   { cnt_inst++; }
+extern "C" void brch_cnt_dpic()   { cnt_brch++; }
+extern "C" void brch_tkn_dpic()   { cnt_brch_tkn++; }
+extern "C" void jal_cnt_dpic()    { cnt_jal++; }
+extern "C" void load_dpic()       { cnt_load++; }
+extern "C" void store_dpic()      { cnt_store++; }
+extern "C" void mul_cnt_dpic()    { cnt_mul++; }
+extern "C" void div_cnt_dpic()    { cnt_div++; }
+extern "C" void alu_cnt_dpic()    { cnt_alu++; }
+extern "C" void csr_cnt_dpic()    { cnt_csr++; }
+extern "C" void sys_cnt_dpic()    { cnt_sys++; }
+extern "C" void fence_cnt_dpic()  { cnt_fence++; }
+extern "C" void stall_cnt_dpic()  { cnt_stall++; }
+extern "C" void cache_miss()      { cnt_icache_miss++; }
+extern "C" void ifu_start()       { cnt_ifu_fetch++; }
+extern "C" void ifu_end()         { cnt_ifu_done++; }
+extern "C" void load_start()      { cnt_load_bus++; }
+extern "C" void load_end()        { cnt_load_done++; }
+extern "C" void store_start()     { cnt_store_bus++; }
+extern "C" void store_end()       { cnt_store_done++; }
+
+// Legacy DPI-C names (aliases / no-ops — kept for backward compat)
+extern "C" void load_cnt_dpic()   { cnt_load_bus++; }
+extern "C" void store_cnt_dpic()  { cnt_store_bus++; }
+extern "C" void icache_end()      { cnt_icache_hit++; }
 
 static void load_image(const char *file) {
     FILE *fp = fopen(file, "rb");
@@ -144,5 +238,6 @@ int main(int argc, char **argv) {
         printf("\n\033[1;33m[HelloCPU] TIMEOUT\033[0m (max cycles: %lu)\n", max_cycles / 2);
         exit_code = -1;
     }
+    print_perf_summary();
     return exit_code;
 }
