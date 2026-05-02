@@ -1,6 +1,6 @@
 # HelloCPU 验证文档
 
-> 最后更新: 2026-05-01 | 状态: **37/37 全部通过 (100%)**
+> 最后更新: 2026-05-02 | 状态: **37/37 全部通过 (100%)**
 
 ---
 
@@ -22,7 +22,8 @@ HelloCPU/
 ├── vsrc/          ← CPU RTL 源码 (IFU, IDU, EXU, WBU, ICache, LSU, RegFile, CSR, Xbar, 除法器, 乘法器)
 ├── sim/           ← 仿真环境 (sim_top.v, axi_ram.v, sim_main.cpp)
 ├── sw/            ← 软件框架
-│   ├── tests/     ← 37 个测试用例
+│   ├── tests/cpu-tests/     ← 37 个测试用例
+│   ├── benchmark/coremark/ ← CoreMark 基准测试
 │   ├── lib/klib.c         ← C 标准库子集
 │   ├── include/           ← 头文件 (trap.h 等)
 │   ├── start.S            ← 启动代码
@@ -156,7 +157,7 @@ HelloCPU/
 | `vsrc/exu/divider.v` | 除法器 (34 周期) | - |
 | `vsrc/exu/alu.v` | ALU | - |
 | `vsrc/exu/exu.v` | 执行单元顶层 | - |
-| `vsrc/idu/idu.v` | 译码单元 | - |
+| `vsrc/idu/idu.v` | 译码单元 | ✅ 逻辑重构，命名规范化 |
 | `vsrc/ifu/ifu.v` | 取指单元 | - |
 | `vsrc/wbu/wbu.v` | 写回单元 | - |
 | `sim/sim_top.v` | 仿真顶层 | - |
@@ -203,4 +204,6 @@ gtkwave wave.vcd             # 查看波形
 | 2026-05-01 | 寄存器堆 exu_post_valid 门控 | 34/37 |
 | 2026-05-01 | 乘法器整体替换为 Verilog `*` → mersenne PASS | 35/37 (95%) |
 | 2026-05-01 | 消除 ysyx-workbench 符号链接依赖 | 35/37 |
-| 2026-05-01 | **mul_done 脉冲修复 → +2** | **37/37 (100%)** |
+| 2026-05-02 | 模块命名规范化 (ysyx_23060124 → hcpu) | 37/37 |
+| 2026-05-02 | 测试重组为 cpu-tests/，引入 CoreMark benchmark | 37/37 |
+| 2026-05-02 | **IDU 解码逻辑重构** — func3 命名、源选择简化 | 37/37 |
