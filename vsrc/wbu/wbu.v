@@ -61,6 +61,10 @@ always @(posedge clock or posedge reset) begin
     o_pc_update <= 1'b0;
     o_pc_next <= 32'b0;
   end
+  else if(o_pc_update) begin
+    o_pc_update <= 1'b0;
+    o_pc_next <= 32'b0;
+  end
 end
 
 // reg diff;

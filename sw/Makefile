@@ -26,7 +26,15 @@ CM_CFLAGS = $(CFLAGS) -I$(CM_DIR) -I$(CM_PORT) \
 
 benchmark: $(BUILD_DIR)/coremark.bin
 
-$(BUILD_DIR)/coremark.bin: $(CM_SRCS) start.S lib/klib.c link.ld | $(BUILD_DIR)
+$(BUILD_DIR)/coremark_iter$(ITER).stamp: $(CM_SRCS) start.S lib/klib.c link.ld | $(BUILD_DIR)
+	$(CC) $(CM_CFLAGS) $(LDFLAGS) start.S lib/klib.c $(CM_SRCS) -o $(BUILD_DIR)/coremark.elf
+	$(OBJCOPY) -O binary $(BUILD_DIR)/coremark.elf $(BUILD_DIR)/coremark.bin
+	$(OBJDUMP) -d $(BUILD_DIR)/coremark.elf > $(BUILD_DIR)/coremark.txt
+	@touch $@
+
+$(BUILD_DIR)/coremark.bin: $(BUILD_DIR)/coremark_iter$(ITER).stamp
+
+.PRECIOUS: $(BUILD_DIR)/coremark_iter%.stamp
 	$(CC) $(CM_CFLAGS) $(LDFLAGS) start.S lib/klib.c $(CM_SRCS) -o $(BUILD_DIR)/coremark.elf
 	$(OBJCOPY) -O binary $(BUILD_DIR)/coremark.elf $@
 	$(OBJDUMP) -d $(BUILD_DIR)/coremark.elf > $(BUILD_DIR)/coremark.txt
