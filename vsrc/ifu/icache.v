@@ -31,6 +31,7 @@ module hcpu_icache #(
     input                               fence_i                    ,
     output                              hit
 );
+`include "debug_macros.vh"
 // `define ICACHE_DEBUG  1
 
 // ============================================================

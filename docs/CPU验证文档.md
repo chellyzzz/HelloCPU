@@ -381,6 +381,7 @@ HelloCPU/
 | `vsrc/ifu/ifu_idu_regs.v` | IFU→IDU 管线寄存器 | ✅ predict_taken/predict_target |
 | `vsrc/idu/idu_exu_regs.v` | IDU→EXU 管线寄存器 | ✅ predict_taken/predict_target/rs1_addr |
 | `vsrc/include/perf_counters.vh` | 性能计数器宏开关 | ✅ PERF_BRANCH_PRED |
+| `vsrc/include/debug_macros.vh` | Debug 打印宏开关 (ICACHE_DEBUG/DCACHE_DEBUG) | ✅ 新建 |
 | `vsrc/exu/divider.v` | 除法器 (34 周期) | - |
 | `vsrc/exu/alu.v` | ALU | - |
 | `vsrc/exu/exu.v` | 执行单元顶层 | ✅ 误预测检测 + BTB/RAS 更新 + i_flush |
@@ -424,6 +425,7 @@ gtkwave wave.vcd             # 查看波形
 | 2026-05-02 | DCache: 修正 cacheable 范围 (0xA000→0x3000)，修复 refill 期间 load_res 覆盖、删除重复声明 | 100% |
 | 2026-05-02 | ICache/DCache 容量 256B→4KB (SET_NUMS 4→64)；CoreMark ITER 可配置 | 100% |
 | 2026-05-02 | 性能计数器启用 (PERF_COUNTERS/INST_MIX/STALL/BUS/CACHE)；bus 计数器 double-count 修复 | 100% |
+| 2026-05-02 | Debug 宏统一管理: 新增 debug_macros.vh，ICACHE_DEBUG/DCACHE_DEBUG 集中控制 | 100% |
 
 ---
 
@@ -500,3 +502,53 @@ WBU: pc_update 保持原始行为 (EXU→WBU 一致性需要)
 | quick-sort | 15,458 | 8,346 | -46% |
 | recursion | 47,638 | 13,379 | -72% |
 | bubble-sort | 13,878 | 10,515 | -24% |
+
+---
+
+## 十二、Debug 打印宏管理
+
+### 概述
+
+将 ICache/DCache 的 `$display` 调试打印统一收敛到 `vsrc/include/debug_macros.vh`，模仿性能计数器开关模式，支持宏开关控制。
+
+### 文件结构
+
+```
+vsrc/include/debug_macros.vh    ← 总控头文件
+  ├─ `define DEBUG_ALL          ← 总开关（取消注释启用全部）
+  ├─ `define ICACHE_DEBUG       ← ICache 命中/缺失/填充诊断
+  └─ `define DCACHE_DEBUG       ← DCache 命中/缺失/写回/填充诊断
+```
+
+### 使用方法
+
+```bash
+# 默认全禁用（零仿真开销）
+make sim
+
+# 启用 ICache 调试：编辑 debug_macros.vh，取消注释 `define ICACHE_DEBUG
+# 启用全部：取消注释 `define DEBUG_ALL
+
+# 重新编译
+make clean && make sim
+```
+
+### 调试输出示例
+
+```
+[ICACHE] MISS  : set=0 way=0 tag=0xc0000 addr=0x30000000
+[ICACHE] FILL OK: set=0 way=0 tag=0xc0000
+[ICACHE] HIT   : set=0 way=0 tag=0xc0000 addr=0x30000000
+```
+
+### 涉及模块
+
+| 文件 | 修改 |
+|------|------|
+| `vsrc/include/debug_macros.vh` | 新建 — debug 宏开关 |
+| `vsrc/ifu/icache.v` | `include + 移除本地 define |
+| `vsrc/exu/lsu.v` | `include + 移除本地 define |
+
+---
+
+

@@ -59,7 +59,7 @@ module hcpu_LSU #(
     input                               o_pre_ready                ,
     output                              lsu_done
 );
-
+`include "debug_macros.vh"
 // `define DCACHE_DEBUG 1
 
 // ============================================================
