@@ -844,6 +844,9 @@ import "DPI-C" function void btb_miss_dpic   ();
 import "DPI-C" function void btb_misp_dpic   ();
 import "DPI-C" function void ras_hit_dpic    ();
 import "DPI-C" function void ras_miss_dpic   ();
+import "DPI-C" function void jal_tgt_mismatch();
+import "DPI-C" function void ras_push_dpic   ();
+import "DPI-C" function void wbu_pcup_dpic   ();
 
 // ===========================================================================
 `ifdef PERF_INST_MIX
@@ -944,6 +947,24 @@ always @(posedge clock) begin
     if (!reset && exu_mispredict_flush_r) begin
         btb_misp_dpic();
     end
+end
+
+// debug: JAL target mismatch
+always @(posedge clock) begin
+    if (!reset && idu2exu_jal && idu2exu_predict_taken) begin
+        if (({idu2exu_predict_target, 2'b00}) != exu_pc_next)
+            jal_tgt_mismatch();
+    end
+end
+
+// debug: RAS push/pop
+always @(posedge clock) begin
+    if (!reset && exu_ras_push_en) ras_push_dpic();
+end
+
+// debug: WBU pc_update
+always @(posedge clock) begin
+    if (!reset && pc_update_en) wbu_pcup_dpic();
 end
 `endif // PERF_BRANCH_PRED
 

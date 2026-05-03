@@ -44,6 +44,9 @@ static uint64_t cnt_btb_miss     = 0;
 static uint64_t cnt_btb_mispredict = 0;
 static uint64_t cnt_ras_hit      = 0;
 static uint64_t cnt_ras_miss     = 0;
+static uint64_t cnt_jal_tgt_bad  = 0;
+static uint64_t cnt_ras_push     = 0;
+static uint64_t cnt_wbu_pcup     = 0;
 
 // ---- performance summary printer ----
 static void print_perf_summary() {
@@ -102,6 +105,9 @@ static void print_perf_summary() {
         printf("│   RAS misses        : %10lu (%5.1f%%)            │\n",
                cnt_ras_miss, 100.0 * cnt_ras_miss / ras_total);
     }
+    printf("│ Debug: JAL tgt bad  : %10lu                     │\n", cnt_jal_tgt_bad);
+    printf("│ Debug: RAS pushes   : %10lu                     │\n", cnt_ras_push);
+    printf("│ Debug: WBU pcupdate : %10lu                     │\n", cnt_wbu_pcup);
     printf("├─────────────────────────────────────────────────────┤\n");
     printf("│ Cache Statistics                                   │\n");
     uint64_t ic_total = cnt_icache_hit + cnt_icache_miss;
@@ -188,6 +194,9 @@ extern "C" void btb_miss_dpic()  { cnt_btb_miss++; }
 extern "C" void btb_misp_dpic()  { cnt_btb_mispredict++; }
 extern "C" void ras_hit_dpic()   { cnt_ras_hit++; }
 extern "C" void ras_miss_dpic()  { cnt_ras_miss++; }
+extern "C" void jal_tgt_mismatch() { cnt_jal_tgt_bad++; }
+extern "C" void ras_push_dpic() { cnt_ras_push++; }
+extern "C" void wbu_pcup_dpic() { cnt_wbu_pcup++; }
 
 static void load_image(const char *file) {
     FILE *fp = fopen(file, "rb");

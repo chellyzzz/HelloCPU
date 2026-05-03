@@ -54,7 +54,7 @@ always @(posedge clock or posedge reset) begin
     o_pc_next <= 32'b0;
   end
   else if(~o_pc_update) begin
-    o_pc_update <= (i_jalr && ~i_predict_taken) || i_ecall || i_mret;
+    o_pc_update <= i_jal || i_jalr || i_brch  || i_ecall || i_mret;
     o_pc_next <= i_pc_next;
   end
   else if(o_pc_update) begin
