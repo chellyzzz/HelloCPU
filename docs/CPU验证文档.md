@@ -377,13 +377,17 @@ HelloCPU/
 | `vsrc/Registers/RegisterFile.v` | 寄存器堆 | ✅ exu_post_valid 门控 |
 | `vsrc/idu/idu.v` | 译码单元 | ✅ 逻辑重构，命名规范化 |
 | `vsrc/Registers/Csrs.v` | CSR 寄存器 | ✅ mcycle 计数器 |
-| `vsrc/exu/exu_wbu_regs.v` | EXU→WBU 管线寄存器 | ✅ 新增指令类型传递 (load/store/muldiv/fence_i/is_brch/is_div) |
-| `vsrc/include/perf_counters.vh` | 性能计数器宏开关 | ✅ 新建 |
+| `vsrc/exu/exu_wbu_regs.v` | EXU→WBU 管线寄存器 | ✅ 新增指令类型传递 (load/store/muldiv/fence_i/is_brch/is_div) + predict_taken |
+| `vsrc/ifu/ifu_idu_regs.v` | IFU→IDU 管线寄存器 | ✅ predict_taken/predict_target |
+| `vsrc/idu/idu_exu_regs.v` | IDU→EXU 管线寄存器 | ✅ predict_taken/predict_target/rs1_addr |
+| `vsrc/include/perf_counters.vh` | 性能计数器宏开关 | ✅ PERF_BRANCH_PRED |
 | `vsrc/exu/divider.v` | 除法器 (34 周期) | - |
 | `vsrc/exu/alu.v` | ALU | - |
-| `vsrc/exu/exu.v` | 执行单元顶层 | - |
-| `vsrc/ifu/ifu.v` | 取指单元 | - |
-| `vsrc/wbu/wbu.v` | 写回单元 | - |
+| `vsrc/exu/exu.v` | 执行单元顶层 | ✅ 误预测检测 + BTB/RAS 更新 + i_flush |
+| `vsrc/ifu/ifu.v` | 取指单元 | ✅ 分支预测 + JAL 静态预测 |
+| `vsrc/ifu/btb.v` | 分支目标缓冲 (64-entry) | 🆕 新建 |
+| `vsrc/ifu/ras.v` | 返回地址栈 (8-entry) | 🆕 新建 |
+| `vsrc/wbu/wbu.v` | 写回单元 | ✅ 保留原始 pc_update 行为 |
 | `sim/sim_main.cpp` | Verilator 主程序 | ✅ 计数器实现 + 性能摘要打印 |
 | `sim/axi_ram.v` | AXI RAM 模型 | - |
 
@@ -451,3 +455,48 @@ hwcpu 内置完整的 DPI-C 性能计数器，编译时通过 Verilator `+define
 
 详见 `CoreMark跑分记录.md` 第三节。
 | 2026-05-02 | 新增性能计数器系统（宏开关 + DPI-C + 自动摘要） | 100% |
+| 2026-05-03 | **分支预测器**: BTB(64-entry) + RAS(8-entry) + JAL静态预测 | 100% |
+
+## 十二、分支预测器
+
+> 详细设计见 `docs/分支预测器设计.md`
+
+### 概述
+
+CPU 内置 BTB + RAS 分支预测系统, 在 IFU 阶段对条件分支、无条件跳转和函数返回进行预测。
+
+### 组件
+
+| 组件 | 规格 | 源文件 |
+|------|------|--------|
+| **BTB** | 64-entry 直接映射, 2-bit 饱和计数器 | `vsrc/ifu/btb.v` |
+| **RAS** | 8-entry LIFO 栈 | `vsrc/ifu/ras.v` |
+| **JAL 静态预测** | IFU 阶段 J-immediate 提取 | `vsrc/ifu/ifu.v` (内联) |
+
+### 预测流程
+
+```
+IFU: BTB lookup (PC[7:2] 索引) ─→ predict_taken? predict_target : pc+4
+     JAL detect (opcode 检查)   ─→ always taken, jal_target
+     RAS lookup (JALR rd=x0)   ─→ predict taken if stack not empty
+     
+EXU: 验证预测 → mispredict? → flush + redirect + update BTB/RAS
+WBU: pc_update 保持原始行为 (EXU→WBU 一致性需要)
+```
+
+### 误预测检测
+
+- **方向**: `predict_taken != actual_taken`
+- **目标**: `(JAL || JALR) && pred_target != actual_target`
+
+### 性能计数器
+
+`PERF_BRANCH_PRED` 宏控制, 统计 BTB hit/miss/mispredict, RAS hit/miss, JAL target mismatch。
+
+### 性能提升
+
+| 测试 | 原始 | 预测器 | 改善 |
+|------|------|--------|------|
+| quick-sort | 15,458 | 8,346 | -46% |
+| recursion | 47,638 | 13,379 | -72% |
+| bubble-sort | 13,878 | 10,515 | -24% |
