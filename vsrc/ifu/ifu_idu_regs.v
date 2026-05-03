@@ -9,43 +9,45 @@ module hcpu_ifu_idu_regs (
     input                               icache_hit              ,
     input                               i_pre_valid                ,
     input                               i_post_ready               ,
-    output                              o_post_valid                
+    output                              o_post_valid               ,
+
+    // branch prediction fields
+    input                               i_predict_taken            ,
+    input              [  31:2]         i_predict_target           ,
+    output reg                          o_predict_taken            ,
+    output reg         [  31:2]         o_predict_target           
 
 );
 
 reg post_valid;
 assign o_post_valid = i_post_ready && icache_hit;
 
-// always @(posedge clock or posedge reset) begin
-//     if(reset) begin
-//         post_valid <= 1'b0;   
-//     end
-//     else if(icache_hit) begin
-//         post_valid <= 1'b1;
-//     end
-//     else if(~icache_hit)begin
-//         post_valid <= 1'b0;
-//     end
-// end
-
 
 always @(posedge clock or posedge reset) begin
     if(reset) begin
-        o_pc <= 32'h0;
-        o_ins <= 32'h0;
+        o_pc            <= 32'h0;
+        o_ins           <= 32'h0;
+        o_predict_taken <= 1'b0;
+        o_predict_target <= 30'b0;
     end
     else if(icache_hit && i_post_ready) begin
-        o_pc <= i_pc;
-        o_ins <= i_ins;
+        o_pc            <= i_pc;
+        o_ins           <= i_ins;
+        o_predict_taken <= i_predict_taken;
+        o_predict_target <= i_predict_target;
     end
     else if(~icache_hit && i_post_ready) begin
-        o_pc <= 32'h0;
-        o_ins <= 32'h0;
+        o_pc            <= 32'h0;
+        o_ins           <= 32'h0;
+        o_predict_taken <= 1'b0;
+        o_predict_target <= 30'b0;
     end
     else if(icache_hit && ~i_post_ready) begin
-        o_pc <= o_pc;
-        o_ins <= o_ins;
+        o_pc            <= o_pc;
+        o_ins           <= o_ins;
+        o_predict_taken <= o_predict_taken;
+        o_predict_target <= o_predict_target;
     end
 end
 
-endmodule   
+endmodule

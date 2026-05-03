@@ -11,6 +11,7 @@ module hcpu_exu_wbu_regs (
     input                               i_ebreak                   ,
     input                               i_mret                     ,
     input                               i_ecall                    ,
+    input                               i_predict_taken            ,
 
     input                               i_load                     ,
     input                               i_store                    ,
@@ -36,6 +37,7 @@ module hcpu_exu_wbu_regs (
     output reg                          o_jalr                     ,
     output reg                          o_mret                     ,
     output reg                          o_ecall                    ,
+    output reg                          o_predict_taken            ,
     output reg                          o_ebreak                   ,
     //
     output reg                          o_load                     ,
@@ -62,8 +64,9 @@ always @(posedge clock or posedge reset) begin
         o_jal       <= 'b0; 
         o_jalr      <= 'b0; 
         o_mret      <= 'b0; 
-        o_ecall     <= 'b0;  
-        o_res       <= 'b0; 
+        o_ecall         <= 'b0;
+        o_predict_taken <= 'b0;
+        o_res           <= 'b0; 
         o_ebreak    <= 'b0;
         o_load      <= 'b0;
         o_store     <= 'b0;
@@ -83,8 +86,9 @@ always @(posedge clock or posedge reset) begin
         o_jal       <= i_jal;
         o_jalr      <= i_jalr;
         o_mret      <= i_mret;
-        o_ecall     <= i_ecall;
-        o_res       <= i_res;
+        o_ecall         <= i_ecall;
+        o_predict_taken <= i_predict_taken;
+        o_res           <= i_res;
         o_ebreak    <= i_ebreak;
         o_load      <= i_load;
         o_store     <= i_store;
@@ -104,9 +108,10 @@ always @(posedge clock or posedge reset) begin
         o_jal       <= 'b0; 
         o_jalr      <= 'b0; 
         o_mret      <= 'b0; 
-        o_ecall     <= 'b0; 
-        o_res       <= 'b0; 
-        o_ebreak    <= 'b0;
+        o_ecall         <= 'b0;
+        o_predict_taken <= 'b0;
+        o_res           <= 'b0;
+        o_ebreak        <= 'b0;
         o_load      <= 'b0;
         o_store     <= 'b0;
         o_muldiv    <= 'b0;

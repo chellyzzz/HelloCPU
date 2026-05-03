@@ -12,6 +12,7 @@ module hcpu_WBU (
     input                               i_ebreak                   ,
     input                               i_mret                     ,
     input                               i_ecall                    ,
+    input                               i_predict_taken            ,
     input              [  31:0]         i_pc_next                  ,
     // input                               i_next                     ,
   // ecall and mret
@@ -53,7 +54,7 @@ always @(posedge clock or posedge reset) begin
     o_pc_next <= 32'b0;
   end
   else if(~o_pc_update) begin
-    o_pc_update <= i_jal || i_jalr || i_brch  || i_ecall || i_mret;
+    o_pc_update <= (i_jalr && ~i_predict_taken) || i_ecall || i_mret;
     o_pc_next <= i_pc_next;
   end
   else if(o_pc_update) begin

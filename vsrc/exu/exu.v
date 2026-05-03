@@ -21,9 +21,31 @@ module hcpu_EXU(
     input              [   2:0]         exu_opt                    ,
     input                               i_muldiv                   ,
 
+    // branch prediction inputs
+    input                               i_predict_taken            ,
+    input              [  31:2]         i_predict_target           ,
+    // register addresses for RAS
+    input              [   4:0]         i_rd_addr                  ,
+    input              [   4:0]         i_rs1_addr                 ,
+
     output             [  31:0]         o_res                      ,
     output                              o_brch                     ,
     output             [  31:0]         o_pc_next                  ,
+
+    // Mispredict recovery
+    output                              o_mispredict_flush         ,
+    output             [  31:0]         o_redirect_pc              ,
+
+    // BTB update
+    output                              o_btb_update_en            ,
+    output             [  31:0]         o_btb_update_pc            ,
+    output             [  31:2]         o_btb_update_target        ,
+    output                              o_btb_update_taken         ,
+
+    // RAS update
+    output                              o_ras_push_en              ,
+    output             [  31:2]         o_ras_push_data            ,
+    output                              o_ras_pop_en               ,
 
     //write address channel  
     output             [  31:0]         M_AXI_AWADDR               ,
@@ -67,7 +89,8 @@ module hcpu_EXU(
     input                               i_post_ready               ,
     input                               i_pre_valid                ,
     output                              o_post_valid               ,
-    output                              o_pre_ready                 
+    output                              o_pre_ready                ,
+    input                               i_flush                     
 );
 
 /******************parameter******************/
@@ -106,7 +129,7 @@ assign o_pre_ready  =  if_lsu   ?  lsu_done    :
                        1'b1;
 
 always @(posedge clock or posedge reset) begin
-    if(reset) begin
+    if(reset || i_flush) begin
         post_valid <= 1'b0;   
     end
     else post_valid <= i_pre_valid;
@@ -114,22 +137,6 @@ end
 
 reg                  [  31:0]         alu_src1                   ;
 reg                  [  31:0]         alu_src2                   ;
-
-// always_comb begin
-//     unique case(1'b1)
-//         i_src_sel1[0]:  alu_src1 = i_src1;
-//         default: alu_src1 = i_pc;
-//     endcase
-// end
-
-// always_comb begin
-//     unique case(1'b1)
-//         i_src_sel2[0]:  alu_src2 = i_src2;
-//         i_src_sel2[1]:  alu_src2 = i_imm;
-//         i_src_sel2[2]:  alu_src2 = 32'h4;
-//         default: alu_src2 = 32'h0;
-//     endcase
-// end
 
 wire src_sel1_0 = i_src_sel1[0];
 wire src_sel2_0 = i_src_sel2[0];
@@ -268,5 +275,37 @@ assign o_res  = i_load   ? load_res   :
                 i_muldiv ? muldiv_res :
                 alu_res;
 assign o_brch = i_brch && brch_res;
+
+// ============================================================================
+// Branch predictor: mispredict detection and recovery
+// ============================================================================
+wire actual_taken = (i_brch && brch_res) || i_jal || i_jalr;
+wire is_control   = i_brch || i_jal || i_jalr;
+wire [31:0] pred_target_full = {i_predict_target, 2'b00};
+
+wire mispredict = (is_control && (i_predict_taken != actual_taken)) ||
+                  ((i_jal || i_jalr) && i_predict_taken && (pred_target_full != o_pc_next));
+
+assign o_mispredict_flush = mispredict && i_pre_valid;
+assign o_redirect_pc     = actual_taken ? o_pc_next : (i_pc + 32'd4);
+
+// ============================================================================
+// BTB update (all conditional branches)
+// ============================================================================
+assign o_btb_update_en     = i_brch && i_pre_valid;
+assign o_btb_update_pc     = i_pc;
+assign o_btb_update_target = o_pc_next[31:2];
+assign o_btb_update_taken  = brch_res;
+
+// ============================================================================
+// RAS update (function calls and returns)
+// ============================================================================
+wire is_call = i_jal && (i_rd_addr == 5'd1);
+wire is_ret  = i_jalr && (i_rd_addr == 5'd0) && (i_rs1_addr == 5'd1);
+wire [31:0] ras_push_addr = i_pc + 32'd4;
+
+assign o_ras_push_en   = is_call && i_pre_valid;
+assign o_ras_push_data = ras_push_addr[31:2];
+assign o_ras_pop_en    = is_ret && i_pre_valid;
 
 endmodule

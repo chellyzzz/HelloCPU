@@ -26,6 +26,7 @@
   `define PERF_STALL
   `define PERF_CACHE
   `define PERF_BUS
+  `define PERF_BRANCH_PRED
 `endif
 
 `endif // PERF_COUNTERS_VH

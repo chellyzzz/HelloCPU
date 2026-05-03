@@ -39,6 +39,11 @@ static uint64_t cnt_load_bus     = 0;
 static uint64_t cnt_load_done    = 0;
 static uint64_t cnt_store_bus    = 0;
 static uint64_t cnt_store_done   = 0;
+static uint64_t cnt_btb_hit      = 0;
+static uint64_t cnt_btb_miss     = 0;
+static uint64_t cnt_btb_mispredict = 0;
+static uint64_t cnt_ras_hit      = 0;
+static uint64_t cnt_ras_miss     = 0;
 
 // ---- performance summary printer ----
 static void print_perf_summary() {
@@ -78,6 +83,24 @@ static void print_perf_summary() {
                cnt_sys, 100.0 * cnt_sys / cnt_inst);
         printf("│   fence.i           : %10lu (%5.1f%%)            │\n",
                cnt_fence, 100.0 * cnt_fence / cnt_inst);
+    }
+    printf("├─────────────────────────────────────────────────────┤\n");
+    printf("│ Branch Predictor                                   │\n");
+    uint64_t btb_total = cnt_btb_hit + cnt_btb_miss;
+    if (btb_total > 0) {
+        printf("│   BTB hits          : %10lu (%5.1f%%)            │\n",
+               cnt_btb_hit, 100.0 * cnt_btb_hit / btb_total);
+        printf("│   BTB misses        : %10lu (%5.1f%%)            │\n",
+               cnt_btb_miss, 100.0 * cnt_btb_miss / btb_total);
+        printf("│   BTB mispredicts   : %10lu (%5.1f%%)            │\n",
+               cnt_btb_mispredict, 100.0 * cnt_btb_mispredict / btb_total);
+    }
+    uint64_t ras_total = cnt_ras_hit + cnt_ras_miss;
+    if (ras_total > 0) {
+        printf("│   RAS hits          : %10lu (%5.1f%%)            │\n",
+               cnt_ras_hit, 100.0 * cnt_ras_hit / ras_total);
+        printf("│   RAS misses        : %10lu (%5.1f%%)            │\n",
+               cnt_ras_miss, 100.0 * cnt_ras_miss / ras_total);
     }
     printf("├─────────────────────────────────────────────────────┤\n");
     printf("│ Cache Statistics                                   │\n");
@@ -160,6 +183,11 @@ extern "C" void store_end()       { cnt_store_done++; }
 extern "C" void load_cnt_dpic()   { cnt_load_bus++; }
 extern "C" void store_cnt_dpic()  { cnt_store_bus++; }
 extern "C" void icache_end()      { cnt_icache_hit++; }
+extern "C" void btb_hit_dpic()   { cnt_btb_hit++; }
+extern "C" void btb_miss_dpic()  { cnt_btb_miss++; }
+extern "C" void btb_misp_dpic()  { cnt_btb_mispredict++; }
+extern "C" void ras_hit_dpic()   { cnt_ras_hit++; }
+extern "C" void ras_miss_dpic()  { cnt_ras_miss++; }
 
 static void load_image(const char *file) {
     FILE *fp = fopen(file, "rb");

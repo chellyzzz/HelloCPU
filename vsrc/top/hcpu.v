@@ -101,6 +101,31 @@ wire                                    ebreak                     ;
 wire                                    if_store,if_load           ;// idu -> exu.
 wire                                    ecall,mret                 ;// idu -> pcu.
 wire                                    pc_update_en               ;
+// branch predictor
+wire                                    btb_predict_taken          ;
+wire                   [  31:2]         btb_predict_target         ;
+wire                                    btb_lookup_hit             ;
+wire                                    ras_predict_valid          ;
+wire                   [  31:2]         ras_predict_target         ;
+wire                                    exu_mispredict_flush       ;
+wire                   [  31:0]         exu_redirect_pc            ;
+wire                                    exu_btb_update_en          ;
+wire                   [  31:0]         exu_btb_update_pc          ;
+wire                   [  31:2]         exu_btb_update_target      ;
+wire                                    exu_btb_update_taken       ;
+wire                                    exu_ras_push_en            ;
+wire                   [  31:2]         exu_ras_push_data          ;
+wire                                    exu_ras_pop_en             ;
+// prediction through pipeline
+wire                                    ifu_predict_taken          ;
+wire                   [  31:2]         ifu_predict_target         ;
+wire                                    idu2exu_predict_taken      ;
+wire                   [  31:2]         idu2exu_predict_target     ;
+wire                   [   4:0]         idu2exu_rs1_addr           ;
+wire                                    exu2wbu_predict_taken      ;
+// registered mispredict signals (stable for 1 full cycle)
+reg                                     exu_mispredict_flush_r     ;
+reg                    [  31:0]         exu_redirect_pc_r          ;
 //
 wire                                    ifu2idu_valid, idu2ifu_ready;
 wire                                    idu2exu_valid, exu2idu_ready;
@@ -177,6 +202,8 @@ wire                   [   4:0]         wbu_rd_addr                ;
 wire                   [  11:0]         wbu_csr_addr               ;
 wire [31:0] ifu2idu_ins;
 wire [31:0] ifu2idu_pc;
+wire        ifu2idu_predict_taken;
+wire [31:2] ifu2idu_predict_target;
 
 hcpu_CSR_RegisterFile Csrs(
     .clock                             (clock                     ),
@@ -244,6 +271,32 @@ hcpu_icache icache1(
     .M_AXI_ARBURST                     (IFU_SRAM_AXI_ARBURST      )
 );
 
+// ============================================================================
+// Branch predictor: BTB + RAS
+// ============================================================================
+hcpu_btb btb1(
+    .clock                             (clock                     ),
+    .reset                             (reset                     ),
+    .lookup_pc                         (ifu_pc_next               ),
+    .predict_taken                     (btb_predict_taken         ),
+    .predict_target                    (btb_predict_target        ),
+    .lookup_hit                        (btb_lookup_hit            ),
+    .update_en                         (exu_btb_update_en         ),
+    .update_pc                         (exu_btb_update_pc         ),
+    .update_target                     (exu_btb_update_target     ),
+    .update_taken                      (exu_btb_update_taken      )
+);
+
+hcpu_ras ras1(
+    .clock                             (clock                     ),
+    .reset                             (reset                     ),
+    .push_en                           (exu_ras_push_en           ),
+    .push_data                         (exu_ras_push_data         ),
+    .pop_en                            (exu_ras_pop_en            ),
+    .predict_valid                     (ras_predict_valid         ),
+    .predict_target                    (ras_predict_target        )
+);
+
 hcpu_IFU ifu1
 (
     .i_pc_next                         (pc_next                   ),
@@ -257,7 +310,18 @@ hcpu_IFU ifu1
   //cache -> ifu
     .hit                               (icache_hit                ),
     .icache_ins                        (icache_ins                ),
-    .req_addr                          (ifu_req_addr              ) 
+    .req_addr                          (ifu_req_addr              ),
+  // branch predictor
+    .btb_predict_taken                 (btb_predict_taken         ),
+    .btb_predict_target                (btb_predict_target        ),
+    .ras_predict_valid                 (ras_predict_valid         ),
+    .ras_predict_target                (ras_predict_target        ),
+  // mispredict recovery
+    .exu_mispredict_flush              (exu_mispredict_flush_r     ),
+    .exu_redirect_pc                   (exu_redirect_pc_r          ),
+  // prediction outputs to pipeline
+    .o_predict_taken                   (ifu_predict_taken         ),
+    .o_predict_target                  (ifu_predict_target        )
 );
 
 hcpu_ifu_idu_regs ifu2idu_regs(
@@ -266,12 +330,17 @@ hcpu_ifu_idu_regs ifu2idu_regs(
     .i_ins                             (ins                       ),
     .o_ins                             (ifu2idu_ins               ),
     .clock                             (clock                     ),
-    .reset                             (reset  || pc_update_en || idu2exu_fence_i  ),
+    .reset                             (reset  || pc_update_en || idu2exu_fence_i || exu_mispredict_flush_r  ),
 
     .icache_hit                        (icache_hit                ),
     .i_pre_valid                       (pc_update_en              ),
     .i_post_ready                      (idu2ifu_ready             ),
-    .o_post_valid                      (ifu2idu_valid             ) 
+    .o_post_valid                      (ifu2idu_valid             ),
+
+    .i_predict_taken                   (ifu_predict_taken         ),
+    .i_predict_target                  (ifu_predict_target        ),
+    .o_predict_taken                   (ifu2idu_predict_taken     ),
+    .o_predict_target                  (ifu2idu_predict_target    )
 );
 
 hcpu_IDU idu1(
@@ -305,7 +374,7 @@ hcpu_IDU idu1(
 
 hcpu_idu_exu_regs idu2exu_regs(
     .clock                             (clock                     ),
-    .reset                             (reset || pc_update_en || idu2exu_fence_i   ),
+    .reset                             (reset || pc_update_en || idu2exu_fence_i || exu_mispredict_flush_r   ),
     .i_pre_valid                       (ifu2idu_valid             ),
     .i_post_ready                      (exu2idu_ready             ),
     .o_pre_ready                       (idu2ifu_ready             ),
@@ -340,6 +409,10 @@ hcpu_idu_exu_regs idu2exu_regs(
     .i_fence_i                         (fence_i                   ),
     .i_muldiv                          (muldiv                    ),
     .i_ebreak                          (ebreak                    ),
+
+    .i_predict_taken                   (ifu2idu_predict_taken     ),
+    .i_predict_target                  (ifu2idu_predict_target    ),
+    .i_rs1_addr                        (idu_addr_rs1              ),
     
     .o_pc                              (idu2exu_pc                ),
     .o_src1                            (idu2exu_src1              ),
@@ -364,7 +437,10 @@ hcpu_idu_exu_regs idu2exu_regs(
     .o_fence_i                         (idu2exu_fence_i           ),
     .o_muldiv                          (idu2exu_muldiv            ),
     //
-    .o_csr_addr                        (idu2exu_csr_addr          )
+    .o_csr_addr                        (idu2exu_csr_addr          ),
+    .o_predict_taken                   (idu2exu_predict_taken     ),
+    .o_predict_target                  (idu2exu_predict_target    ),
+    .o_rs1_addr                        (idu2exu_rs1_addr          )
 );
 
 wire                   [  31:0]         exu_pc_next                ;
@@ -390,9 +466,22 @@ hcpu_EXU exu1(
     .exu_opt                           (idu2exu_exu_opt           ),
     .i_alu_opt                         (idu2exu_alu_opt           ),
     .i_muldiv                          (idu2exu_muldiv            ),
+    .i_predict_taken                   (idu2exu_predict_taken     ),
+    .i_predict_target                  (idu2exu_predict_target    ),
+    .i_rd_addr                         (idu2exu_rd                ),
+    .i_rs1_addr                        (idu2exu_rs1_addr          ),
     .o_res                             (exu_res                   ),
     .o_brch                            (exu_brch                  ),
     .o_pc_next                         (exu_pc_next               ),
+    .o_mispredict_flush                (exu_mispredict_flush      ),
+    .o_redirect_pc                     (exu_redirect_pc           ),
+    .o_btb_update_en                   (exu_btb_update_en         ),
+    .o_btb_update_pc                   (exu_btb_update_pc         ),
+    .o_btb_update_target               (exu_btb_update_target     ),
+    .o_btb_update_taken                (exu_btb_update_taken      ),
+    .o_ras_push_en                     (exu_ras_push_en           ),
+    .o_ras_push_data                   (exu_ras_push_data         ),
+    .o_ras_pop_en                      (exu_ras_pop_en            ),
   //lsu -> sram axi
   //write address channel  
     .M_AXI_AWADDR                      (LSU_SRAM_AXI_AWADDR       ),
@@ -432,8 +521,28 @@ hcpu_EXU exu1(
     .i_pre_valid                       (idu2exu_valid             ),
     .i_post_ready                      (wbu2exu_ready             ),
     .o_post_valid                      (exu2wbu_valid             ),
-    .o_pre_ready                       (exu2idu_ready             ) 
+    .o_pre_ready                       (exu2idu_ready             ),
+    .i_flush                           (exu_mispredict_flush_r     ) 
 );
+
+// Latch mispredict signals for one full cycle
+reg mispredict_latched;
+always @(posedge clock or posedge reset) begin
+    if (reset) begin
+        exu_mispredict_flush_r <= 1'b0;
+        exu_redirect_pc_r      <= 32'b0;
+        mispredict_latched     <= 1'b0;
+    end else begin
+        if (exu_mispredict_flush && !mispredict_latched) begin
+            exu_redirect_pc_r  <= exu_redirect_pc;
+            mispredict_latched <= 1'b1;
+        end
+        exu_mispredict_flush_r <= exu_mispredict_flush && !mispredict_latched;
+        if (!exu_mispredict_flush)
+            mispredict_latched <= 1'b0;
+    end
+end
+
 wire                   [  31:0]         exu2wbu_pc_next            ;
 wire                   [  11:0]         exu2wbu_csr_addr           ;
 wire                   [   4:0]         exu2wbu_rd_addr            ;
@@ -495,6 +604,7 @@ hcpu_exu_wbu_regs exu_wbu_regs (
     .i_ebreak                          (idu2exu_ebreak            ),
     .i_mret                            (idu2exu_mret              ),
     .i_ecall                           (idu2exu_ecall             ),
+    .i_predict_taken                   (idu2exu_predict_taken     ),
     .i_load                            (idu2exu_load_d            ),
     .i_store                           (idu2exu_store_d           ),
     .i_muldiv                          (idu2exu_muldiv_d          ),
@@ -516,6 +626,7 @@ hcpu_exu_wbu_regs exu_wbu_regs (
     .o_jalr                            (exu2wbu_jalr              ),
     .o_mret                            (exu2wbu_mret              ),
     .o_ecall                           (exu2wbu_ecall             ),
+    .o_predict_taken                   (exu2wbu_predict_taken     ),
     .o_res                             (exu2wbu_res               ),
     .o_ebreak                          (exu2wbu_ebreak            ),
     .o_load                            (exu2wbu_load              ),
@@ -546,6 +657,7 @@ hcpu_WBU wbu1(
     .i_ebreak                          (exu2wbu_ebreak            ),
     .i_mret                            (exu2wbu_mret              ),
     .i_ecall                           (exu2wbu_ecall             ),
+    .i_predict_taken                   (exu2wbu_predict_taken     ),
 
     .i_res                             (exu2wbu_res               ),
 
@@ -727,6 +839,11 @@ import "DPI-C" function void alu_cnt_dpic    ();
 import "DPI-C" function void sys_cnt_dpic    ();
 import "DPI-C" function void fence_cnt_dpic  ();
 import "DPI-C" function void stall_cnt_dpic  ();
+import "DPI-C" function void btb_hit_dpic    ();
+import "DPI-C" function void btb_miss_dpic   ();
+import "DPI-C" function void btb_misp_dpic   ();
+import "DPI-C" function void ras_hit_dpic    ();
+import "DPI-C" function void ras_miss_dpic   ();
 
 // ===========================================================================
 `ifdef PERF_INST_MIX
@@ -735,7 +852,7 @@ always @(posedge clock) begin
     inst_cnt_dpic();
     if (idu2exu_brch_d) begin
       brch_cnt_dpic();
-      if (exu_brch) brch_tkn_dpic();
+      if (exu2wbu_brch) brch_tkn_dpic();
     end
     if (exu2wbu_jal || exu2wbu_jalr)  jal_cnt_dpic();
     if (exu2wbu_csr_wen)               csr_cnt_dpic();
@@ -787,6 +904,48 @@ always @(posedge clock) begin
   end
 end
 `endif // PERF_CACHE
+
+// ===========================================================================
+`ifdef PERF_BRANCH_PRED
+reg btb_hit_d, btb_is_brch_d, btb_valid_d;
+reg ras_hit_d, ras_is_ret_d, ras_valid_d;
+
+always @(posedge clock or posedge reset) begin
+    if (reset) begin
+        btb_valid_d   <= 1'b0;
+        btb_is_brch_d <= 1'b0;
+        btb_hit_d     <= 1'b0;
+        ras_valid_d   <= 1'b0;
+        ras_is_ret_d  <= 1'b0;
+        ras_hit_d     <= 1'b0;
+    end else begin
+        btb_valid_d   <= icache_hit && idu2ifu_ready;
+        btb_is_brch_d <= (ins[6:0] == 7'b1100011);
+        btb_hit_d     <= btb_lookup_hit;
+        ras_valid_d   <= icache_hit && idu2ifu_ready;
+        ras_is_ret_d  <= (ins[6:0] == 7'b1100111) && (ins[11:7] == 5'd0);
+        ras_hit_d     <= ras_predict_valid;
+    end
+end
+
+always @(posedge clock) begin
+    if (!reset && btb_valid_d) begin
+        if (btb_is_brch_d) begin
+            if (btb_hit_d) btb_hit_dpic();
+            else btb_miss_dpic();
+        end
+    end
+    if (!reset && ras_valid_d) begin
+        if (ras_is_ret_d) begin
+            if (ras_hit_d) ras_hit_dpic();
+            else ras_miss_dpic();
+        end
+    end
+    if (!reset && exu_mispredict_flush_r) begin
+        btb_misp_dpic();
+    end
+end
+`endif // PERF_BRANCH_PRED
 
 `endif // PERF_COUNTERS
 
