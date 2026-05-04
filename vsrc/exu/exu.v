@@ -284,7 +284,7 @@ wire is_control   = i_brch || i_jal || i_jalr;
 wire [31:0] pred_target_full = {i_predict_target, 2'b00};
 
 wire mispredict = (is_control && (i_predict_taken != actual_taken)) ||
-                  ((i_jal || i_jalr) && i_predict_taken && (pred_target_full != o_pc_next));
+                  ((i_jal || i_jalr || i_brch) && i_predict_taken && (pred_target_full != o_pc_next));
 
 assign o_mispredict_flush = mispredict && i_pre_valid;
 assign o_redirect_pc     = actual_taken ? o_pc_next : (i_pc + 32'd4);

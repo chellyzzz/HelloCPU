@@ -459,7 +459,8 @@ hwcpu 内置完整的 DPI-C 性能计数器，编译时通过 Verilator `+define
 
 详见 `CoreMark跑分记录.md` 第三节。
 | 2026-05-02 | 新增性能计数器系统（宏开关 + DPI-C + 自动摘要） | 100% |
-| 2026-05-03 | **分支预测器**: BTB(64-entry) + RAS(8-entry) + JAL静态预测 | 100% |
+| 2026-05-03 | **分支预测器**: BTB(64-entry) + RAS(8-entry) + JAL静态预测 | 100% (37/37) |
+| 2026-05-03 | CoreMark ITER=1 BTB-only: 879,918 cycles, CoreMark/MHz=1.142, **CRC 错误** | 已知正确性 bug |
 
 ## 十二、分支预测器
 
