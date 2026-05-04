@@ -50,7 +50,8 @@ module hcpu_exu_wbu_regs (
     output reg         [  31:0]         o_res                      ,
     output reg                          o_valid                    ,  // valid for data in this register
     input                               i_post_ready               ,
-    input                               o_post_valid                // from EXU
+    input                               o_post_valid               ,  // from EXU
+    input                               i_flush                      // gate latch (mispredict-related)
 );
 
 always @(posedge clock or posedge reset) begin
@@ -76,7 +77,7 @@ always @(posedge clock or posedge reset) begin
         o_is_div    <= 'b0;
         o_valid     <= 1'b0;
     end
-    else if(i_post_ready && o_post_valid) begin
+    else if(i_post_ready && o_post_valid && !i_flush) begin
         o_pc_next   <= i_pc_next;
         o_csr_addr  <= i_csr_addr;
         o_rd_addr   <= i_rd_addr;

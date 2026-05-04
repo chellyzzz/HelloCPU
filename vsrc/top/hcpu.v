@@ -638,7 +638,8 @@ hcpu_exu_wbu_regs exu_wbu_regs (
     .o_is_div                          (exu2wbu_is_div            ),
     .o_valid                           (exu_wbu_valid             ),
     .i_post_ready                      (wbu2exu_ready             ),
-    .o_post_valid                      (exu2wbu_valid             ) 
+    .o_post_valid                      (exu2wbu_valid             ),
+    .i_flush                            (exu_mispredict_flush_r     ) 
 );
 
 hcpu_WBU wbu1(
