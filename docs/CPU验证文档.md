@@ -391,6 +391,7 @@ HelloCPU/
 | `vsrc/wbu/wbu.v` | 写回单元 | ✅ 保留原始 pc_update 行为 |
 | `sim/sim_main.cpp` | Verilator 主程序 | ✅ 计数器实现 + 性能摘要打印 |
 | `sim/axi_ram.v` | AXI RAM 模型 | - |
+| `sw/benchmark/rvv-benchmark` | PLCT RVV 微基准子模块 (7 项) | 🆕 引入 |
 
 ---
 
@@ -426,6 +427,7 @@ gtkwave wave.vcd             # 查看波形
 | 2026-05-02 | ICache/DCache 容量 256B→4KB (SET_NUMS 4→64)；CoreMark ITER 可配置 | 100% |
 | 2026-05-02 | 性能计数器启用 (PERF_COUNTERS/INST_MIX/STALL/BUS/CACHE)；bus 计数器 double-count 修复 | 100% |
 | 2026-05-02 | Debug 宏统一管理: 新增 debug_macros.vh，ICACHE_DEBUG/DCACHE_DEBUG 集中控制 | 100% |
+| 2026-05-02 | 引入 rvv-benchmark 子模块 (PLCT Lab) — SAXPY/SGEMM/MEMCPY/VVADD 等 7 项 RVV 微基准 | — |
 
 ---
 
@@ -550,5 +552,51 @@ make clean && make sim
 | `vsrc/exu/lsu.v` | `include + 移除本地 define |
 
 ---
+
+## 十三、RVV Benchmark (V 扩展验证储备)
+
+### 概述
+
+引入 PLCT 实验室 [rvv-benchmark](https://github.com/plctlab/rvv-benchmark) 作为 git submodule，放置在 `sw/benchmark/rvv-benchmark/`。该基准套件源自 RISC-V V 向量规范中的汇编示例，专为 V 扩展验证设计。
+
+### 基准内容
+
+| 文件 | 操作 | 说明 |
+|------|------|------|
+| `vvaddint32.s` | `vadd.vv` | 整型向量-向量加法 |
+| `saxpy.s` | `y = a·x + y` | 单精度 AXPY (经典 BLAS-1) |
+| `sgemm.S` | `C += A × B` | 单精度通用矩阵乘法 (BLAS-3) |
+| `memcpy.s` | `vle8 / vse8` | 向量内存拷贝 |
+| `strlen.s` | `vfirst` 扫描 | 字符串长度 |
+| `strcpy.s` | 加载/存储 | 字符串拷贝 |
+| `strncpy.s` | 定长加载/存储 | 定长字符串拷贝 |
+
+### 构建要求
+
+需要 RISC-V V 扩展工具链：
+- **rvv-llvm** (https://github.com/isrc-cas/rvv-llvm)
+- **riscv-gnu-toolchain** (ELF 链接)
+- **spike** + **pk** (V 扩展仿真)
+
+### 使用方法
+
+```bash
+# 克隆时自动拉取子模块
+git clone --recurse-submodules <repo>
+
+# 已克隆仓库手动初始化
+git submodule update --init --recursive
+
+# 进入目录按 rvv-benchmark 自带 Makefile 构建
+cd sw/benchmark/rvv-benchmark
+make
+make run
+```
+
+### 当前状态
+
+- ✅ 子模块已引入 (`sw/benchmark/rvv-benchmark`)
+- ⏳ 待 V 扩展实现后进行编译验证
+- ⏳ 待适配 HelloCPU 的 Verilator 仿真环境---
 
 

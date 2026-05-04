@@ -1,0 +1,3 @@
+[submodule "sw/benchmark/rvv-benchmark"]
+	path = sw/benchmark/rvv-benchmark
+	url = https://github.com/plctlab/rvv-benchmark.git
