@@ -595,7 +595,7 @@ end
 
 hcpu_exu_wbu_regs exu_wbu_regs (
     .clock                             (clock                     ),
-    .reset                             (reset || pc_update_en || exu_mispredict_flush_r     ),
+    .reset                             (reset || pc_update_en     ),
     .i_brch                            (exu_brch                  ),
     .i_jal                             (idu2exu_jal               ),
     .i_wen                             (idu2exu_wen               ),
