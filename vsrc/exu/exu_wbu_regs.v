@@ -48,9 +48,9 @@ module hcpu_exu_wbu_regs (
     output reg                          o_is_div                   ,
     //
     output reg         [  31:0]         o_res                      ,
-    // output reg                          o_next                     ,
+    output reg                          o_valid                    ,  // valid for data in this register
     input                               i_post_ready               ,
-    input                               o_post_valid                
+    input                               o_post_valid                // from EXU
 );
 
 always @(posedge clock or posedge reset) begin
@@ -74,7 +74,7 @@ always @(posedge clock or posedge reset) begin
         o_fence_i   <= 'b0;
         o_is_brch   <= 'b0;
         o_is_div    <= 'b0;
-        // o_next      <= 'b0;
+        o_valid     <= 1'b0;
     end
     else if(i_post_ready && o_post_valid) begin
         o_pc_next   <= i_pc_next;
@@ -96,7 +96,7 @@ always @(posedge clock or posedge reset) begin
         o_fence_i   <= i_fence_i;
         o_is_brch   <= i_is_brch;
         o_is_div    <= i_is_div;
-        // o_next      <= 1'b1;
+        o_valid     <= 1'b1;
     end
     else if(i_post_ready && ~o_post_valid) begin
         o_pc_next   <= 'b0; 
@@ -118,7 +118,7 @@ always @(posedge clock or posedge reset) begin
         o_fence_i   <= 'b0;
         o_is_brch   <= 'b0;
         o_is_div    <= 'b0;
-        // o_next      <= 'b0;
+        o_valid     <= 1'b0;
     end
 end
 endmodule   

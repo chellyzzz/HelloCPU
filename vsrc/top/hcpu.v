@@ -123,6 +123,7 @@ wire                                    idu2exu_predict_taken      ;
 wire                   [  31:2]         idu2exu_predict_target     ;
 wire                   [   4:0]         idu2exu_rs1_addr           ;
 wire                                    exu2wbu_predict_taken      ;
+wire                                    exu_wbu_valid              ;  // EXU-WBU register's own valid
 // registered mispredict signals (stable for 1 full cycle)
 reg                                     exu_mispredict_flush_r     ;
 reg                    [  31:0]         exu_redirect_pc_r          ;
@@ -635,7 +636,7 @@ hcpu_exu_wbu_regs exu_wbu_regs (
     .o_fence_i                         (exu2wbu_fence_i           ),
     .o_is_brch                         (exu2wbu_is_brch           ),
     .o_is_div                          (exu2wbu_is_div            ),
-    // .o_next                            (exu2wbu_next              ),
+    .o_valid                           (exu_wbu_valid             ),
     .i_post_ready                      (wbu2exu_ready             ),
     .o_post_valid                      (exu2wbu_valid             ) 
 );
@@ -644,7 +645,7 @@ hcpu_WBU wbu1(
     .clock                             (clock                     ),
     .reset                             (reset                     ),
     .i_pc_next                         (exu2wbu_pc_next           ),
-    .i_pre_valid                       (exu2wbu_valid             ),
+    .i_pre_valid                       (exu_wbu_valid             ),  // use EXU-WBU's own valid
     // .i_next                            (exu2wbu_next              ),
 
     .i_rd_addr                         (exu2wbu_rd_addr           ),
