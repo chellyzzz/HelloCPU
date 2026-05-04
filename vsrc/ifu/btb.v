@@ -16,9 +16,10 @@ module hcpu_btb
 
 localparam ENTRIES = 64;
 localparam INDEX_W  = 6;
+localparam TAG_W    = 32 - INDEX_W - 2;
 
-wire [INDEX_W-1:0] lookup_idx = lookup_pc[7:2];
-wire [23:0]        lookup_tag = lookup_pc[31:8];
+wire [INDEX_W-1:0] lookup_idx = lookup_pc[INDEX_W+1:2];
+wire [TAG_W-1:0]   lookup_tag = lookup_pc[31:INDEX_W+2];
 
 wire               hit = btb_valid[lookup_idx] && (btb_tag[lookup_idx] == lookup_tag);
 
@@ -27,12 +28,12 @@ assign predict_taken  = hit && btb_counter[lookup_idx][1];
 assign predict_target = btb_target[lookup_idx];
 
 reg                [ENTRIES-1:0] btb_valid;
-reg         [23:0] [ENTRIES-1:0] btb_tag;
+reg         [TAG_W-1:0] [ENTRIES-1:0] btb_tag;
 reg         [29:0] [ENTRIES-1:0] btb_target;
 reg          [1:0] [ENTRIES-1:0] btb_counter;
 
-wire [INDEX_W-1:0] upd_idx = update_pc[7:2];
-wire [23:0]        upd_tag = update_pc[31:8];
+wire [INDEX_W-1:0] upd_idx = update_pc[INDEX_W+1:2];
+wire [TAG_W-1:0]   upd_tag = update_pc[31:INDEX_W+2];
 
 wire upd_hit = btb_valid[upd_idx] && (btb_tag[upd_idx] == upd_tag);
 
@@ -41,7 +42,7 @@ always @(posedge clock or posedge reset) begin
     if (reset) begin
         for (i = 0; i < ENTRIES; i = i + 1) begin
             btb_valid[i]   <= 1'b0;
-            btb_tag[i]     <= 24'b0;
+            btb_tag[i]     <= {TAG_W{1'b0}};
             btb_target[i]  <= 30'b0;
             btb_counter[i] <= 2'b01;
         end

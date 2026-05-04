@@ -291,11 +291,36 @@ assign o_redirect_pc     = actual_taken ? o_pc_next : (i_pc + 32'd4);
 
 // ============================================================================
 // BTB update (all conditional branches)
+// Registered to capture stable values
 // ============================================================================
-assign o_btb_update_en     = i_brch && i_pre_valid;
-assign o_btb_update_pc     = i_pc;
-assign o_btb_update_target = o_pc_next[31:2];
-assign o_btb_update_taken  = brch_res;
+reg        btb_update_en_r;
+reg [31:0] btb_update_pc_r;
+reg [29:0] btb_update_target_r;
+reg        btb_update_taken_r;
+
+wire btb_capture = i_brch && i_pre_valid && !i_flush;
+wire [31:0] btb_target_raw = i_pc + i_imm;
+
+always @(posedge clock or posedge reset) begin
+    if (reset) begin
+        btb_update_en_r     <= 1'b0;
+        btb_update_pc_r     <= 32'b0;
+        btb_update_target_r <= 30'b0;
+        btb_update_taken_r  <= 1'b0;
+    end else if (btb_capture) begin
+        btb_update_en_r     <= 1'b1;
+        btb_update_pc_r     <= i_pc;
+        btb_update_target_r <= btb_target_raw[31:2];
+        btb_update_taken_r  <= brch_res;
+    end else begin
+        btb_update_en_r     <= 1'b0;
+    end
+end
+
+assign o_btb_update_en     = btb_update_en_r;
+assign o_btb_update_pc     = btb_update_pc_r;
+assign o_btb_update_target = btb_update_target_r;
+assign o_btb_update_taken  = btb_update_taken_r;
 
 // ============================================================================
 // RAS update (function calls and returns)
