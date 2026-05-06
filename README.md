@@ -12,6 +12,7 @@ HelloCPU is a small RV32IM + Zicsr CPU project with a Verilator-based simulation
 | Branch prediction | 64-entry BTB, 8-entry RAS, static JAL prediction |
 | CPU tests | `40 passed, 0 failed` |
 | CoreMark ITER=1 | Correct CRC, `1.404 CoreMark/MHz` |
+| CoreMark ITER=100 | Correct CRC, `1.545 CoreMark/MHz` |
 
 Latest validated commands:
 
@@ -21,17 +22,17 @@ make -C sw benchmark ITER=1 -B
 ./build/Vsim_top sw/build/coremark.bin --max-cycles=100000000
 ```
 
-Latest CoreMark result:
+Latest CoreMark ITER=100 result:
 
 ```text
 [0]crclist       : 0xe714
 [0]crcmatrix     : 0x1fd7
 [0]crcstate      : 0x8e3a
-[0]crcfinal      : 0xe714
+[0]crcfinal      : 0x988c
 Correct operation validated.
-Total cycles     : 711745
-CoreMark/MHz     : 1.404
-[HelloCPU] PASS (cycles: 715631)
+Total cycles     : 64695430
+CoreMark/MHz     : 1.545
+[HelloCPU] PASS (cycles: 64701101)
 ```
 
 ## Repository Layout
