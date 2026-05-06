@@ -122,6 +122,7 @@ The simulator prints instruction mix, IPC, stalls, cache statistics, bus transac
 |----------|---------|
 | `docs/microarchitecture.md` | CPU pipeline, execution units, caches, buses, CSRs |
 | `docs/cpu-evolution-roadmap.md` | CPU optimization roadmap toward cleaner execution and memory boundaries |
+| `docs/cpu-design-plan.md` | CPU-focused design plan, priorities, and staged milestones |
 | `docs/vector-coprocessor-interface.md` | Draft CPU/vector coprocessor interface and control semantics |
 | `docs/vector-coprocessor-stages.md` | Staged implementation plan for the vector coprocessor side |
 | `docs/cpu-vector-development-plan.md` | Joint CPU/vector development plan and milestones |
