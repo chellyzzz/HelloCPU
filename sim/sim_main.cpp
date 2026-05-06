@@ -38,6 +38,15 @@ static uint64_t cnt_csr = 0;
 static uint64_t cnt_sys = 0;
 static uint64_t cnt_fence = 0;
 static uint64_t cnt_stall = 0;
+static uint64_t cnt_stall_front = 0;
+static uint64_t cnt_stall_lsu = 0;
+static uint64_t cnt_stall_lsu_hit = 0;
+static uint64_t cnt_stall_lsu_refill = 0;
+static uint64_t cnt_stall_lsu_uncached = 0;
+static uint64_t cnt_stall_lsu_wb = 0;
+static uint64_t cnt_stall_mul = 0;
+static uint64_t cnt_stall_ctrl = 0;
+static uint64_t cnt_stall_other = 0;
 static uint64_t cnt_icache_hit = 0;
 static uint64_t cnt_icache_miss = 0;
 static uint64_t cnt_ifu_fetch = 0;
@@ -113,6 +122,30 @@ static void print_perf_summary() {
          (double)cnt_inst / total_clk);
   printf("│ Stall cycles         : %12lu (%.1f%%)            │\n", cnt_stall,
          100.0 * cnt_stall / total_clk);
+  if (cnt_stall > 0) {
+    printf("│   Frontend/empty     : %10lu (%5.1f%%)            │\n",
+           cnt_stall_front, 100.0 * cnt_stall_front / cnt_stall);
+    printf("│   LSU wait           : %10lu (%5.1f%%)            │\n",
+           cnt_stall_lsu, 100.0 * cnt_stall_lsu / cnt_stall);
+    if (cnt_stall_lsu > 0) {
+      printf("│     ├─ hit path      : %10lu (%5.1f%%)            │\n",
+             cnt_stall_lsu_hit, 100.0 * cnt_stall_lsu_hit / cnt_stall_lsu);
+      printf("│     ├─ refill        : %10lu (%5.1f%%)            │\n",
+             cnt_stall_lsu_refill,
+             100.0 * cnt_stall_lsu_refill / cnt_stall_lsu);
+      printf("│     ├─ uncached      : %10lu (%5.1f%%)            │\n",
+             cnt_stall_lsu_uncached,
+             100.0 * cnt_stall_lsu_uncached / cnt_stall_lsu);
+      printf("│     ├─ writeback     : %10lu (%5.1f%%)            │\n",
+             cnt_stall_lsu_wb, 100.0 * cnt_stall_lsu_wb / cnt_stall_lsu);
+    }
+    printf("│   MUL/DIV wait       : %10lu (%5.1f%%)            │\n",
+           cnt_stall_mul, 100.0 * cnt_stall_mul / cnt_stall);
+    printf("│   Control recovery   : %10lu (%5.1f%%)            │\n",
+           cnt_stall_ctrl, 100.0 * cnt_stall_ctrl / cnt_stall);
+    printf("│   Other backend      : %10lu (%5.1f%%)            │\n",
+           cnt_stall_other, 100.0 * cnt_stall_other / cnt_stall);
+  }
   printf("├─────────────────────────────────────────────────────┤\n");
   printf("│ Instruction Mix                                    │\n");
   if (cnt_inst > 0) {
@@ -234,6 +267,15 @@ extern "C" void csr_cnt_dpic() { cnt_csr++; }
 extern "C" void sys_cnt_dpic() { cnt_sys++; }
 extern "C" void fence_cnt_dpic() { cnt_fence++; }
 extern "C" void stall_cnt_dpic() { cnt_stall++; }
+extern "C" void stall_front_dpic() { cnt_stall_front++; }
+extern "C" void stall_lsu_dpic() { cnt_stall_lsu++; }
+extern "C" void stall_lsu_hit_dpic() { cnt_stall_lsu_hit++; }
+extern "C" void stall_lsu_refill_dpic() { cnt_stall_lsu_refill++; }
+extern "C" void stall_lsu_uncached_dpic() { cnt_stall_lsu_uncached++; }
+extern "C" void stall_lsu_wb_dpic() { cnt_stall_lsu_wb++; }
+extern "C" void stall_mul_dpic() { cnt_stall_mul++; }
+extern "C" void stall_ctrl_dpic() { cnt_stall_ctrl++; }
+extern "C" void stall_other_dpic() { cnt_stall_other++; }
 extern "C" void cache_miss() { cnt_icache_miss++; }
 extern "C" void ifu_start() { cnt_ifu_fetch++; }
 extern "C" void ifu_end() { cnt_ifu_done++; }

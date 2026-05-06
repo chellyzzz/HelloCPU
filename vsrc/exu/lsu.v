@@ -57,7 +57,13 @@ module hcpu_LSU #(
 
     // Pipeline handshake
     input                               o_pre_ready                ,
-    output                              lsu_done
+    output                              lsu_done                   ,
+
+    // debug / perf classification
+    output                              o_dbg_wait_hit             ,
+    output                              o_dbg_wait_refill          ,
+    output                              o_dbg_wait_uncached        ,
+    output                              o_dbg_wait_wb
 );
 `include "debug_macros.vh"
 // `define DCACHE_DEBUG 1
@@ -216,6 +222,29 @@ reg axi_arvalid, axi_awvalid, axi_bready, axi_rready;
 // ============================================================
 reg done_reg;
 assign lsu_done = done_reg;
+
+assign o_dbg_wait_hit =
+    (state == S_CHECK && lat_cacheable && cache_hit) ||
+    (state == S_CACHE_HIT) ||
+    (state == S_STORE_HIT);
+
+assign o_dbg_wait_refill =
+    (state == S_CHECK && lat_cacheable && !cache_hit && !victim_is_dirty) ||
+    (state == S_REFILL_AR) ||
+    (state == S_REFILL_R) ||
+    (state == S_STORE_FILL);
+
+assign o_dbg_wait_uncached =
+    (state == S_CHECK && !lat_cacheable) ||
+    (state == S_UNCACHE_AR) ||
+    (state == S_UNCACHE_R) ||
+    (state == S_UNCACHE_AW) ||
+    (state == S_UNCACHE_B);
+
+assign o_dbg_wait_wb =
+    (state == S_CHECK && lat_cacheable && !cache_hit && victim_is_dirty) ||
+    (state == S_WB_AW) ||
+    (state == S_WB_B);
 
 // ============================================================
 // AXI Output Assignments

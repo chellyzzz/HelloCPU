@@ -135,6 +135,10 @@ reg                    [  31:0]         exu_redirect_pc_r          ;
 wire                                    ifu2idu_valid, idu2ifu_ready;
 wire                                    idu2exu_valid, exu2idu_ready;
 wire                                    exu2wbu_valid, wbu2exu_ready;
+wire                                    exu_lsu_dbg_wait_hit      ;
+wire                                    exu_lsu_dbg_wait_refill   ;
+wire                                    exu_lsu_dbg_wait_uncached ;
+wire                                    exu_lsu_dbg_wait_wb       ;
 //cache 
 wire                   [ISA_WIDTH-1:0]  icache_ins                 ;
 wire                   [ISA_WIDTH-1:0]  ifu_req_addr               ;
@@ -525,6 +529,10 @@ hcpu_EXU exu1(
     .M_AXI_BVALID                      (LSU_SRAM_AXI_BVALID       ),
     .M_AXI_BREADY                      (LSU_SRAM_AXI_BREADY       ),
     .M_AXI_BID                         (LSU_SRAM_AXI_BID          ),
+    .o_lsu_dbg_wait_hit                (exu_lsu_dbg_wait_hit      ),
+    .o_lsu_dbg_wait_refill             (exu_lsu_dbg_wait_refill   ),
+    .o_lsu_dbg_wait_uncached           (exu_lsu_dbg_wait_uncached ),
+    .o_lsu_dbg_wait_wb                 (exu_lsu_dbg_wait_wb       ),
   //exu -> wbu handshake
     .i_pre_valid                       (idu2exu_valid             ),
     .i_post_ready                      (wbu2exu_ready             ),
@@ -868,6 +876,15 @@ import "DPI-C" function void alu_cnt_dpic    ();
 import "DPI-C" function void sys_cnt_dpic    ();
 import "DPI-C" function void fence_cnt_dpic  ();
 import "DPI-C" function void stall_cnt_dpic  ();
+import "DPI-C" function void stall_front_dpic();
+import "DPI-C" function void stall_lsu_dpic  ();
+import "DPI-C" function void stall_lsu_hit_dpic();
+import "DPI-C" function void stall_lsu_refill_dpic();
+import "DPI-C" function void stall_lsu_uncached_dpic();
+import "DPI-C" function void stall_lsu_wb_dpic();
+import "DPI-C" function void stall_mul_dpic  ();
+import "DPI-C" function void stall_ctrl_dpic ();
+import "DPI-C" function void stall_other_dpic();
 import "DPI-C" function void btb_hit_dpic    ();
 import "DPI-C" function void btb_miss_dpic   ();
 import "DPI-C" function void btb_misp_dpic   ();
@@ -918,6 +935,33 @@ end
 `ifdef PERF_STALL
 always @(posedge clock) begin
   if (!reset && !exu2wbu_valid) stall_cnt_dpic();
+
+  if (!reset && !exu2wbu_valid) begin
+    if (exu_mispredict_flush_r || pc_update_en) begin
+      stall_ctrl_dpic();
+    end else if (idu2exu_valid && !exu2idu_ready) begin
+      if (idu2exu_load || idu2exu_store) begin
+        stall_lsu_dpic();
+        if (exu_lsu_dbg_wait_hit) begin
+          stall_lsu_hit_dpic();
+        end else if (exu_lsu_dbg_wait_refill) begin
+          stall_lsu_refill_dpic();
+        end else if (exu_lsu_dbg_wait_uncached) begin
+          stall_lsu_uncached_dpic();
+        end else if (exu_lsu_dbg_wait_wb) begin
+          stall_lsu_wb_dpic();
+        end
+      end else if (idu2exu_muldiv) begin
+        stall_mul_dpic();
+      end else begin
+        stall_other_dpic();
+      end
+    end else if (!idu2exu_valid) begin
+      stall_front_dpic();
+    end else begin
+      stall_other_dpic();
+    end
+  end
 end
 `endif // PERF_STALL
 
