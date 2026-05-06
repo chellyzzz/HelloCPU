@@ -121,6 +121,10 @@ The simulator prints instruction mix, IPC, stalls, cache statistics, bus transac
 | Document | Purpose |
 |----------|---------|
 | `docs/microarchitecture.md` | CPU pipeline, execution units, caches, buses, CSRs |
+| `docs/cpu-evolution-roadmap.md` | CPU optimization roadmap toward cleaner execution and memory boundaries |
+| `docs/vector-coprocessor-interface.md` | Draft CPU/vector coprocessor interface and control semantics |
+| `docs/vector-coprocessor-stages.md` | Staged implementation plan for the vector coprocessor side |
+| `docs/cpu-vector-development-plan.md` | Joint CPU/vector development plan and milestones |
 | `docs/branch-predictor-design.md` | BTB/RAS/JAL prediction design |
 | `docs/branch-predictor-fixes.md` | Predictor correctness fixes and debug history |
 | `docs/coremark-results.md` | CoreMark performance and CRC records |
