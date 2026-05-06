@@ -67,8 +67,8 @@ assign and_res      = src1 & src2;
 assign or_res       = src1 | src2;
 assign xor_res      = src1 ^ src2;
 assign sll_res      = src1 << src2[4:0];
-assign srl_res      = src1 >>> src2[4:0];
-assign sra_res      = src1 >> src2[4:0];
+assign srl_res      = src1 >> src2[4:0];
+assign sra_res      = $signed(src1) >>> src2[4:0];
 assign slt_res      = (src1[31] != src2[31]) ? (src1[31] ? 32'b1 : 32'b0) : ((src1 < src2) ? 32'b1 : 32'b0);
 assign sltu_res     = ({1'b0, src1} < {1'b0, src2}) ? 32'b1 : 32'b0;
 

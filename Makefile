@@ -27,6 +27,7 @@ VERILATOR_FLAGS += "+define+PERF_STALL"
 VERILATOR_FLAGS += "+define+PERF_BUS"
 VERILATOR_FLAGS += "+define+PERF_CACHE"
 VERILATOR_FLAGS += "+define+PERF_BRANCH_PRED"
+VERILATOR_FLAGS += $(EXTRA_VERILATOR_FLAGS)
 
 # Tests
 TESTS := $(basename $(notdir $(wildcard $(SW_DIR)/tests/cpu-tests/*.c)))

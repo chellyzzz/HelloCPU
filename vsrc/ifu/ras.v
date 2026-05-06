@@ -19,7 +19,8 @@ reg  [29:0] stack [0:DEPTH-1];
 reg  [PTR_W:0] wr_ptr;
 
 assign predict_valid  = (wr_ptr != 0);
-assign predict_target = stack[wr_ptr - 1];
+wire [PTR_W-1:0] top_idx = wr_ptr[PTR_W-1:0] - {{PTR_W-1{1'b0}}, 1'b1};
+assign predict_target = stack[top_idx];
 
 integer i;
 always @(posedge clock or posedge reset) begin
@@ -30,11 +31,11 @@ always @(posedge clock or posedge reset) begin
     end
     else begin
         if (push_en && pop_en) begin
-            stack[wr_ptr - 1] <= push_data;
+            stack[top_idx] <= push_data;
         end
         else if (push_en && !pop_en) begin
             if (wr_ptr < DEPTH) begin
-                stack[wr_ptr] <= push_data;
+                stack[wr_ptr[PTR_W-1:0]] <= push_data;
                 wr_ptr <= wr_ptr + 1;
             end
         end

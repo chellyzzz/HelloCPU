@@ -12,6 +12,7 @@ module hcpu_exu_wbu_regs (
     input                               i_mret                     ,
     input                               i_ecall                    ,
     input                               i_predict_taken            ,
+    input                               i_predict_correct          ,
 
     input                               i_load                     ,
     input                               i_store                    ,
@@ -21,11 +22,13 @@ module hcpu_exu_wbu_regs (
     input                               i_is_div                   ,
 
     input              [  31:0]         i_res                      ,
+    input              [  31:0]         i_pc                       ,
     input              [  31:0]         i_pc_next                  ,
     input              [  11:0]         i_csr_addr                 ,
     input              [   4:0]         i_rd_addr                  ,
 
     output reg         [  31:0]         o_pc_next                  ,
+    output reg         [  31:0]         o_pc                       ,
     output reg         [  11:0]         o_csr_addr                 ,
     output reg         [   4:0]         o_rd_addr                  , 
     //
@@ -38,6 +41,7 @@ module hcpu_exu_wbu_regs (
     output reg                          o_mret                     ,
     output reg                          o_ecall                    ,
     output reg                          o_predict_taken            ,
+    output reg                          o_predict_correct          ,
     output reg                          o_ebreak                   ,
     //
     output reg                          o_load                     ,
@@ -57,6 +61,7 @@ module hcpu_exu_wbu_regs (
 always @(posedge clock or posedge reset) begin
     if(reset) begin
         o_pc_next   <= 'b0; 
+        o_pc        <= 'b0;
         o_csr_addr  <= 'b0; 
         o_rd_addr   <= 'b0; 
         o_wen       <= 'b0; 
@@ -67,6 +72,7 @@ always @(posedge clock or posedge reset) begin
         o_mret      <= 'b0; 
         o_ecall         <= 'b0;
         o_predict_taken <= 'b0;
+        o_predict_correct <= 'b0;
         o_res           <= 'b0; 
         o_ebreak    <= 'b0;
         o_load      <= 'b0;
@@ -77,8 +83,12 @@ always @(posedge clock or posedge reset) begin
         o_is_div    <= 'b0;
         o_valid     <= 1'b0;
     end
-    else if(i_post_ready && o_post_valid && !i_flush) begin
+    else if(i_post_ready && i_flush) begin
+        o_valid <= 1'b0;
+    end
+    else if(i_post_ready && o_post_valid) begin
         o_pc_next   <= i_pc_next;
+        o_pc        <= i_pc;
         o_csr_addr  <= i_csr_addr;
         o_rd_addr   <= i_rd_addr;
         o_wen       <= i_wen;
@@ -89,6 +99,7 @@ always @(posedge clock or posedge reset) begin
         o_mret      <= i_mret;
         o_ecall         <= i_ecall;
         o_predict_taken <= i_predict_taken;
+        o_predict_correct <= i_predict_correct;
         o_res           <= i_res;
         o_ebreak    <= i_ebreak;
         o_load      <= i_load;
@@ -101,6 +112,7 @@ always @(posedge clock or posedge reset) begin
     end
     else if(i_post_ready && ~o_post_valid) begin
         o_pc_next   <= 'b0; 
+        o_pc        <= 'b0;
         o_csr_addr  <= 'b0; 
         o_rd_addr   <= 'b0; 
         o_wen       <= 'b0; 
@@ -111,6 +123,7 @@ always @(posedge clock or posedge reset) begin
         o_mret      <= 'b0; 
         o_ecall         <= 'b0;
         o_predict_taken <= 'b0;
+        o_predict_correct <= 'b0;
         o_res           <= 'b0;
         o_ebreak        <= 'b0;
         o_load      <= 'b0;

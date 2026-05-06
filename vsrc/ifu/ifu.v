@@ -37,7 +37,11 @@ wire is_jal  = (icache_ins[6:0] == 7'b1101111);
 wire is_jalr = (icache_ins[6:0] == 7'b1100111);
 wire is_ret  = is_jalr && (icache_ins[11:7] == 5'd0);
 
+`ifdef DISABLE_BTB_PRED
+wire pred_taken_btb = 1'b0;
+`else
 wire pred_taken_btb = is_brch && btb_predict_taken;
+`endif
 wire pred_taken_jal = is_jal;
 wire pred_taken_ras = is_ret && ras_predict_valid;
 

@@ -96,6 +96,9 @@ wire TYPEJALR   = (opcode == TYPE_JALR);
 wire TYPES      = (opcode == TYPE_S);
 wire TYPEB      = (opcode == TYPE_B);
 wire TYPEEBRK   = (opcode == TYPE_EBRK);
+wire valid_ins  = TYPEI || TYPEI_LOAD || TYPER || TYPELUI || TYPEAUIPC ||
+                  TYPEJAL || TYPEJALR || TYPES || TYPEB || TYPEEBRK ||
+                  (opcode == TYPE_FENCE);
 
 // ========================================================================
 // Immediate generation
@@ -124,7 +127,7 @@ assign o_csr_addr = TYPEEBRK ? ins[31:20] : 12'b0;
 // ========================================================================
 // Write enables
 // ========================================================================
-assign o_wen     = (TYPES || TYPEB || opcode == TYPE_FENCE) ? 1'b0 : 1'b1;
+assign o_wen     = valid_ins && !(TYPES || TYPEB || opcode == TYPE_FENCE);
 assign o_csr_wen = (TYPEEBRK && |func3);
 
 // ========================================================================
@@ -162,8 +165,8 @@ assign o_alu_opt =
     (exu_opt == FUN3_SLT                ) ? ALU_SLT  :
     (exu_opt == FUN3_SLTU               ) ? ALU_SLTU :
     (exu_opt == FUN3_XOR                ) ? ALU_XOR  :
-    (exu_opt == FUN3_SRL_SRA &&  o_if_unsigned) ? ALU_SRL  :
-    (exu_opt == FUN3_SRL_SRA && ~o_if_unsigned) ? ALU_SRA  :
+    (exu_opt == FUN3_SRL_SRA &&  o_if_unsigned) ? ALU_SRA  :
+    (exu_opt == FUN3_SRL_SRA && ~o_if_unsigned) ? ALU_SRL  :
     (exu_opt == FUN3_OR                 ) ? ALU_OR   :
     (exu_opt == FUN3_AND                ) ? ALU_AND  :
     10'b0;

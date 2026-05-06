@@ -79,6 +79,8 @@ wire                   [ISA_WIDTH-1:0]  imm,ins                    ;
 wire                   [REG_ADDR-1:0]   idu_addr_rs1,idu_addr_rs2,idu_addr_rd;
 wire                   [CSR_ADDR-1:0]   idu_csr_raddr              ;
 wire                   [ISA_WIDTH-1:0]  rs1, rs2, wbu_rd_wdata     ;
+wire                   [ISA_WIDTH-1:0]  dbg_s0, dbg_s1, dbg_s2     ;
+wire                   [ISA_WIDTH-1:0]  dbg_s3, dbg_s4             ;
 //csr wdata rd_wdata
 wire                   [ISA_WIDTH-1:0]  csr_rd_wdata               ;
 
@@ -123,6 +125,8 @@ wire                                    idu2exu_predict_taken      ;
 wire                   [  31:2]         idu2exu_predict_target     ;
 wire                   [   4:0]         idu2exu_rs1_addr           ;
 wire                                    exu2wbu_predict_taken      ;
+wire                                    exu_predict_correct        ;
+wire                                    exu2wbu_predict_correct    ;
 wire                                    exu_wbu_valid              ;  // EXU-WBU register's own valid
 // registered mispredict signals (stable for 1 full cycle)
 reg                                     exu_mispredict_flush_r     ;
@@ -445,6 +449,8 @@ hcpu_idu_exu_regs idu2exu_regs(
 );
 
 wire                   [  31:0]         exu_pc_next                ;
+wire                   [  31:0]         exu_commit_pc_next         ;
+assign exu_commit_pc_next = idu2exu_brch ? exu_redirect_pc : exu_pc_next;
 hcpu_EXU exu1(
     .clock                             (clock                     ),
     .reset                             (reset                     ),
@@ -475,6 +481,7 @@ hcpu_EXU exu1(
     .o_brch                            (exu_brch                  ),
     .o_pc_next                         (exu_pc_next               ),
     .o_mispredict_flush                (exu_mispredict_flush      ),
+    .o_predict_correct                 (exu_predict_correct       ),
     .o_redirect_pc                     (exu_redirect_pc           ),
     .o_btb_update_en                   (exu_btb_update_en         ),
     .o_btb_update_pc                   (exu_btb_update_pc         ),
@@ -545,10 +552,13 @@ always @(posedge clock or posedge reset) begin
 end
 
 wire                   [  31:0]         exu2wbu_pc_next            ;
+wire                   [  31:0]         exu2wbu_pc                 ;
 wire                   [  11:0]         exu2wbu_csr_addr           ;
 wire                   [   4:0]         exu2wbu_rd_addr            ;
 wire                                    exu2wbu_wen                ;
 wire                                    exu2wbu_csr_wen            ;
+wire                                    exu2wbu_commit_wen         ;
+wire                                    exu2wbu_commit_csr_wen     ;
 wire                                    exu2wbu_brch               ;
 wire                                    exu2wbu_jal                ;
 wire                                    exu2wbu_jalr               ;
@@ -606,18 +616,21 @@ hcpu_exu_wbu_regs exu_wbu_regs (
     .i_mret                            (idu2exu_mret              ),
     .i_ecall                           (idu2exu_ecall             ),
     .i_predict_taken                   (idu2exu_predict_taken     ),
+    .i_predict_correct                 (exu_predict_correct       ),
     .i_load                            (idu2exu_load_d            ),
     .i_store                           (idu2exu_store_d           ),
     .i_muldiv                          (idu2exu_muldiv_d          ),
     .i_fence_i                         (idu2exu_fence_i_d         ),
-    .i_is_brch                         (idu2exu_brch_d            ),
+    .i_is_brch                         (idu2exu_brch              ),
     .i_is_div                          (idu2exu_is_div_d          ),
     .i_res                             (exu_res                   ),
-    .i_pc_next                         (exu_pc_next               ),
+    .i_pc                              (idu2exu_pc                ),
+    .i_pc_next                         (exu_commit_pc_next        ),
     .i_csr_addr                        (idu2exu_csr_addr          ),
     .i_rd_addr                         (idu2exu_rd                ),
 
     .o_pc_next                         (exu2wbu_pc_next           ),
+    .o_pc                              (exu2wbu_pc                ),
     .o_csr_addr                        (exu2wbu_csr_addr          ),
     .o_rd_addr                         (exu2wbu_rd_addr           ),
     .o_wen                             (exu2wbu_wen               ),
@@ -628,6 +641,7 @@ hcpu_exu_wbu_regs exu_wbu_regs (
     .o_mret                            (exu2wbu_mret              ),
     .o_ecall                           (exu2wbu_ecall             ),
     .o_predict_taken                   (exu2wbu_predict_taken     ),
+    .o_predict_correct                 (exu2wbu_predict_correct   ),
     .o_res                             (exu2wbu_res               ),
     .o_ebreak                          (exu2wbu_ebreak            ),
     .o_load                            (exu2wbu_load              ),
@@ -655,11 +669,13 @@ hcpu_WBU wbu1(
     .i_jal                             (exu2wbu_jal               ),
     .i_wen                             (exu2wbu_wen               ),
     .i_csr_wen                         (exu2wbu_csr_wen           ),
+    .i_is_brch                         (exu2wbu_is_brch           ),
     .i_jalr                            (exu2wbu_jalr              ),
     .i_ebreak                          (exu2wbu_ebreak            ),
     .i_mret                            (exu2wbu_mret              ),
     .i_ecall                           (exu2wbu_ecall             ),
     .i_predict_taken                   (exu2wbu_predict_taken     ),
+    .i_predict_correct                 (exu2wbu_predict_correct   ),
 
     .i_res                             (exu2wbu_res               ),
 
@@ -675,6 +691,9 @@ hcpu_WBU wbu1(
     .o_wbu_csr_wen                     (wbu_csr_wen               ),
     .o_pre_ready                       (wbu2exu_ready             ) 
 );
+
+assign exu2wbu_commit_wen     = exu_wbu_valid && exu2wbu_wen;
+assign exu2wbu_commit_csr_wen = exu_wbu_valid && exu2wbu_csr_wen;
 
 hcpu_Xbar xbar
 (
@@ -785,12 +804,17 @@ hcpu_RegisterFile regfile1(
 
     .wbu_rd                            (exu2wbu_rd_addr           ),
     .wbu_wdata                         (exu2wbu_res               ),
-    .wbu_wen                           (exu2wbu_wen               ),
+    .wbu_wen                           (exu2wbu_commit_wen        ),
 //
     .raddr1                            (idu_addr_rs1              ),
     .raddr2                            (idu_addr_rs2              ),
     .rdata1                            (rs1                       ),
-    .rdata2                            (rs2                       )
+    .rdata2                            (rs2                       ),
+    .dbg_s0                            (dbg_s0                    ),
+    .dbg_s1                            (dbg_s1                    ),
+    .dbg_s2                            (dbg_s2                    ),
+    .dbg_s3                            (dbg_s3                    ),
+    .dbg_s4                            (dbg_s4                    )
 );
 
 CLINT clint
@@ -830,6 +854,9 @@ import "DPI-C" function void load_start      ();
 import "DPI-C" function void load_end        ();
 import "DPI-C" function void store_start     ();
 import "DPI-C" function void store_end       ();
+import "DPI-C" function void commit_pc_dpic  (input int pc);
+import "DPI-C" function void commit_trace_dpic(input int pc, input int rd, input int wdata, input int wen, input int is_store, input int store_addr, input int store_data, input int store_strb, input int is_brch, input int brch_taken, input int predict_taken, input int predict_correct, input int pc_update, input int flush);
+import "DPI-C" function void mergesort_loop_dpic(input int s4, input int s1, input int s0, input int s3, input int s2);
 
 `ifdef PERF_COUNTERS
 import "DPI-C" function void brch_tkn_dpic   ();
@@ -853,14 +880,23 @@ import "DPI-C" function void wbu_pcup_dpic   ();
 // ===========================================================================
 `ifdef PERF_INST_MIX
 always @(posedge clock) begin
-  if (!reset && exu2wbu_valid) begin
+  if (!reset && exu_wbu_valid) begin
+    commit_pc_dpic(exu2wbu_pc);
+    commit_trace_dpic(exu2wbu_pc, {27'b0, exu2wbu_rd_addr}, exu2wbu_res,
+                      {31'b0, exu2wbu_commit_wen}, {31'b0, exu2wbu_store},
+                      LSU_SRAM_AXI_AWADDR, LSU_SRAM_AXI_WDATA,
+                      {28'b0, LSU_SRAM_AXI_WSTRB}, {31'b0, exu2wbu_is_brch},
+                      {31'b0, exu2wbu_brch}, {31'b0, exu2wbu_predict_taken},
+                      {31'b0, exu2wbu_predict_correct}, {31'b0, pc_update_en},
+                      {31'b0, exu_mispredict_flush_r});
+    if (exu2wbu_pc == 32'h30001880) mergesort_loop_dpic(dbg_s4, dbg_s1, dbg_s0, dbg_s3, dbg_s2);
     inst_cnt_dpic();
     if (idu2exu_brch_d) begin
       brch_cnt_dpic();
       if (exu2wbu_brch) brch_tkn_dpic();
     end
     if (exu2wbu_jal || exu2wbu_jalr)  jal_cnt_dpic();
-    if (exu2wbu_csr_wen)               csr_cnt_dpic();
+    if (exu2wbu_commit_csr_wen)        csr_cnt_dpic();
     if (idu2exu_load_d)                load_dpic();
     if (idu2exu_store_d)               store_dpic();
     if (idu2exu_muldiv_d) begin
@@ -870,7 +906,7 @@ always @(posedge clock) begin
     if (!idu2exu_load_d && !idu2exu_store_d && !idu2exu_muldiv_d &&
         !exu2wbu_jal && !exu2wbu_jalr && !idu2exu_brch_d &&
         !exu2wbu_mret && !exu2wbu_ecall && !exu2wbu_ebreak &&
-        !exu2wbu_csr_wen && !idu2exu_fence_i_d)
+        !exu2wbu_commit_csr_wen && !idu2exu_fence_i_d)
       alu_cnt_dpic();
     if (exu2wbu_ecall || exu2wbu_mret || exu2wbu_ebreak) sys_cnt_dpic();
     if (idu2exu_fence_i_d)  fence_cnt_dpic();

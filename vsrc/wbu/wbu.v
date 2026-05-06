@@ -6,6 +6,7 @@ module hcpu_WBU (
     input              [   4:0]         i_rd_addr                  ,
     input              [  11:0]         i_csr_addr                 ,
     input                               i_csr_wen                  ,
+    input                               i_is_brch                  ,
     input                               i_brch                     ,
     input                               i_jal                      ,
     input                               i_jalr                     ,
@@ -13,6 +14,7 @@ module hcpu_WBU (
     input                               i_mret                     ,
     input                               i_ecall                    ,
     input                               i_predict_taken            ,
+    input                               i_predict_correct          ,
     input              [  31:0]         i_pc_next                  ,
 
     input              [  31:0]         i_res                      ,
@@ -32,8 +34,8 @@ module hcpu_WBU (
 
 assign o_rd_wdata       = i_res;
 assign o_csr_rd_wdata   = i_res;
-assign o_wbu_wen        = i_wen ;
-assign o_wbu_csr_wen    = i_csr_wen ;
+assign o_wbu_wen        = i_pre_valid && i_wen;
+assign o_wbu_csr_wen    = i_pre_valid && i_csr_wen;
 assign o_rd_addr        =  i_rd_addr ;
 assign o_csr_addr       =  i_csr_addr;
 
@@ -52,7 +54,7 @@ always @(posedge clock or posedge reset) begin
     o_pc_next <= 32'b0;
   end
   else if(~o_pc_update) begin
-    o_pc_update <= i_jal || i_jalr || i_brch  || i_ecall || i_mret;
+    o_pc_update <= i_pre_valid && (i_ecall || i_mret || ((i_jal || i_jalr || i_is_brch) && !i_predict_correct));
     o_pc_next <= i_pc_next;
   end
   else if(o_pc_update) begin

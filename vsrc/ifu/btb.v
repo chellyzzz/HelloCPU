@@ -27,10 +27,10 @@ assign lookup_hit       = hit;
 assign predict_taken  = hit && btb_counter[lookup_idx][1];
 assign predict_target = btb_target[lookup_idx];
 
-reg                [ENTRIES-1:0] btb_valid;
-reg         [TAG_W-1:0] [ENTRIES-1:0] btb_tag;
-reg         [29:0] [ENTRIES-1:0] btb_target;
-reg          [1:0] [ENTRIES-1:0] btb_counter;
+reg                btb_valid   [0:ENTRIES-1];
+reg         [TAG_W-1:0] btb_tag     [0:ENTRIES-1];
+reg         [29:0] btb_target  [0:ENTRIES-1];
+reg          [1:0] btb_counter [0:ENTRIES-1];
 
 wire [INDEX_W-1:0] upd_idx = update_pc[INDEX_W+1:2];
 wire [TAG_W-1:0]   upd_tag = update_pc[31:INDEX_W+2];

@@ -18,6 +18,11 @@ module hcpu_RegisterFile (
 
     output             [  31:0]         rdata1                     ,
     output             [  31:0]         rdata2                     ,
+    output             [  31:0]         dbg_s0                     ,
+    output             [  31:0]         dbg_s1                     ,
+    output             [  31:0]         dbg_s2                     ,
+    output             [  31:0]         dbg_s3                     ,
+    output             [  31:0]         dbg_s4                     ,
     input                               wen                         
 );
 
@@ -44,13 +49,18 @@ always @(posedge clock or posedge reset) begin
   end
 end
 
-assign rdata1 = (raddr1 == exu_rd && exu_wen && exu_post_valid) ? exu_wdata:
-                (raddr1 == wbu_rd && wbu_wen)  ? wbu_wdata:
+assign rdata1 = (raddr1 == exu_rd && exu_rd != 5'b0 && exu_wen && exu_post_valid) ? exu_wdata:
+                (raddr1 == wbu_rd && wbu_rd != 5'b0 && wbu_wen)  ? wbu_wdata:
                 rf[raddr1[4:0]];
 
-assign rdata2 = (raddr2 == exu_rd && exu_wen && exu_post_valid) ? exu_wdata:
-                (raddr2 == wbu_rd && wbu_wen)  ? wbu_wdata:
+assign rdata2 = (raddr2 == exu_rd && exu_rd != 5'b0 && exu_wen && exu_post_valid) ? exu_wdata:
+                (raddr2 == wbu_rd && wbu_rd != 5'b0 && wbu_wen)  ? wbu_wdata:
                 rf[raddr2[4:0]];
 
+assign dbg_s0 = rf[8];
+assign dbg_s1 = rf[9];
+assign dbg_s2 = rf[18];
+assign dbg_s3 = rf[19];
+assign dbg_s4 = rf[20];
 
 endmodule

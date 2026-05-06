@@ -42,6 +42,9 @@ module hcpu_EXU(
     output             [  31:2]         o_btb_update_target        ,
     output                              o_btb_update_taken         ,
 
+    // Prediction correctness (for WBU pc_update skip)
+    output                              o_predict_correct          ,
+
     // RAS update
     output                              o_ras_push_en              ,
     output             [  31:2]         o_ras_push_data            ,
@@ -289,6 +292,9 @@ wire mispredict = (is_control && (i_predict_taken != actual_taken)) ||
 assign o_mispredict_flush = mispredict && i_pre_valid;
 assign o_redirect_pc     = actual_taken ? o_pc_next : (i_pc + 32'd4);
 
+wire predict_correct = !mispredict && is_control;
+assign o_predict_correct = predict_correct && i_pre_valid;
+
 // ============================================================================
 // BTB update (all conditional branches)
 // Registered to capture stable values
@@ -325,7 +331,7 @@ assign o_btb_update_taken  = btb_update_taken_r;
 // ============================================================================
 // RAS update (function calls and returns)
 // ============================================================================
-wire is_call = i_jal && (i_rd_addr == 5'd1);
+wire is_call = (i_jal || i_jalr) && (i_rd_addr == 5'd1);
 wire is_ret  = i_jalr && (i_rd_addr == 5'd0) && (i_rs1_addr == 5'd1);
 wire [31:0] ras_push_addr = i_pc + 32'd4;
 
