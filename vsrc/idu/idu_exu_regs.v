@@ -31,6 +31,7 @@ module hcpu_idu_exu_regs (
     input                               i_fence_i                  ,
     input                               i_muldiv                   ,
     input                               i_ebreak                   ,
+    input                               i_is_cop_insn              ,
     
     input              [  31:0]         i_mepc                     ,
     input              [  31:0]         i_mtvec                    ,
@@ -65,6 +66,7 @@ module hcpu_idu_exu_regs (
     output reg                          o_fence_i,
     output reg                          o_muldiv                   ,
     output reg                          o_jalr                     ,
+    output reg                          o_is_cop_insn              ,
 
     // branch prediction outputs
     output reg                          o_predict_taken            ,
@@ -121,6 +123,7 @@ always @(posedge clock or posedge reset) begin
         o_ebreak        <= 1'b0;
         o_fence_i       <= 1'b0;    
         o_muldiv        <= 1'b0;
+        o_is_cop_insn   <= 1'b0;
         o_csr_addr      <= 12'b0;
         o_predict_taken <= 1'b0;
         o_predict_target <= 30'b0;
@@ -150,6 +153,7 @@ always @(posedge clock or posedge reset) begin
         o_ebreak        <= i_ebreak;
         o_fence_i       <= i_fence_i;
         o_muldiv        <= i_muldiv;
+        o_is_cop_insn   <= i_is_cop_insn;
         o_csr_addr      <= i_csr_addr;
         o_predict_taken <= i_predict_taken;
         o_predict_target <= i_predict_target;
@@ -178,6 +182,7 @@ always @(posedge clock or posedge reset) begin
         o_ebreak        <= 1'b0;
         o_fence_i       <= 1'b0;    
         o_muldiv        <= 1'b0;
+        o_is_cop_insn   <= 1'b0;
         o_csr_addr      <= 12'b0;
         o_predict_taken <= 1'b0;
         o_predict_target <= 30'b0;

@@ -141,6 +141,7 @@ wire                   [ISA_WIDTH-1:0]  ifu_req_addr               ;
 wire                                    icache_hit                 ;
 wire                                    fence_i                    ;
 wire                                    muldiv                     ;
+wire                                    is_cop_insn                ;
 
 
 //write address channel  
@@ -250,6 +251,7 @@ wire                                    idu2exu_jalr               ;
 wire                                    idu2exu_ebreak             ;
 wire                                    idu2exu_fence_i            ;
 wire                                    idu2exu_muldiv             ;
+wire                                    idu2exu_is_cop_insn        ;
 wire                   [  11:0]         idu2exu_csr_addr           ;
 
 hcpu_icache icache1(
@@ -373,7 +375,8 @@ hcpu_IDU idu1(
     .o_jalr                            (jalr                      ),
     .o_ebreak                          (ebreak                    ),
     .o_fence_i                         (fence_i                   ),
-    .o_muldiv                          (muldiv                    )
+    .o_muldiv                          (muldiv                    ),
+    .o_is_cop_insn                     (is_cop_insn               )
 );
 
 
@@ -414,6 +417,7 @@ hcpu_idu_exu_regs idu2exu_regs(
     .i_fence_i                         (fence_i                   ),
     .i_muldiv                          (muldiv                    ),
     .i_ebreak                          (ebreak                    ),
+    .i_is_cop_insn                     (is_cop_insn               ),
 
     .i_predict_taken                   (ifu2idu_predict_taken     ),
     .i_predict_target                  (ifu2idu_predict_target    ),
@@ -441,6 +445,7 @@ hcpu_idu_exu_regs idu2exu_regs(
     .o_ebreak                          (idu2exu_ebreak            ),
     .o_fence_i                         (idu2exu_fence_i           ),
     .o_muldiv                          (idu2exu_muldiv            ),
+    .o_is_cop_insn                     (idu2exu_is_cop_insn       ),
     //
     .o_csr_addr                        (idu2exu_csr_addr          ),
     .o_predict_taken                   (idu2exu_predict_taken     ),
@@ -473,6 +478,7 @@ hcpu_EXU exu1(
     .exu_opt                           (idu2exu_exu_opt           ),
     .i_alu_opt                         (idu2exu_alu_opt           ),
     .i_muldiv                          (idu2exu_muldiv            ),
+    .i_is_cop_insn                     (idu2exu_is_cop_insn       ),
     .i_predict_taken                   (idu2exu_predict_taken     ),
     .i_predict_target                  (idu2exu_predict_target    ),
     .i_rd_addr                         (idu2exu_rd                ),

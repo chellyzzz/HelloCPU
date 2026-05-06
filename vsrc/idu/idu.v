@@ -28,7 +28,8 @@ module hcpu_IDU (
     output                              o_jalr,
     output                              o_ebreak,
     output                              o_fence_i,
-    output                              o_muldiv
+    output                              o_muldiv,
+    output                              o_is_cop_insn
 );
 
 // ALU operation select (one-hot, 10-bit)
@@ -75,6 +76,7 @@ localparam TYPE_LUI    = 7'b0110111;
 localparam TYPE_JAL    = 7'b1101111;
 localparam TYPE_B      = 7'b1100011;
 localparam TYPE_FENCE  = 7'b0001111;
+localparam TYPE_COP    = 7'b0001011;
 
 // Instruction field extraction
 wire [2:0] func3  = ins[14:12];
@@ -96,8 +98,9 @@ wire TYPEJALR   = (opcode == TYPE_JALR);
 wire TYPES      = (opcode == TYPE_S);
 wire TYPEB      = (opcode == TYPE_B);
 wire TYPEEBRK   = (opcode == TYPE_EBRK);
+wire TYPECOP    = (opcode == TYPE_COP);
 wire valid_ins  = TYPEI || TYPEI_LOAD || TYPER || TYPELUI || TYPEAUIPC ||
-                  TYPEJAL || TYPEJALR || TYPES || TYPEB || TYPEEBRK ||
+                  TYPEJAL || TYPEJALR || TYPES || TYPEB || TYPEEBRK || TYPECOP ||
                   (opcode == TYPE_FENCE);
 
 // ========================================================================
@@ -117,7 +120,7 @@ assign o_imm =
 // ========================================================================
 assign o_rd  = rd;
 assign o_rs1 = (TYPEAUIPC || TYPELUI || TYPEJAL) ? 5'b0 : rs1;
-assign o_rs2 = (TYPER || TYPEB || TYPES) ? rs2 : 5'b0;
+assign o_rs2 = (TYPER || TYPEB || TYPES || TYPECOP) ? rs2 : 5'b0;
 
 // ========================================================================
 // CSR address
@@ -184,8 +187,8 @@ assign o_src_sel1 =
 assign o_src_sel2 =
     (TYPEI       || TYPELUI    || TYPEAUIPC  ||
      TYPEI_LOAD  || TYPES)                     ? SEL2_IMM :
-    (TYPER       || TYPEB)                     ? SEL2_REG :
-    (TYPEJAL     || TYPEJALR)                  ? SEL2_4   :
+     (TYPER       || TYPEB || TYPECOP)         ? SEL2_REG :
+     (TYPEJAL     || TYPEJALR)                  ? SEL2_4   :
     (TYPEEBRK && func3 == FUN3_CSRRW)          ? SEL2_IMM :
     (TYPEEBRK && func3 == FUN3_CSRRS)          ? SEL2_REG :
     'b0;
@@ -194,6 +197,7 @@ assign o_src_sel2 =
 // M-extension
 // ========================================================================
 assign o_muldiv = TYPEM;
+assign o_is_cop_insn = TYPECOP;
 
 // ========================================================================
 // Boolean control signals
