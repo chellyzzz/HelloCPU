@@ -12,7 +12,7 @@ module hcpu_LSU #(
     input              [  31:0]         store_src                  ,
     input              [  31:0]         alu_res                    ,
     input              [   2:0]         exu_opt                    ,
-    output reg         [  31:0]         load_res                   ,
+    output             [  31:0]         load_res                   ,
     input                               i_load                     ,
     input                               i_store                    ,
 
@@ -221,7 +221,8 @@ reg axi_arvalid, axi_awvalid, axi_bready, axi_rready;
 // Done Signal
 // ============================================================
 reg done_reg;
-assign lsu_done = done_reg;
+wire fast_load_hit_done = (state == S_CHECK) && lat_is_load && lat_cacheable && cache_hit;
+assign lsu_done = done_reg || fast_load_hit_done;
 
 assign o_dbg_wait_hit =
     (state == S_CHECK && lat_cacheable && cache_hit) ||
@@ -335,8 +336,8 @@ always @(posedge clock or posedge reset) begin
             if (lat_is_load) begin
                 // 鈹€鈹€ Load path 鈹€鈹€
                 if (lat_cacheable && cache_hit) begin
-                    // Load hit 鈫?return data next cycle
-                    state <= S_CACHE_HIT;
+                    // Load hit returns in the current cycle; load_res is combinational for this path.
+                    state <= S_IDLE;
                     `ifdef DCACHE_DEBUG
                     $display("[DCACHE] LOAD HIT : set=%0d way=%0d addr=0x%0h", addr_index, hit_way, lat_addr);
                     `endif
@@ -691,28 +692,32 @@ end
 // Load Result Mux (byte extract + sign extend)
 // ============================================================
 wire refill_hit_word = (state == S_REFILL_R) && M_AXI_RVALID && refill_rready && (refill_cnt == addr_word);
-wire [31:0] raw_word = (state == S_CACHE_HIT)  ? hit_word :
+wire [31:0] raw_word = fast_load_hit_done      ? hit_word :
+                       (state == S_CACHE_HIT)  ? hit_word :
                        refill_hit_word          ? M_AXI_RDATA :
                        (state == S_REFILL_R)    ? cache_data[addr_index][victim_way_lat][addr_word] :
                        (state == S_UNCACHE_R)   ? M_AXI_RDATA :
                        32'b0;
 wire [31:0] shifted_data = raw_word >> lat_shift8;
 wire [31:0] load_src     = lat_cacheable ? shifted_data : raw_word;
+wire [31:0] load_res_next =
+    (lat_exu_opt == LB)  ? {{24{load_src[7]}},  load_src[7:0]}  :
+    (lat_exu_opt == LH)  ? {{16{load_src[15]}}, load_src[15:0]} :
+    (lat_exu_opt == LW)  ? load_src                              :
+    (lat_exu_opt == LBU) ? {24'b0, load_src[7:0]}                :
+    (lat_exu_opt == LHU) ? {16'b0, load_src[15:0]}               :
+                           32'b0;
+
+reg [31:0] load_res_reg;
+assign load_res = fast_load_hit_done ? load_res_next : load_res_reg;
 
 always @(posedge clock or posedge reset) begin
   if (reset) begin
-    load_res <= 32'b0;
+    load_res_reg <= 32'b0;
   end
   else begin
     if (state == S_CACHE_HIT || refill_hit_word || (state == S_UNCACHE_R && M_AXI_RVALID)) begin
-      case (lat_exu_opt)
-          LB:      load_res <= {{24{load_src[7]}},  load_src[7:0]};
-          LH:      load_res <= {{16{load_src[15]}}, load_src[15:0]};
-          LW:      load_res <= load_src;
-          LBU:     load_res <= {24'b0, load_src[7:0]};
-          LHU:     load_res <= {16'b0, load_src[15:0]};
-          default: load_res <= 32'b0;
-      endcase
+      load_res_reg <= load_res_next;
     end
   end
 end
