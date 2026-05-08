@@ -41,6 +41,11 @@ static uint64_t cnt_fence = 0;
 static uint64_t cnt_stall = 0;
 static uint64_t cnt_stall_front = 0;
 static uint64_t cnt_stall_ifu_held = 0;
+static uint64_t cnt_stall_ifu_held_ctrl = 0;
+static uint64_t cnt_stall_ifu_held_lsu = 0;
+static uint64_t cnt_stall_ifu_held_mul = 0;
+static uint64_t cnt_stall_ifu_held_cop = 0;
+static uint64_t cnt_stall_ifu_held_other = 0;
 static uint64_t cnt_stall_lsu = 0;
 static uint64_t cnt_stall_lsu_hit = 0;
 static uint64_t cnt_stall_lsu_refill = 0;
@@ -130,6 +135,23 @@ static void print_perf_summary() {
            cnt_stall_front, 100.0 * cnt_stall_front / cnt_stall);
     printf("│   IFU held valid     : %10lu (%5.1f%%)            │\n",
            cnt_stall_ifu_held, 100.0 * cnt_stall_ifu_held / cnt_stall);
+    if (cnt_stall_ifu_held > 0) {
+      printf("│     ├─ control       : %10lu (%5.1f%%)            │\n",
+             cnt_stall_ifu_held_ctrl,
+             100.0 * cnt_stall_ifu_held_ctrl / cnt_stall_ifu_held);
+      printf("│     ├─ LSU           : %10lu (%5.1f%%)            │\n",
+             cnt_stall_ifu_held_lsu,
+             100.0 * cnt_stall_ifu_held_lsu / cnt_stall_ifu_held);
+      printf("│     ├─ MUL/DIV       : %10lu (%5.1f%%)            │\n",
+             cnt_stall_ifu_held_mul,
+             100.0 * cnt_stall_ifu_held_mul / cnt_stall_ifu_held);
+      printf("│     ├─ COP           : %10lu (%5.1f%%)            │\n",
+             cnt_stall_ifu_held_cop,
+             100.0 * cnt_stall_ifu_held_cop / cnt_stall_ifu_held);
+      printf("│     ├─ other         : %10lu (%5.1f%%)            │\n",
+             cnt_stall_ifu_held_other,
+             100.0 * cnt_stall_ifu_held_other / cnt_stall_ifu_held);
+    }
     printf("│   LSU wait           : %10lu (%5.1f%%)            │\n",
            cnt_stall_lsu, 100.0 * cnt_stall_lsu / cnt_stall);
     if (cnt_stall_lsu > 0) {
@@ -279,6 +301,11 @@ extern "C" void fence_cnt_dpic() { cnt_fence++; }
 extern "C" void stall_cnt_dpic() { cnt_stall++; }
 extern "C" void stall_front_dpic() { cnt_stall_front++; }
 extern "C" void stall_ifu_held_dpic() { cnt_stall_ifu_held++; }
+extern "C" void stall_ifu_held_ctrl_dpic() { cnt_stall_ifu_held_ctrl++; }
+extern "C" void stall_ifu_held_lsu_dpic() { cnt_stall_ifu_held_lsu++; }
+extern "C" void stall_ifu_held_mul_dpic() { cnt_stall_ifu_held_mul++; }
+extern "C" void stall_ifu_held_cop_dpic() { cnt_stall_ifu_held_cop++; }
+extern "C" void stall_ifu_held_other_dpic() { cnt_stall_ifu_held_other++; }
 extern "C" void stall_lsu_dpic() { cnt_stall_lsu++; }
 extern "C" void stall_lsu_hit_dpic() { cnt_stall_lsu_hit++; }
 extern "C" void stall_lsu_refill_dpic() { cnt_stall_lsu_refill++; }

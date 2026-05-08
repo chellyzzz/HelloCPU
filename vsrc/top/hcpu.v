@@ -888,6 +888,11 @@ import "DPI-C" function void fence_cnt_dpic  ();
 import "DPI-C" function void stall_cnt_dpic  ();
 import "DPI-C" function void stall_front_dpic();
 import "DPI-C" function void stall_ifu_held_dpic();
+import "DPI-C" function void stall_ifu_held_ctrl_dpic();
+import "DPI-C" function void stall_ifu_held_lsu_dpic();
+import "DPI-C" function void stall_ifu_held_mul_dpic();
+import "DPI-C" function void stall_ifu_held_cop_dpic();
+import "DPI-C" function void stall_ifu_held_other_dpic();
 import "DPI-C" function void stall_lsu_dpic  ();
 import "DPI-C" function void stall_lsu_hit_dpic();
 import "DPI-C" function void stall_lsu_refill_dpic();
@@ -949,7 +954,24 @@ end
 always @(posedge clock) begin
   if (!reset && !exu2wbu_valid) begin
     stall_cnt_dpic();
-    if (ifu2idu_valid && !idu2ifu_ready) stall_ifu_held_dpic();
+    if (ifu2idu_valid && !idu2ifu_ready) begin
+      stall_ifu_held_dpic();
+      if (exu_mispredict_flush_r || pc_update_en) begin
+        stall_ifu_held_ctrl_dpic();
+      end else if (idu2exu_valid && !exu2idu_ready) begin
+        if (idu2exu_load || idu2exu_store) begin
+          stall_ifu_held_lsu_dpic();
+        end else if (idu2exu_muldiv) begin
+          stall_ifu_held_mul_dpic();
+        end else if (idu2exu_is_cop_insn) begin
+          stall_ifu_held_cop_dpic();
+        end else begin
+          stall_ifu_held_other_dpic();
+        end
+      end else begin
+        stall_ifu_held_other_dpic();
+      end
+    end
   end
 
   if (!reset && !exu2wbu_valid) begin
