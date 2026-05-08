@@ -57,6 +57,20 @@ The execution stage contains the ALU, branch comparator, multiplier, divider, LS
 
 The EXU checks predicted direction and target against actual control-flow results. On mismatch it raises `o_mispredict_flush` and provides `o_redirect_pc`.
 
+### LSU Timing
+
+The LSU contains the DCache arrays, cache hit/miss logic, refill/writeback control, and uncached AXI paths. It is still a blocking in-order unit from the pipeline's point of view, but several high-frequency paths are shortened:
+
+| Path | Current behavior |
+|------|------------------|
+| Load hit | Completes from `S_CHECK` with combinational `load_res` selection |
+| Store hit | Completes from `S_CHECK` while updating cache data, dirty state, and PLRU |
+| LSU request start | Uses a single registered previous-start bit to detect a new transaction without the older extra delay flop |
+| Refill | Uses conservative pulsed `RREADY`; continuous `RREADY` was tested and rejected because it can hang refill reception |
+| Uncached access | Remains a simple single-beat AXI path |
+
+The important design boundary is that fast cache-hit paths are allowed to reduce visible LSU latency, while refill burst timing stays conservative until the AXI RAM model and LSU response path are refactored together.
+
 ## WBU
 
 The writeback unit commits EXU results into the register file or CSR file and generates architectural PC updates. Correctly predicted branches, JALs, and JALRs do not force redundant WBU redirects; unresolved or mispredicted control flow still redirects the front end.
@@ -97,3 +111,18 @@ Detailed predictor behavior is documented in `branch-predictor-design.md`.
 ## Performance Counters
 
 Performance counter hooks are emitted from `vsrc/top/hcpu.v` through DPI-C calls. They report instruction mix, stalls, cache activity, AXI transactions, branch prediction statistics, and commit PC hotspots.
+
+The current stall counters distinguish `Frontend/empty`, `IFU held valid`, `LSU wait`, `MUL/DIV wait`, `COP wait`, `Control recovery`, and `Other backend`. LSU wait is further split into hit, refill, refill AR wait, refill R data, uncached, and writeback classes.
+
+Current CoreMark `ITER=100` reference after the LSU fast-path work:
+
+| Metric | Value |
+|--------|-------|
+| CoreMark/MHz | `2.279` |
+| Simulator cycles | `43876399` |
+| IPC | `0.698` |
+| Stall rate | `28.4%` |
+| LSU wait | `6980533` cycles (`56.0%` of stalls) |
+| MUL/DIV wait | `1882752` cycles (`15.1%` of stalls) |
+
+This confirms that the remaining CoreMark bottleneck is not ICache capacity or AXI refill bandwidth. LSU hit/load-use coupling is still the largest issue, with MUL/DIV backpressure now visible as the second-largest explicit backend wait class.

@@ -40,12 +40,12 @@ HelloCPU 当前已经具备：
 
 ## 三、当前最主要的问题
 
-从当前 CoreMark 计数器和分析看，CPU 的主要问题不是 cache 容量，也不是总线带宽，而是**流水线内部效率不足**。
+从当前 CoreMark 计数器和分析看，CPU 的主要问题不是 cache 容量，也不是总线带宽，而是**流水线内部效率不足**。不过，在 LSU `load hit`、`store hit` 和启动脉冲优化后，这个问题已经明显收敛。
 
 主要表现为：
 
-- `IPC` 只有 `0.473`；
-- `stall cycles` 占比达到 `51.5%`；
+- `IPC` 已从 `0.473` 提升到 `0.698`；
+- `stall cycles` 占比已从 `51.5%` 降到 `28.4%`；
 - loads 占比较高，但真实 load AXI 事务极少，说明 load 成本主要来自内部相关和阻塞；
 - branch recovery 仍有显著代价，但不是唯一大头；
 - MUL / DIV / LSU 这类多周期路径仍会对整条流水造成过强反压。
@@ -88,29 +88,32 @@ HelloCPU 当前已经具备：
 
 ### 当前初步观测
 
-基于当前 `add` 快速测试，stall 构成已经显示出一个明确趋势：
+基于当前 CoreMark `ITER=100` 多循环结果，stall 构成已经显示出一个明确趋势：
 
-- `LSU wait` 是当前主导项；
-- `Control recovery` 有影响，但不是第一矛盾；
-- `MUL/DIV wait` 在该测试中几乎不显著。
+- `LSU wait` 仍是当前主导项，占全部 stall 的 `56.0%`；
+- `MUL/DIV wait` 已经成为第二个明确后端瓶颈，占全部 stall 的 `15.1%`；
+- `Control recovery` 仍有影响，占全部 stall 的 `6.5%`，但不是第一矛盾。
 
 进一步把 `LSU wait` 拆开后，可以看到：
 
-- `hit path` 和 `refill` 都占了明显比例；
-- `uncached` 占比很小；
-- `writeback` 在该测试里几乎没有形成主要压力。
+- `refill` 在 CoreMark 中只占 `LSU wait` 的 `0.1%`；
+- `uncached` 和 `writeback` 占比很小；
+- 因此当前 CoreMark 上剩余 LSU 成本主要不是 AXI refill，而是 cache hit、load-use、请求启动和主流水握手耦合。
 
 基于这组观测，已经做过两轮针对性的 LSU 返回路径实验：
 
 - `load hit` 当前拍完成：已经在 `vsrc/exu/lsu.v` 落地，并通过 `add`、`load-store`、`mem`、`quick-sort` 回归；
-- `refill` 最后一拍同拍返回：虽然在简单样例上可过，但会破坏 `quick-sort` 正确性，因此当前已明确回退，不作为现阶段可保留优化。
+- `store hit` 当前拍完成：已经在 `vsrc/exu/lsu.v` 落地，并通过访存、排序和全量 CPU 回归；
+- LSU 启动脉冲提前：去掉第二级启动沿检测寄存器后，减少每次 load/store 前的空等周期；CoreMark `ITER=100` 从 `1.545` 提升到 `2.279 CoreMark/MHz`；
+- `refill` 最后一拍同拍返回：虽然在简单样例上可过，但会破坏 `quick-sort` 正确性，因此当前已明确回退，不作为现阶段可保留优化；
+- 连续拉高 refill `RREADY`：会导致 `load-store` 在 refill R data 阶段卡死，也已明确回退。
 
-当前可以确认的一点是：`cache hit` 路径的返回时序确实偏晚，提早一拍能够稳定带来收益；但 `refill -> result` 路径仍然和主流水、写回边界存在更深耦合，不能直接按同样思路激进推进。
+当前可以确认的一点是：`cache hit` 路径和 LSU 请求启动路径确实偏保守，提早一拍能够稳定带来收益；但 `refill -> result` 路径仍然和主流水、写回边界存在更深耦合，不能直接按同样思路激进推进。
 
 这说明当前 LSU 的问题并不只是“外部存储太慢”，还包括：
 
-- cache hit 路径本身的返回时序偏晚；
-- refill 完成后结果回到主流水的路径偏长；
+- cache hit 路径和请求启动路径仍然会造成主流水停顿；
+- refill 完成后结果回到主流水的路径需要更保守地重构；
 - load-use interlock 很可能仍然过于保守。
 
 不过，围绕 `load-use` 又做过一轮更进一步的试探后，可以确认一个更重要的结构事实：
@@ -123,10 +126,11 @@ HelloCPU 当前已经具备：
 
 这进一步支持当前规划中的优先级判断：
 
-1. 先做 `LSU / memory subsystem`；
+1. 继续做 `LSU / memory subsystem`，但重心从 refill bandwidth 转向 hit/load-use/request-response 语义；
 2. 再做 `IFU/IDU` 最小握手标准化；
 3. 然后推进 `旁路 + load-use penalty`；
-4. 最后再做 `多周期单元阻塞局部化` 与 `分支恢复时延优化`。
+4. 同步评估 `MUL/DIV` 阻塞局部化，因为 CoreMark 上它已经是第二大显式等待来源；
+5. 最后再做 `分支恢复时延优化`。
 
 ---
 
@@ -323,11 +327,11 @@ HelloCPU 当前已经具备：
 
 建议优先顺序：
 
-1. store buffer；
+1. LSU hit/load-use/request-response 语义继续收敛；
 2. `IFU/IDU` 最小握手标准化；
 3. load-use penalty 优化；
 4. 更强旁路；
-5. MUL/DIV/LSU 阻塞局部化；
+5. MUL/DIV 阻塞局部化；
 6. branch recovery 时延优化。
 
 这里把 `IFU/IDU` 最小握手标准化前移，不是因为它本身直接带来最大跑分，而是因为当前已经验证：如果不先把这一层的 `valid/ready` 语义理顺，后续 `load-use` 和更激进的旁路优化会持续撞到结构边界。
@@ -353,18 +357,19 @@ HelloCPU 当前已经具备：
 
 如果只看近期最值得做的几项，建议优先级如下：
 
-1. `LSU / memory subsystem` 语义重构；
-2. `执行后端接口` 统一；
-3. `IFU/IDU` 最小握手标准化；
-4. `旁路 + load-use penalty` 优化；
-5. `多周期单元阻塞` 局部化；
+1. `LSU / memory subsystem` 继续收敛 hit/load-use/request-response 边界；
+2. `IFU/IDU` 最小握手标准化；
+3. `旁路 + load-use penalty` 优化；
+4. `MUL/DIV` 阻塞局部化；
+5. `执行后端接口` 统一；
 6. `分支恢复时延` 优化。
 
 这个排序的核心逻辑是：
 
-- 先解掉当前最主要的 stall 来源；
-- 再提升 CPU 内部结构清晰度；
-- 最后处理前端和更远期扩展问题。
+- 继续压低当前最大的显式 stall 来源，也就是 LSU；
+- 尽快把前端握手边界理顺，为 load-use 和旁路优化解除结构限制；
+- 在 LSU 收敛后处理已经显现出来的 MUL/DIV 等第二层后端等待；
+- 最后处理更统一的后端接口和更远期扩展问题。
 
 这里的“前端问题”当前不再只是性能锦上添花，而是已经被证明会直接限制 LSU 后续优化空间。因此近期更合理的做法不是全面大改前端，而是做一次**最小范围的握手语义标准化**，仅把 `IFU/IDU` 这一级变成真正可持有有效项的寄存器边界。
 
@@ -394,6 +399,7 @@ HelloCPU 当前已经具备：
 
 - load/store 路径边界清晰；
 - store 不再对后续路径产生过多无效阻塞；
+- request start 不再额外引入空等拍；
 - 有能力继续扩展成 request/response 模型。
 
 ### 里程碑 C3：旁路与依赖处理改善

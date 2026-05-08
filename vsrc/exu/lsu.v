@@ -119,22 +119,20 @@ reg [3:0] state;
 // ============================================================
 // Trigger Mechanism (preserved from original LSU)
 // ============================================================
-reg                    init_txn_ff, init_txn_ff2, o_pre_ready_d1;
+reg                    init_txn_ff, o_pre_ready_d1;
 wire                   is_ls           = i_load || i_store;
 wire                   INIT_AXI_TXN   = reset ? 1'b0 : (o_pre_ready_d1 && is_ls);
-wire                   init_txn_pulse = ~init_txn_ff2 & init_txn_ff;
+wire                   init_txn_pulse = INIT_AXI_TXN && !init_txn_ff;
 wire                   txn_pulse_load  = i_load  && init_txn_pulse;
 wire                   txn_pulse_store = i_store && init_txn_pulse;
 
 always @(posedge clock or posedge reset) begin
     if (reset) begin
         init_txn_ff    <= 1'b0;
-        init_txn_ff2   <= 1'b0;
         o_pre_ready_d1 <= 1'b0;
     end else begin
         o_pre_ready_d1 <= o_pre_ready;
         init_txn_ff    <= INIT_AXI_TXN;
-        init_txn_ff2   <= init_txn_ff;
     end
 end
 
