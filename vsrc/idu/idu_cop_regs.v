@@ -9,46 +9,54 @@ module hcpu_idu_cop_regs (
     input      [31:0]   i_src2,
     input      [4:0]    i_rd,
     input               i_wen,
-    output reg          o_inflight,
+    output              o_inflight,
     output              o_issue_ready,
     output              o_issue_fire,
-    output reg [31:0]   o_pc,
+    output     [31:0]   o_pc,
     output     [31:0]   o_active_src1,
     output     [31:0]   o_active_src2,
-    output reg [4:0]    o_rd,
-    output reg          o_wen
+    output     [4:0]    o_rd,
+    output              o_wen
 );
 
-reg [31:0] src1;
-reg [31:0] src2;
+reg         entry_valid;
+reg [31:0]  entry_pc;
+reg [31:0]  entry_src1;
+reg [31:0]  entry_src2;
+reg [4:0]   entry_rd;
+reg         entry_wen;
 
-assign o_active_src1 = o_inflight ? src1 : i_src1;
-assign o_active_src2 = o_inflight ? src2 : i_src2;
+assign o_inflight = entry_valid;
+assign o_pc = entry_pc;
+assign o_active_src1 = entry_valid ? entry_src1 : i_src1;
+assign o_active_src2 = entry_valid ? entry_src2 : i_src2;
+assign o_rd = entry_rd;
+assign o_wen = entry_wen;
 assign o_issue_ready = !o_inflight && !i_backend_busy;
 assign o_issue_fire = i_issue_valid && o_issue_ready;
 
 always @(posedge clock or posedge reset) begin
     if (reset) begin
-        o_inflight <= 1'b0;
-        o_pc <= 32'b0;
-        src1 <= 32'b0;
-        src2 <= 32'b0;
-        o_rd <= 5'b0;
-        o_wen <= 1'b0;
+        entry_valid <= 1'b0;
+        entry_pc <= 32'b0;
+        entry_src1 <= 32'b0;
+        entry_src2 <= 32'b0;
+        entry_rd <= 5'b0;
+        entry_wen <= 1'b0;
     end else if (i_clear) begin
-        o_inflight <= 1'b0;
-        o_pc <= 32'b0;
-        src1 <= 32'b0;
-        src2 <= 32'b0;
-        o_rd <= 5'b0;
-        o_wen <= 1'b0;
+        entry_valid <= 1'b0;
+        entry_pc <= 32'b0;
+        entry_src1 <= 32'b0;
+        entry_src2 <= 32'b0;
+        entry_rd <= 5'b0;
+        entry_wen <= 1'b0;
     end else if (o_issue_fire) begin
-        o_inflight <= 1'b1;
-        o_pc <= i_pc;
-        src1 <= i_src1;
-        src2 <= i_src2;
-        o_rd <= i_rd;
-        o_wen <= i_wen;
+        entry_valid <= 1'b1;
+        entry_pc <= i_pc;
+        entry_src1 <= i_src1;
+        entry_src2 <= i_src2;
+        entry_rd <= i_rd;
+        entry_wen <= i_wen;
     end
 end
 
