@@ -493,7 +493,7 @@ wire                                    cop_backend_busy           ;
 wire                   [  31:0]         cop_inflight_pc            ;
 wire                   [   4:0]         cop_inflight_rd            ;
 wire                                    cop_inflight_wen           ;
-wire                                    cop_queue_kill             ;
+wire                                    cop_kill                   ;
 wire                                    cop_queue_dequeue          ;
 wire                                    cop_resp_fire              ;
 
@@ -519,7 +519,7 @@ assign exu_ras_push_data = scalar_exu_ras_push_data;
 assign exu_ras_pop_en = scalar_exu_ras_pop_en;
 assign exu2wbu_valid = cop_path_active ? cop_exu2wbu_valid : scalar_exu2wbu_valid;
 assign exu2idu_ready = cop_path_active ? cop_exu2idu_ready : scalar_exu2idu_ready;
-assign cop_queue_kill = pc_update_en || idu2exu_fence_i || exu_mispredict_flush_r;
+assign cop_kill = pc_update_en || idu2exu_fence_i || exu_mispredict_flush_r;
 assign cop_resp_fire = cop_exu2wbu_valid && wbu2exu_ready;
 assign cop_queue_dequeue = cop_resp_fire;
 
@@ -527,7 +527,7 @@ hcpu_idu_cop_regs idu2cop_regs(
     .clock                             (clock                     ),
     .reset                             (reset                     ),
     .i_issue_valid                     (cop_issue_valid           ),
-    .i_kill                            (cop_queue_kill            ),
+    .i_kill                            (cop_kill                  ),
     .i_dequeue                         (cop_queue_dequeue         ),
     .i_backend_busy                    (cop_backend_busy          ),
     .i_pc                              (idu2exu_pc                ),
@@ -639,7 +639,7 @@ hcpu_cop_backend cop_backend1(
     .reset                             (reset                     ),
     .i_pre_valid                       (cop_issue                 ),
     .i_post_ready                      (wbu2exu_ready             ),
-    .i_flush                           (exu_mispredict_flush_r    ),
+    .i_flush                           (cop_kill                  ),
     .i_src1                            (cop_active_src1           ),
     .i_src2                            (cop_active_src2           ),
     .o_pre_ready                       (cop_exu2idu_ready         ),
