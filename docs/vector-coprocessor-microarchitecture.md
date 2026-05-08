@@ -76,9 +76,9 @@ IFU -> IDU -> IDU/EXU regs -> { Scalar EXU | Coprocessor } -> WBU -> Register Fi
 3. 最终由顶层把标量结果或协处理器结果选择后送入统一 `WBU`；
 4. 当协处理器存在未提交在飞项时，前端停止继续发射，保持顺序提交模型。
 
-### 当前 RTL 落点（同步点 `c361994`）
+### 当前 RTL 落点（CPU 主线同步点 `5a5caa9`）
 
-当前 `vector-coproc-uarch` 分支已经实现了 V1 的最小稳定控制闭环。当前 RTL 不是完整向量机，但已经把协处理器边界从标量 EXU 中逐步拆清楚。
+`vector-coproc-uarch` 已经实现了 V1 的最小稳定控制闭环；CPU 主线随后已经同步该闭环，并在 `5a5caa9 fix: preserve consecutive cop issue flow` 补齐连续 COP / RAW 依赖场景。当前 RTL 不是完整向量机，但协处理器边界已经从标量 EXU 中逐步拆清楚。
 
 当前主要模块职责如下：
 
@@ -96,7 +96,15 @@ IFU -> IDU -> IDU/EXU regs -> { Scalar EXU | Coprocessor } -> WBU -> Register Fi
 4. `cop_resp_fire`：COP response 被 WBU 接收。
 5. `cop_kill`：统一 kill/flush 信号，同时驱动 queue 和 backend。
 
-当前同步点已通过：`make sim`、`sum`、`add`、`dummy`、`cop-smoke`。
+CPU 主线在该边界上额外确认了三点：
+
+1. `idu_cop_regs` 支持 response dequeue 和下一条 COP issue 同拍发生。
+2. 同拍新 issue 时，backend 操作数必须选择新 payload，提交元数据仍来自旧 entry。
+3. COP response 当前会触发保守 refetch，避免在 `IFU/IDU` 尚未完全标准化前出现重复提交或跳过后续指令。
+
+当前 CPU 主线同步点已通过：`make sim`、`cop-chain`、`dummy`、`cop-smoke`、`add`、`sum`、`load-store`、`quick-sort`。
+
+向量端下一轮建议先同步 CPU 主线到 `5a5caa9`，再继续替换 dummy 后端为真实向量执行单元；否则向量端会继续基于缺少 LSU fast paths、性能计数器细分和连续 COP 修正的旧 CPU 结构开发。
 
 ---
 

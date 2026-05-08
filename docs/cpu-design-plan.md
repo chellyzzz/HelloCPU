@@ -24,6 +24,14 @@ HelloCPU 当前已经具备：
 - CPU tests 全通过；
 - CoreMark 正确通过。
 
+当前 `cpu-mainline-branch` 还可以作为向量端回灌 CPU 进展的稳定同步点：
+
+- LSU `load hit`、`store hit` 和 transaction start 快路径已经通过定向与全量回归；
+- CoreMark `ITER=100` 当前参考为 `2.279 CoreMark/MHz`、`IPC=0.698`；
+- COP 独立后端已经从 `vector-coproc-uarch` 同步到 CPU 主线；
+- 连续 COP / RAW 依赖用例 `cop-chain` 已通过；
+- 当前最新稳定提交为 `5a5caa9 fix: preserve consecutive cop issue flow`。
+
 因此当前阶段已经不是：
 
 - 补基础功能；
@@ -380,6 +388,20 @@ HelloCPU 当前已经具备：
 3. 只有 `valid && ready` 才消费；
 4. `valid` 不再直接组合依赖 `ready`；
 5. 第一阶段不同时重构更深级流水，避免把风险扩散到整个前端。
+
+### 分支同步优先级
+
+在继续新结构优化前，建议先把 CPU 主线进展同步回 `vector-coproc-uarch`，让向量端和 CPU 端回到同一个稳定基线。
+
+这次回灌应包含：
+
+1. LSU fast paths 和 start timing 优化；
+2. stall / COP / LSU refill 细分性能计数器；
+3. CoreMark 结果与 CPU 规划文档更新；
+4. COP 独立后端同步后的连续 issue 修正；
+5. `cop-chain` 回归用例。
+
+同步时不应同时推进新的 `IFU/IDU` 标准化、真实向量后端或多请求在飞模型。这样可以确保向量端先获得当前 CPU 的稳定性能与验证基线，再在共同基线上继续扩展。
 
 ---
 
