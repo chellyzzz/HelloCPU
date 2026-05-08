@@ -85,7 +85,10 @@ wire                   [ISA_WIDTH-1:0]  dbg_s3, dbg_s4             ;
 wire                   [ISA_WIDTH-1:0]  csr_rd_wdata               ;
 
 wire                   [ISA_WIDTH-1:0]  exu_res                    ;
+wire                   [ISA_WIDTH-1:0]  scalar_exu_res             ;
+wire                   [ISA_WIDTH-1:0]  cop_exu_res                ;
 wire                                    exu_brch                   ;
+wire                                    scalar_exu_brch            ;
 //mret ecall
 wire                   [ISA_WIDTH-1:0]  csr_rs2                    ;
 // wire                   [ISA_WIDTH-1:0]  mcause, mstatus            ;
@@ -118,6 +121,15 @@ wire                                    exu_btb_update_taken       ;
 wire                                    exu_ras_push_en            ;
 wire                   [  31:2]         exu_ras_push_data          ;
 wire                                    exu_ras_pop_en             ;
+wire                                    scalar_exu_mispredict_flush;
+wire                   [  31:0]         scalar_exu_redirect_pc     ;
+wire                                    scalar_exu_btb_update_en   ;
+wire                   [  31:0]         scalar_exu_btb_update_pc   ;
+wire                   [  31:2]         scalar_exu_btb_update_target;
+wire                                    scalar_exu_btb_update_taken;
+wire                                    scalar_exu_ras_push_en     ;
+wire                   [  31:2]         scalar_exu_ras_push_data   ;
+wire                                    scalar_exu_ras_pop_en      ;
 // prediction through pipeline
 wire                                    ifu_predict_taken          ;
 wire                   [  31:2]         ifu_predict_target         ;
@@ -135,6 +147,10 @@ reg                    [  31:0]         exu_redirect_pc_r          ;
 wire                                    ifu2idu_valid, idu2ifu_ready;
 wire                                    idu2exu_valid, exu2idu_ready;
 wire                                    exu2wbu_valid, wbu2exu_ready;
+wire                                    scalar_exu2wbu_valid       ;
+wire                                    scalar_exu2idu_ready       ;
+wire                                    cop_exu2wbu_valid          ;
+wire                                    cop_exu2idu_ready          ;
 //cache 
 wire                   [ISA_WIDTH-1:0]  icache_ins                 ;
 wire                   [ISA_WIDTH-1:0]  ifu_req_addr               ;
@@ -455,7 +471,46 @@ hcpu_idu_exu_regs idu2exu_regs(
 
 wire                   [  31:0]         exu_pc_next                ;
 wire                   [  31:0]         exu_commit_pc_next         ;
-assign exu_commit_pc_next = idu2exu_brch ? exu_redirect_pc : exu_pc_next;
+wire                   [  31:0]         scalar_exu_pc_next         ;
+wire                                    scalar_exu_predict_correct ;
+wire                                    scalar_issue               ;
+wire                                    cop_issue                  ;
+wire                                    cop_path_active            ;
+wire                                    cop_refetch_flush          ;
+reg                                     cop_inflight               ;
+
+assign cop_issue = idu2exu_valid && idu2exu_is_cop_insn && !cop_inflight;
+assign cop_path_active = cop_inflight || (idu2exu_valid && idu2exu_is_cop_insn);
+assign scalar_issue = idu2exu_valid && !cop_path_active;
+assign cop_refetch_flush = cop_path_active && cop_exu2wbu_valid && !ifu2idu_valid;
+assign exu_res = cop_path_active ? cop_exu_res : scalar_exu_res;
+assign exu_brch = scalar_exu_brch;
+assign exu_pc_next = scalar_exu_pc_next;
+assign exu_commit_pc_next = cop_path_active ? (idu2exu_pc + 32'd4) :
+                            (idu2exu_brch ? exu_redirect_pc : exu_pc_next);
+assign exu_mispredict_flush = scalar_exu_mispredict_flush || cop_refetch_flush;
+assign exu_predict_correct = cop_path_active ? 1'b1 : scalar_exu_predict_correct;
+assign exu_redirect_pc = cop_refetch_flush ? (idu2exu_pc + 32'd4) : scalar_exu_redirect_pc;
+assign exu_btb_update_en = scalar_exu_btb_update_en;
+assign exu_btb_update_pc = scalar_exu_btb_update_pc;
+assign exu_btb_update_target = scalar_exu_btb_update_target;
+assign exu_btb_update_taken = scalar_exu_btb_update_taken;
+assign exu_ras_push_en = scalar_exu_ras_push_en;
+assign exu_ras_push_data = scalar_exu_ras_push_data;
+assign exu_ras_pop_en = scalar_exu_ras_pop_en;
+assign exu2wbu_valid = cop_path_active ? cop_exu2wbu_valid : scalar_exu2wbu_valid;
+assign exu2idu_ready = cop_path_active ? cop_exu2idu_ready : scalar_exu2idu_ready;
+
+always @(posedge clock or posedge reset) begin
+    if (reset || pc_update_en || idu2exu_fence_i || exu_mispredict_flush_r) begin
+        cop_inflight <= 1'b0;
+    end else if (cop_issue) begin
+        cop_inflight <= 1'b1;
+    end else if (cop_exu2idu_ready) begin
+        cop_inflight <= 1'b0;
+    end
+end
+
 hcpu_EXU exu1(
     .clock                             (clock                     ),
     .reset                             (reset                     ),
@@ -478,24 +533,24 @@ hcpu_EXU exu1(
     .exu_opt                           (idu2exu_exu_opt           ),
     .i_alu_opt                         (idu2exu_alu_opt           ),
     .i_muldiv                          (idu2exu_muldiv            ),
-    .i_is_cop_insn                     (idu2exu_is_cop_insn       ),
+    .i_is_cop_insn                     (1'b0                      ),
     .i_predict_taken                   (idu2exu_predict_taken     ),
     .i_predict_target                  (idu2exu_predict_target    ),
     .i_rd_addr                         (idu2exu_rd                ),
     .i_rs1_addr                        (idu2exu_rs1_addr          ),
-    .o_res                             (exu_res                   ),
-    .o_brch                            (exu_brch                  ),
-    .o_pc_next                         (exu_pc_next               ),
-    .o_mispredict_flush                (exu_mispredict_flush      ),
-    .o_predict_correct                 (exu_predict_correct       ),
-    .o_redirect_pc                     (exu_redirect_pc           ),
-    .o_btb_update_en                   (exu_btb_update_en         ),
-    .o_btb_update_pc                   (exu_btb_update_pc         ),
-    .o_btb_update_target               (exu_btb_update_target     ),
-    .o_btb_update_taken                (exu_btb_update_taken      ),
-    .o_ras_push_en                     (exu_ras_push_en           ),
-    .o_ras_push_data                   (exu_ras_push_data         ),
-    .o_ras_pop_en                      (exu_ras_pop_en            ),
+    .o_res                             (scalar_exu_res            ),
+    .o_brch                            (scalar_exu_brch           ),
+    .o_pc_next                         (scalar_exu_pc_next        ),
+    .o_mispredict_flush                (scalar_exu_mispredict_flush),
+    .o_predict_correct                 (scalar_exu_predict_correct),
+    .o_redirect_pc                     (scalar_exu_redirect_pc    ),
+    .o_btb_update_en                   (scalar_exu_btb_update_en  ),
+    .o_btb_update_pc                   (scalar_exu_btb_update_pc  ),
+    .o_btb_update_target               (scalar_exu_btb_update_target),
+    .o_btb_update_taken                (scalar_exu_btb_update_taken),
+    .o_ras_push_en                     (scalar_exu_ras_push_en    ),
+    .o_ras_push_data                   (scalar_exu_ras_push_data  ),
+    .o_ras_pop_en                      (scalar_exu_ras_pop_en     ),
   //lsu -> sram axi
   //write address channel  
     .M_AXI_AWADDR                      (LSU_SRAM_AXI_AWADDR       ),
@@ -532,11 +587,24 @@ hcpu_EXU exu1(
     .M_AXI_BREADY                      (LSU_SRAM_AXI_BREADY       ),
     .M_AXI_BID                         (LSU_SRAM_AXI_BID          ),
   //exu -> wbu handshake
-    .i_pre_valid                       (idu2exu_valid             ),
+    .i_pre_valid                       (scalar_issue              ),
     .i_post_ready                      (wbu2exu_ready             ),
-    .o_post_valid                      (exu2wbu_valid             ),
-    .o_pre_ready                       (exu2idu_ready             ),
+    .o_post_valid                      (scalar_exu2wbu_valid      ),
+    .o_pre_ready                       (scalar_exu2idu_ready      ),
     .i_flush                           (exu_mispredict_flush_r     ) 
+);
+
+hcpu_cop_backend cop_backend1(
+    .clock                             (clock                     ),
+    .reset                             (reset                     ),
+    .i_pre_valid                       (cop_issue                 ),
+    .i_post_ready                      (wbu2exu_ready             ),
+    .i_flush                           (exu_mispredict_flush_r    ),
+    .i_src1                            (idu2exu_src1              ),
+    .i_src2                            (idu2exu_src2              ),
+    .o_pre_ready                       (cop_exu2idu_ready         ),
+    .o_post_valid                      (cop_exu2wbu_valid         ),
+    .o_res                             (cop_exu_res               )
 );
 
 // Latch mispredict signals for one full cycle
