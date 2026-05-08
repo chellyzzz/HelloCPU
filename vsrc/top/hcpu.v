@@ -478,15 +478,18 @@ wire                   [  31:0]         cop_active_src2            ;
 wire                                    scalar_exu_predict_correct ;
 wire                                    scalar_issue               ;
 wire                                    cop_issue                  ;
+wire                                    cop_issue_ready            ;
 wire                                    cop_path_active            ;
 wire                                    cop_refetch_flush          ;
 wire                                    cop_inflight               ;
+wire                                    cop_backend_busy           ;
 wire                   [  31:0]         cop_inflight_pc            ;
 wire                   [   4:0]         cop_inflight_rd            ;
 wire                                    cop_inflight_wen           ;
 wire                                    cop_inflight_clear         ;
 
-assign cop_issue = idu2exu_valid && idu2exu_is_cop_insn && !cop_inflight;
+assign cop_issue_ready = !cop_inflight && !cop_backend_busy;
+assign cop_issue = idu2exu_valid && idu2exu_is_cop_insn && cop_issue_ready;
 assign cop_path_active = cop_inflight || (idu2exu_valid && idu2exu_is_cop_insn);
 assign scalar_issue = idu2exu_valid && !cop_path_active;
 assign cop_refetch_flush = cop_path_active && cop_exu2wbu_valid && !ifu2idu_valid;
@@ -621,6 +624,7 @@ hcpu_cop_backend cop_backend1(
     .i_src2                            (cop_active_src2           ),
     .o_pre_ready                       (cop_exu2idu_ready         ),
     .o_post_valid                      (cop_exu2wbu_valid         ),
+    .o_busy                            (cop_backend_busy          ),
     .o_res                             (cop_exu_res               )
 );
 

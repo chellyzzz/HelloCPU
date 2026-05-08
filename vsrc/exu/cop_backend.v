@@ -8,6 +8,7 @@ module hcpu_cop_backend(
     input      [31:0]   i_src2,
     output              o_pre_ready,
     output              o_post_valid,
+    output              o_busy,
     output     [31:0]   o_res
 );
 
@@ -29,6 +30,7 @@ hcpu_dummy_coprocessor u_dummy_coprocessor(
 
 assign o_pre_ready = resp_valid && i_post_ready;
 assign o_post_valid = resp_valid;
+assign o_busy = cop_busy || resp_valid;
 assign o_res = resp_res;
 
 always @(posedge clock or posedge reset) begin
