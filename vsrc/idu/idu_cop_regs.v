@@ -2,7 +2,8 @@ module hcpu_idu_cop_regs (
     input               clock,
     input               reset,
     input               i_issue_valid,
-    input               i_clear,
+    input               i_kill,
+    input               i_dequeue,
     input               i_backend_busy,
     input      [31:0]   i_pc,
     input      [31:0]   i_src1,
@@ -43,7 +44,7 @@ always @(posedge clock or posedge reset) begin
         entry_src2 <= 32'b0;
         entry_rd <= 5'b0;
         entry_wen <= 1'b0;
-    end else if (i_clear) begin
+    end else if (i_kill || i_dequeue) begin
         entry_valid <= 1'b0;
         entry_pc <= 32'b0;
         entry_src1 <= 32'b0;

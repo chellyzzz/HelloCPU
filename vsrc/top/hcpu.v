@@ -493,7 +493,8 @@ wire                                    cop_backend_busy           ;
 wire                   [  31:0]         cop_inflight_pc            ;
 wire                   [   4:0]         cop_inflight_rd            ;
 wire                                    cop_inflight_wen           ;
-wire                                    cop_inflight_clear         ;
+wire                                    cop_queue_kill             ;
+wire                                    cop_queue_dequeue          ;
 
 assign cop_issue_valid = idu2exu_valid && idu2exu_is_cop_insn;
 assign cop_path_active = cop_inflight || cop_issue_valid;
@@ -517,13 +518,15 @@ assign exu_ras_push_data = scalar_exu_ras_push_data;
 assign exu_ras_pop_en = scalar_exu_ras_pop_en;
 assign exu2wbu_valid = cop_path_active ? cop_exu2wbu_valid : scalar_exu2wbu_valid;
 assign exu2idu_ready = cop_path_active ? cop_exu2idu_ready : scalar_exu2idu_ready;
-assign cop_inflight_clear = pc_update_en || idu2exu_fence_i || exu_mispredict_flush_r || cop_exu2idu_ready;
+assign cop_queue_kill = pc_update_en || idu2exu_fence_i || exu_mispredict_flush_r;
+assign cop_queue_dequeue = cop_exu2idu_ready;
 
 hcpu_idu_cop_regs idu2cop_regs(
     .clock                             (clock                     ),
     .reset                             (reset                     ),
     .i_issue_valid                     (cop_issue_valid           ),
-    .i_clear                           (cop_inflight_clear        ),
+    .i_kill                            (cop_queue_kill            ),
+    .i_dequeue                         (cop_queue_dequeue         ),
     .i_backend_busy                    (cop_backend_busy          ),
     .i_pc                              (idu2exu_pc                ),
     .i_src1                            (idu2exu_src1              ),
