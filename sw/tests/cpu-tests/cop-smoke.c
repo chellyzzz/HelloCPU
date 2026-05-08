@@ -7,5 +7,6 @@ static inline int cop_add(int lhs, int rhs) {
 }
 
 int main() {
-  return cop_add(10, 20) == 30 ? 0 : 1;
+  int value = cop_add(1, 2);
+  return value == 3 ? 0 : 1;
 }

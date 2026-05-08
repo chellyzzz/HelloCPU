@@ -33,6 +33,7 @@ static uint64_t cnt_load = 0;
 static uint64_t cnt_store = 0;
 static uint64_t cnt_mul = 0;
 static uint64_t cnt_div = 0;
+static uint64_t cnt_cop = 0;
 static uint64_t cnt_alu = 0;
 static uint64_t cnt_csr = 0;
 static uint64_t cnt_sys = 0;
@@ -45,6 +46,7 @@ static uint64_t cnt_stall_lsu_refill = 0;
 static uint64_t cnt_stall_lsu_uncached = 0;
 static uint64_t cnt_stall_lsu_wb = 0;
 static uint64_t cnt_stall_mul = 0;
+static uint64_t cnt_stall_cop = 0;
 static uint64_t cnt_stall_ctrl = 0;
 static uint64_t cnt_stall_other = 0;
 static uint64_t cnt_icache_hit = 0;
@@ -141,6 +143,8 @@ static void print_perf_summary() {
     }
     printf("│   MUL/DIV wait       : %10lu (%5.1f%%)            │\n",
            cnt_stall_mul, 100.0 * cnt_stall_mul / cnt_stall);
+    printf("│   COP wait           : %10lu (%5.1f%%)            │\n",
+           cnt_stall_cop, 100.0 * cnt_stall_cop / cnt_stall);
     printf("│   Control recovery   : %10lu (%5.1f%%)            │\n",
            cnt_stall_ctrl, 100.0 * cnt_stall_ctrl / cnt_stall);
     printf("│   Other backend      : %10lu (%5.1f%%)            │\n",
@@ -165,6 +169,8 @@ static void print_perf_summary() {
            100.0 * cnt_mul / cnt_inst);
     printf("│   Divides           : %10lu (%5.1f%%)            │\n", cnt_div,
            100.0 * cnt_div / cnt_inst);
+    printf("│   COP custom ops    : %10lu (%5.1f%%)            │\n", cnt_cop,
+           100.0 * cnt_cop / cnt_inst);
     printf("│   CSR accesses      : %10lu (%5.1f%%)            │\n", cnt_csr,
            100.0 * cnt_csr / cnt_inst);
     printf("│   System (ECALL/MRET/EBREAK): %4lu (%5.1f%%)     │\n", cnt_sys,
@@ -262,6 +268,7 @@ extern "C" void load_dpic() { cnt_load++; }
 extern "C" void store_dpic() { cnt_store++; }
 extern "C" void mul_cnt_dpic() { cnt_mul++; }
 extern "C" void div_cnt_dpic() { cnt_div++; }
+extern "C" void cop_cnt_dpic() { cnt_cop++; }
 extern "C" void alu_cnt_dpic() { cnt_alu++; }
 extern "C" void csr_cnt_dpic() { cnt_csr++; }
 extern "C" void sys_cnt_dpic() { cnt_sys++; }
@@ -274,6 +281,7 @@ extern "C" void stall_lsu_refill_dpic() { cnt_stall_lsu_refill++; }
 extern "C" void stall_lsu_uncached_dpic() { cnt_stall_lsu_uncached++; }
 extern "C" void stall_lsu_wb_dpic() { cnt_stall_lsu_wb++; }
 extern "C" void stall_mul_dpic() { cnt_stall_mul++; }
+extern "C" void stall_cop_dpic() { cnt_stall_cop++; }
 extern "C" void stall_ctrl_dpic() { cnt_stall_ctrl++; }
 extern "C" void stall_other_dpic() { cnt_stall_other++; }
 extern "C" void cache_miss() { cnt_icache_miss++; }

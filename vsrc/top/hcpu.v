@@ -145,6 +145,7 @@ wire                   [ISA_WIDTH-1:0]  ifu_req_addr               ;
 wire                                    icache_hit                 ;
 wire                                    fence_i                    ;
 wire                                    muldiv                     ;
+wire                                    is_cop_insn                ;
 
 
 //write address channel  
@@ -254,6 +255,7 @@ wire                                    idu2exu_jalr               ;
 wire                                    idu2exu_ebreak             ;
 wire                                    idu2exu_fence_i            ;
 wire                                    idu2exu_muldiv             ;
+wire                                    idu2exu_is_cop_insn        ;
 wire                   [  11:0]         idu2exu_csr_addr           ;
 
 hcpu_icache icache1(
@@ -377,7 +379,8 @@ hcpu_IDU idu1(
     .o_jalr                            (jalr                      ),
     .o_ebreak                          (ebreak                    ),
     .o_fence_i                         (fence_i                   ),
-    .o_muldiv                          (muldiv                    )
+    .o_muldiv                          (muldiv                    ),
+    .o_is_cop_insn                     (is_cop_insn               )
 );
 
 
@@ -418,6 +421,7 @@ hcpu_idu_exu_regs idu2exu_regs(
     .i_fence_i                         (fence_i                   ),
     .i_muldiv                          (muldiv                    ),
     .i_ebreak                          (ebreak                    ),
+    .i_is_cop_insn                     (is_cop_insn               ),
 
     .i_predict_taken                   (ifu2idu_predict_taken     ),
     .i_predict_target                  (ifu2idu_predict_target    ),
@@ -445,6 +449,7 @@ hcpu_idu_exu_regs idu2exu_regs(
     .o_ebreak                          (idu2exu_ebreak            ),
     .o_fence_i                         (idu2exu_fence_i           ),
     .o_muldiv                          (idu2exu_muldiv            ),
+    .o_is_cop_insn                     (idu2exu_is_cop_insn       ),
     //
     .o_csr_addr                        (idu2exu_csr_addr          ),
     .o_predict_taken                   (idu2exu_predict_taken     ),
@@ -477,6 +482,7 @@ hcpu_EXU exu1(
     .exu_opt                           (idu2exu_exu_opt           ),
     .i_alu_opt                         (idu2exu_alu_opt           ),
     .i_muldiv                          (idu2exu_muldiv            ),
+    .i_is_cop_insn                     (idu2exu_is_cop_insn       ),
     .i_predict_taken                   (idu2exu_predict_taken     ),
     .i_predict_target                  (idu2exu_predict_target    ),
     .i_rd_addr                         (idu2exu_rd                ),
@@ -589,6 +595,7 @@ wire                                    exu2wbu_is_div             ;
 reg  idu2exu_load_d;
 reg  idu2exu_store_d;
 reg  idu2exu_muldiv_d;
+reg  idu2exu_cop_d;
 reg  idu2exu_fence_i_d;
 reg  idu2exu_brch_d;
 reg  idu2exu_is_div_d;
@@ -598,6 +605,7 @@ always @(posedge clock or posedge reset) begin
     idu2exu_load_d    <= 1'b0;
     idu2exu_store_d   <= 1'b0;
     idu2exu_muldiv_d  <= 1'b0;
+    idu2exu_cop_d     <= 1'b0;
     idu2exu_fence_i_d <= 1'b0;
     idu2exu_brch_d    <= 1'b0;
     idu2exu_is_div_d  <= 1'b0;
@@ -605,6 +613,7 @@ always @(posedge clock or posedge reset) begin
     idu2exu_load_d    <= idu2exu_load;
     idu2exu_store_d   <= idu2exu_store;
     idu2exu_muldiv_d  <= idu2exu_muldiv;
+    idu2exu_cop_d     <= idu2exu_is_cop_insn;
     idu2exu_fence_i_d <= idu2exu_fence_i;
     idu2exu_brch_d    <= idu2exu_brch;
     idu2exu_is_div_d  <= idu2exu_muldiv && idu2exu_exu_opt[2];
@@ -872,6 +881,7 @@ import "DPI-C" function void load_dpic       ();
 import "DPI-C" function void store_dpic      ();
 import "DPI-C" function void mul_cnt_dpic    ();
 import "DPI-C" function void div_cnt_dpic    ();
+import "DPI-C" function void cop_cnt_dpic    ();
 import "DPI-C" function void alu_cnt_dpic    ();
 import "DPI-C" function void sys_cnt_dpic    ();
 import "DPI-C" function void fence_cnt_dpic  ();
@@ -883,6 +893,7 @@ import "DPI-C" function void stall_lsu_refill_dpic();
 import "DPI-C" function void stall_lsu_uncached_dpic();
 import "DPI-C" function void stall_lsu_wb_dpic();
 import "DPI-C" function void stall_mul_dpic  ();
+import "DPI-C" function void stall_cop_dpic  ();
 import "DPI-C" function void stall_ctrl_dpic ();
 import "DPI-C" function void stall_other_dpic();
 import "DPI-C" function void btb_hit_dpic    ();
@@ -920,7 +931,8 @@ always @(posedge clock) begin
       if (idu2exu_is_div_d)  div_cnt_dpic();
       else                   mul_cnt_dpic();
     end
-    if (!idu2exu_load_d && !idu2exu_store_d && !idu2exu_muldiv_d &&
+    if (idu2exu_cop_d)                   cop_cnt_dpic();
+    if (!idu2exu_load_d && !idu2exu_store_d && !idu2exu_muldiv_d && !idu2exu_cop_d &&
         !exu2wbu_jal && !exu2wbu_jalr && !idu2exu_brch_d &&
         !exu2wbu_mret && !exu2wbu_ecall && !exu2wbu_ebreak &&
         !exu2wbu_commit_csr_wen && !idu2exu_fence_i_d)
@@ -953,6 +965,8 @@ always @(posedge clock) begin
         end
       end else if (idu2exu_muldiv) begin
         stall_mul_dpic();
+      end else if (idu2exu_is_cop_insn) begin
+        stall_cop_dpic();
       end else begin
         stall_other_dpic();
       end

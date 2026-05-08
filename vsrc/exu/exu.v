@@ -20,6 +20,7 @@ module hcpu_EXU(
     input              [   9:0]         i_alu_opt                  ,
     input              [   2:0]         exu_opt                    ,
     input                               i_muldiv                   ,
+    input                               i_is_cop_insn              ,
 
     // branch prediction inputs
     input                               i_predict_taken            ,
@@ -120,20 +121,26 @@ wire                                    mul_done, div_done         ;
 wire                                    if_mul, if_div             ;
 wire                                    muldiv_done                ;
 wire                   [  31:0]         muldiv_res                 ;
+wire                   [  31:0]         cop_res                    ;
+wire                                    cop_done                   ;
+wire                                    if_cop                     ;
 
 assign if_mul  = i_muldiv & ~exu_opt[2]; // func3[2]==0: MUL/MULH/MULHSU/MULHU
 assign if_div  = i_muldiv &  exu_opt[2]; // func3[2]==1: DIV/DIVU/REM/REMU
 assign muldiv_done = if_mul ? mul_done : if_div ? div_done : 1'b0;
 assign muldiv_res  = if_mul ? mul_result : div_result;
+assign if_cop = i_is_cop_insn;
 
 reg post_valid;
 
 assign if_lsu = i_load || i_store;
 assign o_post_valid =  if_lsu   ?  lsu_done    :
+                       if_cop   ?  cop_done    :
                        i_muldiv ?  muldiv_done :
                        post_valid;
 
 assign o_pre_ready  =  if_lsu   ?  lsu_done    :
+                       if_cop   ?  cop_done    :
                        i_muldiv ?  muldiv_done :
                        1'b1;
 
@@ -208,6 +215,16 @@ hcpu_divider exu_div(
     .div_valid                         (if_div      ),
     .div_result                        (div_result                ),
     .div_done                          (div_done                  ) 
+);
+
+hcpu_dummy_coprocessor exu_cop(
+    .clock                             (clock                     ),
+    .reset                             (reset || i_flush          ),
+    .i_valid                           (i_pre_valid && if_cop     ),
+    .i_src1                            (i_src1                    ),
+    .i_src2                            (i_src2                    ),
+    .o_res                             (cop_res                   ),
+    .o_done                            (cop_done                  )
 );
 
 // ============================================================================
@@ -285,6 +302,7 @@ always @(*) begin
   endcase
 end
 assign o_res  = i_load   ? load_res   :
+                if_cop   ? cop_res    :
                 i_muldiv ? muldiv_res :
                 alu_res;
 assign o_brch = i_brch && brch_res;
