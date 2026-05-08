@@ -494,7 +494,6 @@ wire                   [   4:0]         cop_inflight_rd            ;
 wire                                    cop_inflight_wen           ;
 wire                                    cop_inflight_clear         ;
 
-assign cop_issue_ready = !cop_inflight && !cop_backend_busy;
 assign cop_issue = idu2exu_valid && idu2exu_is_cop_insn && cop_issue_ready;
 assign cop_path_active = cop_inflight || (idu2exu_valid && idu2exu_is_cop_insn);
 assign scalar_issue = idu2exu_valid && !cop_path_active;
@@ -524,12 +523,14 @@ hcpu_idu_cop_regs idu2cop_regs(
     .reset                             (reset                     ),
     .i_capture                         (cop_issue                 ),
     .i_clear                           (cop_inflight_clear        ),
+    .i_backend_busy                    (cop_backend_busy          ),
     .i_pc                              (idu2exu_pc                ),
     .i_src1                            (idu2exu_src1              ),
     .i_src2                            (idu2exu_src2              ),
     .i_rd                              (idu2exu_rd                ),
     .i_wen                             (idu2exu_wen               ),
     .o_inflight                        (cop_inflight              ),
+    .o_issue_ready                     (cop_issue_ready           ),
     .o_pc                              (cop_inflight_pc           ),
     .o_active_src1                     (cop_active_src1           ),
     .o_active_src2                     (cop_active_src2           ),
