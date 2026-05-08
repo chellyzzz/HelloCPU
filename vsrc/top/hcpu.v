@@ -486,7 +486,9 @@ wire                                    scalar_issue               ;
 wire                                    cop_issue_valid            ;
 wire                                    cop_issue                  ;
 wire                                    cop_issue_ready            ;
-wire                                    cop_path_active            ;
+wire                                    cop_issue_active           ;
+wire                                    cop_commit_active          ;
+wire                                    cop_pipeline_active        ;
 wire                                    cop_refetch_flush          ;
 wire                                    cop_inflight               ;
 wire                                    cop_backend_busy           ;
@@ -498,17 +500,19 @@ wire                                    cop_queue_dequeue          ;
 wire                                    cop_resp_fire              ;
 
 assign cop_issue_valid = idu2exu_valid && idu2exu_is_cop_insn;
-assign cop_path_active = cop_inflight || cop_issue_valid;
-assign scalar_issue = idu2exu_valid && !cop_path_active;
-assign cop_refetch_flush = cop_path_active && cop_exu2wbu_valid && !ifu2idu_valid;
-assign cop_active_pc = cop_inflight ? cop_inflight_pc : idu2exu_pc;
-assign exu_res = cop_path_active ? cop_exu_res : scalar_exu_res;
+assign cop_issue_active = cop_issue_valid;
+assign cop_commit_active = cop_inflight;
+assign cop_pipeline_active = cop_commit_active || cop_issue_active;
+assign scalar_issue = idu2exu_valid && !cop_pipeline_active;
+assign cop_refetch_flush = cop_pipeline_active && cop_exu2wbu_valid && !ifu2idu_valid;
+assign cop_active_pc = cop_commit_active ? cop_inflight_pc : idu2exu_pc;
+assign exu_res = cop_pipeline_active ? cop_exu_res : scalar_exu_res;
 assign exu_brch = scalar_exu_brch;
 assign exu_pc_next = scalar_exu_pc_next;
-assign exu_commit_pc_next = cop_path_active ? (cop_active_pc + 32'd4) :
+assign exu_commit_pc_next = cop_pipeline_active ? (cop_active_pc + 32'd4) :
                             (idu2exu_brch ? exu_redirect_pc : exu_pc_next);
 assign exu_mispredict_flush = scalar_exu_mispredict_flush || cop_refetch_flush;
-assign exu_predict_correct = cop_path_active ? 1'b1 : scalar_exu_predict_correct;
+assign exu_predict_correct = cop_pipeline_active ? 1'b1 : scalar_exu_predict_correct;
 assign exu_redirect_pc = cop_refetch_flush ? (cop_inflight_pc + 32'd4) : scalar_exu_redirect_pc;
 assign exu_btb_update_en = scalar_exu_btb_update_en;
 assign exu_btb_update_pc = scalar_exu_btb_update_pc;
@@ -517,8 +521,8 @@ assign exu_btb_update_taken = scalar_exu_btb_update_taken;
 assign exu_ras_push_en = scalar_exu_ras_push_en;
 assign exu_ras_push_data = scalar_exu_ras_push_data;
 assign exu_ras_pop_en = scalar_exu_ras_pop_en;
-assign exu2wbu_valid = cop_path_active ? cop_exu2wbu_valid : scalar_exu2wbu_valid;
-assign exu2idu_ready = cop_path_active ? cop_exu2idu_ready : scalar_exu2idu_ready;
+assign exu2wbu_valid = cop_pipeline_active ? cop_exu2wbu_valid : scalar_exu2wbu_valid;
+assign exu2idu_ready = cop_pipeline_active ? cop_exu2idu_ready : scalar_exu2idu_ready;
 assign cop_kill = pc_update_en || idu2exu_fence_i || exu_mispredict_flush_r;
 assign cop_resp_fire = cop_exu2wbu_valid && wbu2exu_ready;
 assign cop_queue_dequeue = cop_resp_fire;
@@ -724,28 +728,28 @@ end
 hcpu_exu_wbu_regs exu_wbu_regs (
     .clock                             (clock                     ),
     .reset                             (reset || pc_update_en     ),
-    .i_brch                            (cop_inflight ? 1'b0 : exu_brch),
-    .i_jal                             (cop_inflight ? 1'b0 : idu2exu_jal),
-    .i_wen                             (cop_inflight ? cop_inflight_wen : idu2exu_wen),
+    .i_brch                            (cop_commit_active ? 1'b0 : exu_brch),
+    .i_jal                             (cop_commit_active ? 1'b0 : idu2exu_jal),
+    .i_wen                             (cop_commit_active ? cop_inflight_wen : idu2exu_wen),
 
-    .i_csr_wen                         (cop_inflight ? 1'b0 : idu2exu_csr_wen),
-    .i_jalr                            (cop_inflight ? 1'b0 : idu2exu_jalr),
-    .i_ebreak                          (cop_inflight ? 1'b0 : idu2exu_ebreak),
-    .i_mret                            (cop_inflight ? 1'b0 : idu2exu_mret),
-    .i_ecall                           (cop_inflight ? 1'b0 : idu2exu_ecall),
-    .i_predict_taken                   (cop_inflight ? 1'b0 : idu2exu_predict_taken),
+    .i_csr_wen                         (cop_commit_active ? 1'b0 : idu2exu_csr_wen),
+    .i_jalr                            (cop_commit_active ? 1'b0 : idu2exu_jalr),
+    .i_ebreak                          (cop_commit_active ? 1'b0 : idu2exu_ebreak),
+    .i_mret                            (cop_commit_active ? 1'b0 : idu2exu_mret),
+    .i_ecall                           (cop_commit_active ? 1'b0 : idu2exu_ecall),
+    .i_predict_taken                   (cop_commit_active ? 1'b0 : idu2exu_predict_taken),
     .i_predict_correct                 (exu_predict_correct       ),
-    .i_load                            (cop_inflight ? 1'b0 : idu2exu_load_d),
-    .i_store                           (cop_inflight ? 1'b0 : idu2exu_store_d),
-    .i_muldiv                          (cop_inflight ? 1'b0 : idu2exu_muldiv_d),
-    .i_fence_i                         (cop_inflight ? 1'b0 : idu2exu_fence_i_d),
-    .i_is_brch                         (cop_inflight ? 1'b0 : idu2exu_brch),
-    .i_is_div                          (cop_inflight ? 1'b0 : idu2exu_is_div_d),
+    .i_load                            (cop_commit_active ? 1'b0 : idu2exu_load_d),
+    .i_store                           (cop_commit_active ? 1'b0 : idu2exu_store_d),
+    .i_muldiv                          (cop_commit_active ? 1'b0 : idu2exu_muldiv_d),
+    .i_fence_i                         (cop_commit_active ? 1'b0 : idu2exu_fence_i_d),
+    .i_is_brch                         (cop_commit_active ? 1'b0 : idu2exu_brch),
+    .i_is_div                          (cop_commit_active ? 1'b0 : idu2exu_is_div_d),
     .i_res                             (exu_res                   ),
     .i_pc                              (cop_active_pc             ),
     .i_pc_next                         (exu_commit_pc_next        ),
-    .i_csr_addr                        (cop_inflight ? 12'b0 : idu2exu_csr_addr),
-    .i_rd_addr                         (cop_inflight ? cop_inflight_rd : idu2exu_rd),
+    .i_csr_addr                        (cop_commit_active ? 12'b0 : idu2exu_csr_addr),
+    .i_rd_addr                         (cop_commit_active ? cop_inflight_rd : idu2exu_rd),
 
     .o_pc_next                         (exu2wbu_pc_next           ),
     .o_pc                              (exu2wbu_pc                ),
@@ -915,9 +919,9 @@ hcpu_RegisterFile regfile1(
     .wdata                             (wbu_rd_wdata              ),
     .wen                               (wbu_wen                   ),
 //
-    .exu_rd                            (cop_inflight ? cop_inflight_rd : idu2exu_rd),
+    .exu_rd                            (cop_commit_active ? cop_inflight_rd : idu2exu_rd),
     .exu_wdata                         (exu_res                   ),
-    .exu_wen                           (cop_inflight ? cop_inflight_wen : idu2exu_wen),
+    .exu_wen                           (cop_commit_active ? cop_inflight_wen : idu2exu_wen),
     .exu_post_valid                   (exu2wbu_valid             ),
 
     .wbu_rd                            (exu2wbu_rd_addr           ),
