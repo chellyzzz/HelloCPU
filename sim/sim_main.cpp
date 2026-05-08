@@ -40,6 +40,7 @@ static uint64_t cnt_sys = 0;
 static uint64_t cnt_fence = 0;
 static uint64_t cnt_stall = 0;
 static uint64_t cnt_stall_front = 0;
+static uint64_t cnt_stall_ifu_held = 0;
 static uint64_t cnt_stall_lsu = 0;
 static uint64_t cnt_stall_lsu_hit = 0;
 static uint64_t cnt_stall_lsu_refill = 0;
@@ -127,6 +128,8 @@ static void print_perf_summary() {
   if (cnt_stall > 0) {
     printf("│   Frontend/empty     : %10lu (%5.1f%%)            │\n",
            cnt_stall_front, 100.0 * cnt_stall_front / cnt_stall);
+    printf("│   IFU held valid     : %10lu (%5.1f%%)            │\n",
+           cnt_stall_ifu_held, 100.0 * cnt_stall_ifu_held / cnt_stall);
     printf("│   LSU wait           : %10lu (%5.1f%%)            │\n",
            cnt_stall_lsu, 100.0 * cnt_stall_lsu / cnt_stall);
     if (cnt_stall_lsu > 0) {
@@ -275,6 +278,7 @@ extern "C" void sys_cnt_dpic() { cnt_sys++; }
 extern "C" void fence_cnt_dpic() { cnt_fence++; }
 extern "C" void stall_cnt_dpic() { cnt_stall++; }
 extern "C" void stall_front_dpic() { cnt_stall_front++; }
+extern "C" void stall_ifu_held_dpic() { cnt_stall_ifu_held++; }
 extern "C" void stall_lsu_dpic() { cnt_stall_lsu++; }
 extern "C" void stall_lsu_hit_dpic() { cnt_stall_lsu_hit++; }
 extern "C" void stall_lsu_refill_dpic() { cnt_stall_lsu_refill++; }

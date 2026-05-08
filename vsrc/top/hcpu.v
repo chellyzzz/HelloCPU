@@ -887,6 +887,7 @@ import "DPI-C" function void sys_cnt_dpic    ();
 import "DPI-C" function void fence_cnt_dpic  ();
 import "DPI-C" function void stall_cnt_dpic  ();
 import "DPI-C" function void stall_front_dpic();
+import "DPI-C" function void stall_ifu_held_dpic();
 import "DPI-C" function void stall_lsu_dpic  ();
 import "DPI-C" function void stall_lsu_hit_dpic();
 import "DPI-C" function void stall_lsu_refill_dpic();
@@ -946,7 +947,10 @@ end
 // ===========================================================================
 `ifdef PERF_STALL
 always @(posedge clock) begin
-  if (!reset && !exu2wbu_valid) stall_cnt_dpic();
+  if (!reset && !exu2wbu_valid) begin
+    stall_cnt_dpic();
+    if (ifu2idu_valid && !idu2ifu_ready) stall_ifu_held_dpic();
+  end
 
   if (!reset && !exu2wbu_valid) begin
     if (exu_mispredict_flush_r || pc_update_en) begin
