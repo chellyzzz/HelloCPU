@@ -483,6 +483,7 @@ wire                   [  31:0]         cop_active_src1            ;
 wire                   [  31:0]         cop_active_src2            ;
 wire                                    scalar_exu_predict_correct ;
 wire                                    scalar_issue               ;
+wire                                    cop_issue_valid            ;
 wire                                    cop_issue                  ;
 wire                                    cop_issue_ready            ;
 wire                                    cop_path_active            ;
@@ -494,8 +495,8 @@ wire                   [   4:0]         cop_inflight_rd            ;
 wire                                    cop_inflight_wen           ;
 wire                                    cop_inflight_clear         ;
 
-assign cop_issue = idu2exu_valid && idu2exu_is_cop_insn && cop_issue_ready;
-assign cop_path_active = cop_inflight || (idu2exu_valid && idu2exu_is_cop_insn);
+assign cop_issue_valid = idu2exu_valid && idu2exu_is_cop_insn;
+assign cop_path_active = cop_inflight || cop_issue_valid;
 assign scalar_issue = idu2exu_valid && !cop_path_active;
 assign cop_refetch_flush = cop_path_active && cop_exu2wbu_valid && !ifu2idu_valid;
 assign cop_active_pc = cop_inflight ? cop_inflight_pc : idu2exu_pc;
@@ -521,7 +522,7 @@ assign cop_inflight_clear = pc_update_en || idu2exu_fence_i || exu_mispredict_fl
 hcpu_idu_cop_regs idu2cop_regs(
     .clock                             (clock                     ),
     .reset                             (reset                     ),
-    .i_capture                         (cop_issue                 ),
+    .i_issue_valid                     (cop_issue_valid           ),
     .i_clear                           (cop_inflight_clear        ),
     .i_backend_busy                    (cop_backend_busy          ),
     .i_pc                              (idu2exu_pc                ),
@@ -531,6 +532,7 @@ hcpu_idu_cop_regs idu2cop_regs(
     .i_wen                             (idu2exu_wen               ),
     .o_inflight                        (cop_inflight              ),
     .o_issue_ready                     (cop_issue_ready           ),
+    .o_issue_fire                      (cop_issue                 ),
     .o_pc                              (cop_inflight_pc           ),
     .o_active_src1                     (cop_active_src1           ),
     .o_active_src2                     (cop_active_src2           ),
