@@ -76,6 +76,28 @@ IFU -> IDU -> IDU/EXU regs -> { Scalar EXU | Coprocessor } -> WBU -> Register Fi
 3. 最终由顶层把标量结果或协处理器结果选择后送入统一 `WBU`；
 4. 当协处理器存在未提交在飞项时，前端停止继续发射，保持顺序提交模型。
 
+### 当前 RTL 落点（同步点 `c361994`）
+
+当前 `vector-coproc-uarch` 分支已经实现了 V1 的最小稳定控制闭环。当前 RTL 不是完整向量机，但已经把协处理器边界从标量 EXU 中逐步拆清楚。
+
+当前主要模块职责如下：
+
+1. `vsrc/idu/idu.v`：识别 `custom-0`，输出 `o_is_cop_insn`。
+2. `vsrc/idu/idu_exu_regs.v`：透传 COP 标记，仍保留现有标量主流水握手。
+3. `vsrc/idu/idu_cop_regs.v`：实现 COP depth-1 queue-entry 形态，提供 `i_issue_valid / o_issue_ready / o_issue_fire`，并保存 `pc/src1/src2/rd/wen`。
+4. `vsrc/exu/cop_backend.v`：独立 COP 后端包装，提供 `busy`、response valid 和 result。
+5. `vsrc/top/hcpu.v`：统一组织 COP issue、response fire、kill、WBU mux 和寄存器堆 bypass。
+
+当前顶层使用以下命名表达 COP 生命周期：
+
+1. `cop_issue_active`：当前 IDU/EXU payload 是 COP issue。
+2. `cop_commit_active`：COP queue entry 已存在，提交元数据来自 `idu_cop_regs`。
+3. `cop_pipeline_active`：COP issue 或 commit 路径正在占用顶层 mux。
+4. `cop_resp_fire`：COP response 被 WBU 接收。
+5. `cop_kill`：统一 kill/flush 信号，同时驱动 queue 和 backend。
+
+当前同步点已通过：`make sim`、`sum`、`add`、`dummy`、`cop-smoke`。
+
 ---
 
 ## 五、模块划分建议
