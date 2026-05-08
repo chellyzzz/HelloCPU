@@ -93,6 +93,8 @@ module hcpu_EXU(
     // LSU debug / perf classification
     output                              o_lsu_dbg_wait_hit         ,
     output                              o_lsu_dbg_wait_refill      ,
+    output                              o_lsu_dbg_wait_refill_ar   ,
+    output                              o_lsu_dbg_wait_refill_r    ,
     output                              o_lsu_dbg_wait_uncached    ,
     output                              o_lsu_dbg_wait_wb          ,
   //exu -> wbu handshake
@@ -280,6 +282,8 @@ hcpu_LSU exu_lsu(
     .lsu_done                          (lsu_done                  ),
     .o_dbg_wait_hit                    (o_lsu_dbg_wait_hit        ),
     .o_dbg_wait_refill                 (o_lsu_dbg_wait_refill     ),
+    .o_dbg_wait_refill_ar              (o_lsu_dbg_wait_refill_ar  ),
+    .o_dbg_wait_refill_r               (o_lsu_dbg_wait_refill_r   ),
     .o_dbg_wait_uncached               (o_lsu_dbg_wait_uncached   ),
     .o_dbg_wait_wb                     (o_lsu_dbg_wait_wb         )
 );

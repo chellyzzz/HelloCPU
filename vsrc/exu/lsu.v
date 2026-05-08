@@ -62,6 +62,8 @@ module hcpu_LSU #(
     // debug / perf classification
     output                              o_dbg_wait_hit             ,
     output                              o_dbg_wait_refill          ,
+    output                              o_dbg_wait_refill_ar       ,
+    output                              o_dbg_wait_refill_r        ,
     output                              o_dbg_wait_uncached        ,
     output                              o_dbg_wait_wb
 );
@@ -235,6 +237,9 @@ assign o_dbg_wait_refill =
     (state == S_REFILL_AR) ||
     (state == S_REFILL_R) ||
     (state == S_STORE_FILL);
+
+assign o_dbg_wait_refill_ar = (state == S_REFILL_AR);
+assign o_dbg_wait_refill_r  = (state == S_REFILL_R);
 
 assign o_dbg_wait_uncached =
     (state == S_CHECK && !lat_cacheable) ||

@@ -49,6 +49,8 @@ static uint64_t cnt_stall_ifu_held_other = 0;
 static uint64_t cnt_stall_lsu = 0;
 static uint64_t cnt_stall_lsu_hit = 0;
 static uint64_t cnt_stall_lsu_refill = 0;
+static uint64_t cnt_stall_lsu_refill_ar = 0;
+static uint64_t cnt_stall_lsu_refill_r = 0;
 static uint64_t cnt_stall_lsu_uncached = 0;
 static uint64_t cnt_stall_lsu_wb = 0;
 static uint64_t cnt_stall_mul = 0;
@@ -160,6 +162,14 @@ static void print_perf_summary() {
       printf("│     ├─ refill        : %10lu (%5.1f%%)            │\n",
              cnt_stall_lsu_refill,
              100.0 * cnt_stall_lsu_refill / cnt_stall_lsu);
+      if (cnt_stall_lsu_refill > 0) {
+        printf("│     │  ├─ AR wait    : %10lu (%5.1f%%)            │\n",
+               cnt_stall_lsu_refill_ar,
+               100.0 * cnt_stall_lsu_refill_ar / cnt_stall_lsu_refill);
+        printf("│     │  ├─ R data     : %10lu (%5.1f%%)            │\n",
+               cnt_stall_lsu_refill_r,
+               100.0 * cnt_stall_lsu_refill_r / cnt_stall_lsu_refill);
+      }
       printf("│     ├─ uncached      : %10lu (%5.1f%%)            │\n",
              cnt_stall_lsu_uncached,
              100.0 * cnt_stall_lsu_uncached / cnt_stall_lsu);
@@ -309,6 +319,8 @@ extern "C" void stall_ifu_held_other_dpic() { cnt_stall_ifu_held_other++; }
 extern "C" void stall_lsu_dpic() { cnt_stall_lsu++; }
 extern "C" void stall_lsu_hit_dpic() { cnt_stall_lsu_hit++; }
 extern "C" void stall_lsu_refill_dpic() { cnt_stall_lsu_refill++; }
+extern "C" void stall_lsu_refill_ar_dpic() { cnt_stall_lsu_refill_ar++; }
+extern "C" void stall_lsu_refill_r_dpic() { cnt_stall_lsu_refill_r++; }
 extern "C" void stall_lsu_uncached_dpic() { cnt_stall_lsu_uncached++; }
 extern "C" void stall_lsu_wb_dpic() { cnt_stall_lsu_wb++; }
 extern "C" void stall_mul_dpic() { cnt_stall_mul++; }

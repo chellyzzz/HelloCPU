@@ -137,6 +137,8 @@ wire                                    idu2exu_valid, exu2idu_ready;
 wire                                    exu2wbu_valid, wbu2exu_ready;
 wire                                    exu_lsu_dbg_wait_hit      ;
 wire                                    exu_lsu_dbg_wait_refill   ;
+wire                                    exu_lsu_dbg_wait_refill_ar;
+wire                                    exu_lsu_dbg_wait_refill_r ;
 wire                                    exu_lsu_dbg_wait_uncached ;
 wire                                    exu_lsu_dbg_wait_wb       ;
 //cache 
@@ -537,6 +539,8 @@ hcpu_EXU exu1(
     .M_AXI_BID                         (LSU_SRAM_AXI_BID          ),
     .o_lsu_dbg_wait_hit                (exu_lsu_dbg_wait_hit      ),
     .o_lsu_dbg_wait_refill             (exu_lsu_dbg_wait_refill   ),
+    .o_lsu_dbg_wait_refill_ar          (exu_lsu_dbg_wait_refill_ar),
+    .o_lsu_dbg_wait_refill_r           (exu_lsu_dbg_wait_refill_r ),
     .o_lsu_dbg_wait_uncached           (exu_lsu_dbg_wait_uncached ),
     .o_lsu_dbg_wait_wb                 (exu_lsu_dbg_wait_wb       ),
   //exu -> wbu handshake
@@ -896,6 +900,8 @@ import "DPI-C" function void stall_ifu_held_other_dpic();
 import "DPI-C" function void stall_lsu_dpic  ();
 import "DPI-C" function void stall_lsu_hit_dpic();
 import "DPI-C" function void stall_lsu_refill_dpic();
+import "DPI-C" function void stall_lsu_refill_ar_dpic();
+import "DPI-C" function void stall_lsu_refill_r_dpic();
 import "DPI-C" function void stall_lsu_uncached_dpic();
 import "DPI-C" function void stall_lsu_wb_dpic();
 import "DPI-C" function void stall_mul_dpic  ();
@@ -984,6 +990,11 @@ always @(posedge clock) begin
           stall_lsu_hit_dpic();
         end else if (exu_lsu_dbg_wait_refill) begin
           stall_lsu_refill_dpic();
+          if (exu_lsu_dbg_wait_refill_ar) begin
+            stall_lsu_refill_ar_dpic();
+          end else if (exu_lsu_dbg_wait_refill_r) begin
+            stall_lsu_refill_r_dpic();
+          end
         end else if (exu_lsu_dbg_wait_uncached) begin
           stall_lsu_uncached_dpic();
         end else if (exu_lsu_dbg_wait_wb) begin
