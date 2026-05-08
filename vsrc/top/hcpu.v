@@ -504,7 +504,7 @@ assign cop_issue_active = cop_issue_valid;
 assign cop_commit_active = cop_inflight;
 assign cop_pipeline_active = cop_commit_active || cop_issue_active;
 assign scalar_issue = idu2exu_valid && !cop_pipeline_active;
-assign cop_refetch_flush = cop_pipeline_active && cop_exu2wbu_valid && !ifu2idu_valid;
+assign cop_refetch_flush = cop_pipeline_active && cop_exu2wbu_valid;
 assign cop_active_pc = cop_commit_active ? cop_inflight_pc : idu2exu_pc;
 assign exu_res = cop_pipeline_active ? cop_exu_res : scalar_exu_res;
 assign exu_brch = scalar_exu_brch;
@@ -523,7 +523,7 @@ assign exu_ras_push_data = scalar_exu_ras_push_data;
 assign exu_ras_pop_en = scalar_exu_ras_pop_en;
 assign exu2wbu_valid = cop_pipeline_active ? cop_exu2wbu_valid : scalar_exu2wbu_valid;
 assign exu2idu_ready = cop_pipeline_active ? cop_exu2idu_ready : scalar_exu2idu_ready;
-assign cop_kill = pc_update_en || idu2exu_fence_i || exu_mispredict_flush_r;
+assign cop_kill = pc_update_en || idu2exu_fence_i || exu_mispredict_flush_r || cop_refetch_flush;
 assign cop_resp_fire = cop_exu2wbu_valid && wbu2exu_ready;
 assign cop_queue_dequeue = cop_resp_fire;
 
