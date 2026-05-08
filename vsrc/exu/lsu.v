@@ -222,7 +222,8 @@ reg axi_arvalid, axi_awvalid, axi_bready, axi_rready;
 // ============================================================
 reg done_reg;
 wire fast_load_hit_done = (state == S_CHECK) && lat_is_load && lat_cacheable && cache_hit;
-assign lsu_done = done_reg || fast_load_hit_done;
+wire fast_store_hit_done = (state == S_CHECK) && !lat_is_load && lat_cacheable && cache_hit;
+assign lsu_done = done_reg || fast_load_hit_done || fast_store_hit_done;
 
 assign o_dbg_wait_hit =
     (state == S_CHECK && lat_cacheable && cache_hit) ||
@@ -376,8 +377,7 @@ always @(posedge clock or posedge reset) begin
             else begin
                 // 鈹€鈹€ Store path 鈹€鈹€
                 if (lat_cacheable && cache_hit) begin
-                    // Store hit 鈫?write cache only, mark dirty, done in 1 cycle
-                    state <= S_STORE_HIT;
+                    state <= S_IDLE;
                     `ifdef DCACHE_DEBUG
                     $display("[DCACHE] STORE HIT: set=%0d way=%0d addr=0x%0h", addr_index, hit_way, lat_addr);
                     `endif
@@ -608,7 +608,7 @@ always @(posedge clock or posedge reset) begin
         // Refill: write incoming word into cache
         cache_data[addr_index][victim_way_lat][refill_cnt] <= M_AXI_RDATA;
     end
-    else if (state == S_STORE_HIT) begin
+    else if (state == S_STORE_HIT || fast_store_hit_done) begin
         // Store hit (write-back): update cache line (byte-level merge)
         if (wstrb_shifted[0]) cache_data[addr_index][hit_way][addr_word][ 7: 0] <= wdata_shifted[ 7: 0];
         if (wstrb_shifted[1]) cache_data[addr_index][hit_way][addr_word][15: 8] <= wdata_shifted[15: 8];
@@ -651,7 +651,7 @@ always @(posedge clock or posedge reset) begin
                  addr_index, victim_way_lat, addr_tag, !lat_is_load);
         `endif
     end
-    else if (state == S_STORE_HIT) begin
+    else if (state == S_STORE_HIT || fast_store_hit_done) begin
         // Store hit 鈫?mark dirty
         cache_dirty[addr_index][hit_way] <= 1'b1;
     end
@@ -678,7 +678,7 @@ always @(posedge clock or posedge reset) begin
             2'd3: plru[addr_index] <= {1'b0, plru[addr_index][1], 1'b0};
         endcase
     end
-    else if (state == S_CACHE_HIT || state == S_STORE_HIT) begin
+    else if (state == S_CACHE_HIT || state == S_STORE_HIT || fast_store_hit_done) begin
         case (hit_way)
             2'd0: plru[addr_index] <= {plru[addr_index][2], 1'b1, 1'b1};
             2'd1: plru[addr_index] <= {plru[addr_index][2], 1'b0, 1'b1};
