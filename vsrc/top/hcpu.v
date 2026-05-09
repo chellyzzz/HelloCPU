@@ -996,6 +996,8 @@ import "DPI-C" function void stall_ifu_held_dpic();
 import "DPI-C" function void stall_ifu_held_ctrl_dpic();
 import "DPI-C" function void stall_ifu_held_lsu_dpic();
 import "DPI-C" function void stall_ifu_held_mul_dpic();
+import "DPI-C" function void stall_ifu_held_mul_only_dpic();
+import "DPI-C" function void stall_ifu_held_div_dpic();
 import "DPI-C" function void stall_ifu_held_cop_dpic();
 import "DPI-C" function void stall_ifu_held_other_dpic();
 import "DPI-C" function void stall_lsu_dpic  ();
@@ -1006,6 +1008,8 @@ import "DPI-C" function void stall_lsu_refill_r_dpic();
 import "DPI-C" function void stall_lsu_uncached_dpic();
 import "DPI-C" function void stall_lsu_wb_dpic();
 import "DPI-C" function void stall_mul_dpic  ();
+import "DPI-C" function void stall_mul_only_dpic();
+import "DPI-C" function void stall_div_dpic  ();
 import "DPI-C" function void stall_cop_dpic  ();
 import "DPI-C" function void stall_ctrl_dpic ();
 import "DPI-C" function void stall_other_dpic();
@@ -1070,6 +1074,11 @@ always @(posedge clock) begin
           stall_ifu_held_lsu_dpic();
         end else if (idu2exu_muldiv) begin
           stall_ifu_held_mul_dpic();
+          if (idu2exu_exu_opt[2]) begin
+            stall_ifu_held_div_dpic();
+          end else begin
+            stall_ifu_held_mul_only_dpic();
+          end
         end else if (idu2exu_is_cop_insn) begin
           stall_ifu_held_cop_dpic();
         end else begin
@@ -1103,6 +1112,11 @@ always @(posedge clock) begin
         end
       end else if (idu2exu_muldiv) begin
         stall_mul_dpic();
+        if (idu2exu_exu_opt[2]) begin
+          stall_div_dpic();
+        end else begin
+          stall_mul_only_dpic();
+        end
       end else if (idu2exu_is_cop_insn) begin
         stall_cop_dpic();
       end else begin

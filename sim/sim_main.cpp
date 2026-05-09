@@ -44,6 +44,8 @@ static uint64_t cnt_stall_ifu_held = 0;
 static uint64_t cnt_stall_ifu_held_ctrl = 0;
 static uint64_t cnt_stall_ifu_held_lsu = 0;
 static uint64_t cnt_stall_ifu_held_mul = 0;
+static uint64_t cnt_stall_ifu_held_mul_only = 0;
+static uint64_t cnt_stall_ifu_held_div = 0;
 static uint64_t cnt_stall_ifu_held_cop = 0;
 static uint64_t cnt_stall_ifu_held_other = 0;
 static uint64_t cnt_stall_lsu = 0;
@@ -54,6 +56,8 @@ static uint64_t cnt_stall_lsu_refill_r = 0;
 static uint64_t cnt_stall_lsu_uncached = 0;
 static uint64_t cnt_stall_lsu_wb = 0;
 static uint64_t cnt_stall_mul = 0;
+static uint64_t cnt_stall_mul_only = 0;
+static uint64_t cnt_stall_div = 0;
 static uint64_t cnt_stall_cop = 0;
 static uint64_t cnt_stall_ctrl = 0;
 static uint64_t cnt_stall_other = 0;
@@ -147,6 +151,14 @@ static void print_perf_summary() {
       printf("│     ├─ MUL/DIV       : %10lu (%5.1f%%)            │\n",
              cnt_stall_ifu_held_mul,
              100.0 * cnt_stall_ifu_held_mul / cnt_stall_ifu_held);
+      if (cnt_stall_ifu_held_mul > 0) {
+        printf("│     │  ├─ MUL        : %10lu (%5.1f%%)            │\n",
+               cnt_stall_ifu_held_mul_only,
+               100.0 * cnt_stall_ifu_held_mul_only / cnt_stall_ifu_held_mul);
+        printf("│     │  ├─ DIV        : %10lu (%5.1f%%)            │\n",
+               cnt_stall_ifu_held_div,
+               100.0 * cnt_stall_ifu_held_div / cnt_stall_ifu_held_mul);
+      }
       printf("│     ├─ COP           : %10lu (%5.1f%%)            │\n",
              cnt_stall_ifu_held_cop,
              100.0 * cnt_stall_ifu_held_cop / cnt_stall_ifu_held);
@@ -178,6 +190,12 @@ static void print_perf_summary() {
     }
     printf("│   MUL/DIV wait       : %10lu (%5.1f%%)            │\n",
            cnt_stall_mul, 100.0 * cnt_stall_mul / cnt_stall);
+    if (cnt_stall_mul > 0) {
+      printf("│     ├─ MUL           : %10lu (%5.1f%%)            │\n",
+             cnt_stall_mul_only, 100.0 * cnt_stall_mul_only / cnt_stall_mul);
+      printf("│     ├─ DIV           : %10lu (%5.1f%%)            │\n",
+             cnt_stall_div, 100.0 * cnt_stall_div / cnt_stall_mul);
+    }
     printf("│   COP wait           : %10lu (%5.1f%%)            │\n",
            cnt_stall_cop, 100.0 * cnt_stall_cop / cnt_stall);
     printf("│   Control recovery   : %10lu (%5.1f%%)            │\n",
@@ -314,6 +332,8 @@ extern "C" void stall_ifu_held_dpic() { cnt_stall_ifu_held++; }
 extern "C" void stall_ifu_held_ctrl_dpic() { cnt_stall_ifu_held_ctrl++; }
 extern "C" void stall_ifu_held_lsu_dpic() { cnt_stall_ifu_held_lsu++; }
 extern "C" void stall_ifu_held_mul_dpic() { cnt_stall_ifu_held_mul++; }
+extern "C" void stall_ifu_held_mul_only_dpic() { cnt_stall_ifu_held_mul_only++; }
+extern "C" void stall_ifu_held_div_dpic() { cnt_stall_ifu_held_div++; }
 extern "C" void stall_ifu_held_cop_dpic() { cnt_stall_ifu_held_cop++; }
 extern "C" void stall_ifu_held_other_dpic() { cnt_stall_ifu_held_other++; }
 extern "C" void stall_lsu_dpic() { cnt_stall_lsu++; }
@@ -324,6 +344,8 @@ extern "C" void stall_lsu_refill_r_dpic() { cnt_stall_lsu_refill_r++; }
 extern "C" void stall_lsu_uncached_dpic() { cnt_stall_lsu_uncached++; }
 extern "C" void stall_lsu_wb_dpic() { cnt_stall_lsu_wb++; }
 extern "C" void stall_mul_dpic() { cnt_stall_mul++; }
+extern "C" void stall_mul_only_dpic() { cnt_stall_mul_only++; }
+extern "C" void stall_div_dpic() { cnt_stall_div++; }
 extern "C" void stall_cop_dpic() { cnt_stall_cop++; }
 extern "C" void stall_ctrl_dpic() { cnt_stall_ctrl++; }
 extern "C" void stall_other_dpic() { cnt_stall_other++; }
