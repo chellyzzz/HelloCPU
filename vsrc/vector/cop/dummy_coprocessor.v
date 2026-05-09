@@ -20,19 +20,27 @@ reg [31:0]  vlen;
 reg         pending_vlen_write;
 reg [31:0]  pending_vlen_value;
 reg [31:0]  op_count;
+reg [31:0]  vrf [0:3];
 
 assign o_res = latched_res;
 
 wire [2:0]  cop_funct3;
 wire [6:0]  cop_funct7;
 wire [3:0]  scalar_lane_op;
+wire [3:0]  vrf_lane_op;
+wire        is_vrf_op;
+wire        is_vrf_lane;
 wire [31:0] scalar_lane_result;
+wire [31:0] vrf_op_result;
 
 hcpu_vector_cop_decode u_cop_decode(
     .i_ins(i_ins),
     .o_funct3(cop_funct3),
     .o_funct7(cop_funct7),
-    .o_scalar_lane_op(scalar_lane_op)
+    .o_scalar_lane_op(scalar_lane_op),
+    .o_vrf_lane_op(vrf_lane_op),
+    .o_is_vrf_op(is_vrf_op),
+    .o_is_vrf_lane(is_vrf_lane)
 );
 
 hcpu_vector_lane_alu u_scalar_lane_alu(
@@ -42,9 +50,17 @@ hcpu_vector_lane_alu u_scalar_lane_alu(
     .o_res(scalar_lane_result)
 );
 
+hcpu_vector_lane_alu u_vrf_lane_alu(
+    .i_lhs(vrf[0]),
+    .i_rhs(vrf[1]),
+    .i_op(vrf_lane_op),
+    .o_res(vrf_op_result)
+);
+
 wire [31:0] scalar_op  = (cop_funct7 == 7'd1) ? (i_src1 - i_src2) :
                           (cop_funct7 == 7'd2) ? (i_src1 * i_src2) :
                           (i_src1 + i_src2);
+wire [1:0]  vrf_idx   = i_src2[1:0];
 wire [31:0] cop_result = (cop_funct3 == 3'b001) ? scalar_lane_result :
                           (cop_funct3 == 3'b010) ? scalar_lane_result :
                           (cop_funct3 == 3'b011) ? scalar_lane_result :
@@ -52,9 +68,14 @@ wire [31:0] cop_result = (cop_funct3 == 3'b001) ? scalar_lane_result :
                           (cop_funct3 == 3'b101) ? vlen :
                           (cop_funct3 == 3'b110) ? vlen :
                           (cop_funct3 == 3'b111) ? op_count :
+                          is_vrf_lane ? vrf_op_result :
+                          is_vrf_op  ? vrf[vrf_idx] :
                           scalar_op;
 wire        scratch_write = (cop_funct3 == 3'b100);
 wire        vlen_write    = (cop_funct3 == 3'b101);
+wire        vrf_write     = is_vrf_op && (cop_funct7 != 7'd4);
+wire [1:0]  vrf_write_idx = is_vrf_lane ? 2'd0 : vrf_idx;
+wire [31:0] vrf_write_value = is_vrf_lane ? vrf_op_result : i_src1;
 
 always @(posedge clock or posedge reset) begin
     if (reset) begin
@@ -68,6 +89,10 @@ always @(posedge clock or posedge reset) begin
         pending_vlen_write    <= 1'b0;
         pending_vlen_value    <= 32'b0;
         op_count    <= 32'b0;
+        vrf[0]      <= 32'b0;
+        vrf[1]      <= 32'b0;
+        vrf[2]      <= 32'b0;
+        vrf[3]      <= 32'b0;
         o_done      <= 1'b0;
     end else if (i_flush) begin
         busy        <= 1'b0;
@@ -89,6 +114,9 @@ always @(posedge clock or posedge reset) begin
             pending_scratch_value <= i_src1;
             pending_vlen_write    <= vlen_write;
             pending_vlen_value    <= i_src1;
+            if (vrf_write) begin
+                vrf[vrf_write_idx] <= vrf_write_value;
+            end
         end else if (busy) begin
             if (countdown == 2'd1) begin
                 busy                  <= 1'b0;
