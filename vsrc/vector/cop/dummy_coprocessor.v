@@ -19,6 +19,7 @@ reg [31:0]  pending_scratch_value;
 reg [31:0]  vlen;
 reg         pending_vlen_write;
 reg [31:0]  pending_vlen_value;
+reg [31:0]  op_count;
 
 assign o_res = latched_res;
 
@@ -45,6 +46,7 @@ wire [31:0] cop_result = (cop_funct3 == 3'b001) ? scalar_lane_result :
                           (cop_funct3 == 3'b100) ? scratch :
                           (cop_funct3 == 3'b101) ? vlen :
                           (cop_funct3 == 3'b110) ? vlen :
+                          (cop_funct3 == 3'b111) ? op_count :
                           (i_src1 + i_src2);
 wire        scratch_write = (cop_funct3 == 3'b100);
 wire        vlen_write    = (cop_funct3 == 3'b101);
@@ -60,6 +62,7 @@ always @(posedge clock or posedge reset) begin
         vlen        <= 32'b0;
         pending_vlen_write    <= 1'b0;
         pending_vlen_value    <= 32'b0;
+        op_count    <= 32'b0;
         o_done      <= 1'b0;
     end else if (i_flush) begin
         busy        <= 1'b0;
@@ -86,6 +89,7 @@ always @(posedge clock or posedge reset) begin
                 busy                  <= 1'b0;
                 countdown             <= 2'b0;
                 o_done                <= 1'b1;
+                op_count              <= op_count + 32'd1;
                 pending_scratch_write <= 1'b0;
                 pending_vlen_write    <= 1'b0;
                 if (pending_scratch_write) begin
