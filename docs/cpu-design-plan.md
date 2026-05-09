@@ -111,6 +111,8 @@ HelloCPU 当前已经具备：
 
 进一步把 `LSU wait` 拆开后，可以看到：
 
+- 新增 `start` 子项后，CoreMark `ITER=100` 中 `LSU wait = 6980532`，其中 `start = 6973588`，占 `LSU wait` 的 `99.9%`；
+- `start` 子项里 load 占 `5473195` cycles（`78.5%`），store 占 `1500393` cycles（`21.5%`）；
 - `refill` 在 CoreMark 中只占 `LSU wait` 的 `0.1%`；
 - `uncached` 和 `writeback` 占比很小；
 - 因此当前 CoreMark 上剩余 LSU 成本主要不是 AXI refill，而是 cache hit、load-use、请求启动和主流水握手耦合。
@@ -123,6 +125,8 @@ HelloCPU 当前已经具备：
 - 低位 `MUL` 快路径：普通 `MUL` 直接走 EXU 组合乘法结果，高位 `MULH/MULHSU/MULHU` 与 DIV 仍走原多周期路径；CoreMark `ITER=100` 进一步提升到 `2.381 CoreMark/MHz`；
 - `refill` 最后一拍同拍返回：虽然在简单样例上可过，但会破坏 `quick-sort` 正确性，因此当前已明确回退，不作为现阶段可保留优化；
 - 连续拉高 refill `RREADY`：会导致 `load-store` 在 refill R data 阶段卡死，也已明确回退。
+- LSU 直接用 EXU 当前 `ready` 或 `valid` 启动：会在简单访存或 `quick-sort` 中卡死或跑飞，说明启动条件不能只局部替换；
+- `S_IDLE` 同拍 cacheable load-hit 返回：即使只针对 load、不提前 store，也会破坏 `load-store` / `quick-sort`，并可能重复启动或卡在 load start，说明现有 IDU/EXU valid 生命周期与 LSU 内部同拍完成不兼容。
 
 当前可以确认的一点是：`cache hit` 路径和 LSU 请求启动路径确实偏保守，提早一拍能够稳定带来收益；但 `refill -> result` 路径仍然和主流水、写回边界存在更深耦合，不能直接按同样思路激进推进。
 

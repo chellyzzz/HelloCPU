@@ -91,6 +91,7 @@ module hcpu_EXU(
     input              [   3:0]         M_AXI_BID                  ,
 
     // LSU debug / perf classification
+    output                              o_lsu_dbg_wait_start       ,
     output                              o_lsu_dbg_wait_hit         ,
     output                              o_lsu_dbg_wait_refill      ,
     output                              o_lsu_dbg_wait_refill_ar   ,
@@ -284,6 +285,7 @@ hcpu_LSU exu_lsu(
   //handshake
     .o_pre_ready                       (o_pre_ready               ),
     .lsu_done                          (lsu_done                  ),
+    .o_dbg_wait_start                  (o_lsu_dbg_wait_start      ),
     .o_dbg_wait_hit                    (o_lsu_dbg_wait_hit        ),
     .o_dbg_wait_refill                 (o_lsu_dbg_wait_refill     ),
     .o_dbg_wait_refill_ar              (o_lsu_dbg_wait_refill_ar  ),

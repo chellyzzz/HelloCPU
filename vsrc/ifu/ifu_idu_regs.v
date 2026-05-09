@@ -21,6 +21,7 @@ module hcpu_ifu_idu_regs (
 
 assign o_post_valid = icache_hit;
 
+wire fetch_fire = icache_hit && i_post_ready;
 
 always @(posedge clock or posedge reset) begin
     if(reset) begin
@@ -29,7 +30,7 @@ always @(posedge clock or posedge reset) begin
         o_predict_taken <= 1'b0;
         o_predict_target <= 30'b0;
     end
-    else if(icache_hit && i_post_ready) begin
+    else if(fetch_fire) begin
         o_pc            <= i_pc;
         o_ins           <= i_ins;
         o_predict_taken <= i_predict_taken;

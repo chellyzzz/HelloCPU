@@ -49,6 +49,9 @@ static uint64_t cnt_stall_ifu_held_div = 0;
 static uint64_t cnt_stall_ifu_held_cop = 0;
 static uint64_t cnt_stall_ifu_held_other = 0;
 static uint64_t cnt_stall_lsu = 0;
+static uint64_t cnt_stall_lsu_start = 0;
+static uint64_t cnt_stall_lsu_start_load = 0;
+static uint64_t cnt_stall_lsu_start_store = 0;
 static uint64_t cnt_stall_lsu_hit = 0;
 static uint64_t cnt_stall_lsu_refill = 0;
 static uint64_t cnt_stall_lsu_refill_ar = 0;
@@ -169,6 +172,16 @@ static void print_perf_summary() {
     printf("│   LSU wait           : %10lu (%5.1f%%)            │\n",
            cnt_stall_lsu, 100.0 * cnt_stall_lsu / cnt_stall);
     if (cnt_stall_lsu > 0) {
+      printf("│     ├─ start         : %10lu (%5.1f%%)            │\n",
+             cnt_stall_lsu_start, 100.0 * cnt_stall_lsu_start / cnt_stall_lsu);
+      if (cnt_stall_lsu_start > 0) {
+        printf("│     │  ├─ load       : %10lu (%5.1f%%)            │\n",
+               cnt_stall_lsu_start_load,
+               100.0 * cnt_stall_lsu_start_load / cnt_stall_lsu_start);
+        printf("│     │  ├─ store      : %10lu (%5.1f%%)            │\n",
+               cnt_stall_lsu_start_store,
+               100.0 * cnt_stall_lsu_start_store / cnt_stall_lsu_start);
+      }
       printf("│     ├─ hit path      : %10lu (%5.1f%%)            │\n",
              cnt_stall_lsu_hit, 100.0 * cnt_stall_lsu_hit / cnt_stall_lsu);
       printf("│     ├─ refill        : %10lu (%5.1f%%)            │\n",
@@ -337,6 +350,9 @@ extern "C" void stall_ifu_held_div_dpic() { cnt_stall_ifu_held_div++; }
 extern "C" void stall_ifu_held_cop_dpic() { cnt_stall_ifu_held_cop++; }
 extern "C" void stall_ifu_held_other_dpic() { cnt_stall_ifu_held_other++; }
 extern "C" void stall_lsu_dpic() { cnt_stall_lsu++; }
+extern "C" void stall_lsu_start_dpic() { cnt_stall_lsu_start++; }
+extern "C" void stall_lsu_start_load_dpic() { cnt_stall_lsu_start_load++; }
+extern "C" void stall_lsu_start_store_dpic() { cnt_stall_lsu_start_store++; }
 extern "C" void stall_lsu_hit_dpic() { cnt_stall_lsu_hit++; }
 extern "C" void stall_lsu_refill_dpic() { cnt_stall_lsu_refill++; }
 extern "C" void stall_lsu_refill_ar_dpic() { cnt_stall_lsu_refill_ar++; }

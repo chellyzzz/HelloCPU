@@ -107,26 +107,27 @@ Any patch touching redirect/refetch/flush should also record either commit-trace
 
 Current A stable context:
 
-1. CPU mainline includes `5a5caa9 fix: preserve consecutive cop issue flow`.
+1. CPU mainline stable base is `4a2f5fb docs: update CPU coordination status`; current A WIP has also integrated B's behavior-equivalent `fetch_fire` naming patch.
 2. LSU fast paths and start-pulse optimization are already reflected in the current CoreMark reference.
 3. CoreMark `ITER=100` current reference is `2.381 CoreMark/MHz`, `IPC=0.729`, and `25.2%` stall rate after the low `MUL` fast path.
 4. MUL/DIV stall counters are now split into MUL and DIV sub-classes in both total stall and IFU-held-valid views.
+5. LSU wait is now further split by request-start load/store contribution: CoreMark `start = 6973588`, load start `5473195`, store start `1500393`.
 
 Latest A validation:
 
-1. `make sim`: no rebuild needed.
-2. `mul-longlong.bin`: PASS, `MUL=34`, `DIV=0`.
-3. `wanshu.bin`: PASS, `MUL=0`, `DIV=13398`.
-4. `sum.bin`: PASS, `cycles=919`.
-5. `cop-chain.bin`: PASS, `cycles=139`.
-6. `quick-sort.bin`: PASS, `cycles=5059`.
-7. `coremark.bin`: PASS, `CoreMark/MHz=2.381`, `MUL=0`, `DIV=3762` in `MUL/DIV wait`.
+1. `make sim`: PASS.
+2. `sum.bin`: PASS, `cycles=919`.
+3. `quick-sort.bin`: PASS, `cycles=5059`.
+4. `cop-chain.bin`: PASS, `cycles=139`.
+5. `coremark.bin`: PASS, `CoreMark/MHz=2.381`, `MUL=0`, `DIV=3762` in `MUL/DIV wait`.
+6. Full CPU regression: `42 passed, 0 failed`.
 
 Current A conclusion:
 
 1. Low `MUL` backpressure has been removed from the CoreMark bottleneck list.
 2. DIV remains important for division-heavy tests such as `wanshu`, but it is not the CoreMark-first target.
-3. A's next likely CPU optimization target returns to LSU/load-use/internal coupling, with branch recovery as the next explicit non-LSU class.
+3. A's next CPU optimization target remains LSU/load-use/internal coupling, but the latest counter split shows it is specifically LSU request-start coupling: CoreMark `LSU wait = 6980532`, `start = 6973588`, with load start `5473195` and store start `1500393`.
+4. Branch recovery remains the next explicit non-LSU class.
 
 Latest A rejected experiment:
 
@@ -144,6 +145,14 @@ Latest A accepted experiment:
 4. `matrix-mul.bin`: PASS, `MUL/DIV wait = 0`.
 5. `coremark.bin`: PASS, `CoreMark/MHz 2.279 -> 2.381`, `IPC 0.698 -> 0.729`, stall rate `28.4% -> 25.2%`.
 6. Full CPU regression: `42 passed, 0 failed`.
+
+Latest A rejected LSU experiments:
+
+1. Experiment: drive LSU transaction start from EXU current `ready` / current `valid` instead of the existing delayed start detection.
+2. Result: rejected. Direct current-`ready` start caused `sum`, `load-store`, `mem`, and `quick-sort` to timeout before real LSU traffic; current-`valid` start passed simple cases but made `quick-sort` timeout.
+3. Experiment: add an `S_IDLE` same-cycle cacheable load-hit fast path while leaving store hit on the old path.
+4. Result: rejected. It improved `sum` locally but broke `load-store` and `quick-sort`; suppressing duplicate start then caused `load-store` to hang in LSU start.
+5. Conclusion: the remaining LSU start/load-use cost cannot be fixed by local LSU same-cycle completion alone; it needs EXU/IDU valid lifetime or request/response boundary cleanup.
 
 ## Current B Progress
 

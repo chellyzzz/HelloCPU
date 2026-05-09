@@ -52,6 +52,8 @@ CoreMark/MHz     : 2.381
 
 ITER=100 is the better throughput reference because CoreMark initialization and reporting overhead are amortized across the timed workload. The current reference is the low `MUL` fast-path run.
 
+The current A stable-candidate WIP adds only LSU start load/store attribution and behavior-equivalent IFU `fetch_fire` naming on top of that result, so the CoreMark throughput number remains unchanged.
+
 Compared with the pre-LSU-fast-path ITER=100 reference (`1.545 CoreMark/MHz`, `IPC=0.473`, `51.5%` stalls), the LSU and low `MUL` fast-path optimizations raise throughput by about 54.1% and cut stall rate by 26.3 percentage points.
 
 ## Public Processor Comparison
@@ -104,6 +106,9 @@ IFU held valid       : 6973146 (65.8% of stalls)
     MUL              :       0 ( 0.0% of MUL/DIV held-valid stalls)
     DIV              :    3689 (100.0% of MUL/DIV held-valid stalls)
 LSU wait             : 6980532 (65.9% of stalls)
+  start              : 6973588 (99.9% of LSU wait)
+    load             : 5473195 (78.5% of start)
+    store            : 1500393 (21.5% of start)
   refill             : 3965 (0.1% of LSU wait)
     AR wait          : 1130 (28.5% of refill)
     R data           : 2508 (63.2% of refill)
@@ -143,7 +148,7 @@ The current bottleneck is still pipeline stalls rather than instruction-cache ca
 
 | Area | Evidence | Impact |
 |------|----------|--------|
-| LSU/internal data stalls | `LSU wait` is `6980532` cycles, `65.9%` of all stalls; refill is only `3965` cycles | Remaining LSU cost is mostly hit/load-use/internal coupling, not memory refill |
+| LSU/internal data stalls | `LSU wait` is `6980532` cycles, `65.9%` of all stalls; `start` is `6973588` cycles (`78.5%` load / `21.5%` store); refill is only `3965` cycles | Remaining LSU cost is mostly request start, load-use, and main-pipeline coupling, not memory refill |
 | Branch recovery | Branches are `20.4%`; BTB mispredicts are `790496` (`11.3%`) and WBU redirects are `805218` | Now the second-largest explicit remaining class after LSU |
 | MUL/DIV stalls | `MUL/DIV wait` is only `3762` cycles after the low `MUL` fast path, all from DIV | No longer a CoreMark bottleneck, but still relevant for division-heavy programs |
 | ICache misses | ICache hit rate is `99.7%`; only `122768` IFU fetches for 42.0M cycles | Not the primary bottleneck after 4 KB ICache |

@@ -60,6 +60,7 @@ module hcpu_LSU #(
     output                              lsu_done                   ,
 
     // debug / perf classification
+    output                              o_dbg_wait_start           ,
     output                              o_dbg_wait_hit             ,
     output                              o_dbg_wait_refill          ,
     output                              o_dbg_wait_refill_ar       ,
@@ -224,6 +225,8 @@ reg done_reg;
 wire fast_load_hit_done = (state == S_CHECK) && lat_is_load && lat_cacheable && cache_hit;
 wire fast_store_hit_done = (state == S_CHECK) && !lat_is_load && lat_cacheable && cache_hit;
 assign lsu_done = done_reg || fast_load_hit_done || fast_store_hit_done;
+
+assign o_dbg_wait_start = (state == S_IDLE) && is_ls;
 
 assign o_dbg_wait_hit =
     (state == S_CHECK && lat_cacheable && cache_hit) ||

@@ -59,6 +59,7 @@ assign o_predict_target = pred_target;
 
 wire [31:0] next_seq_pc = pc_next + 32'd4;
 wire [31:0] next_pred_pc = {pred_target, 2'b00};
+wire fetch_fire = hit && i_post_ready;
 
 always @(posedge clock or negedge rst_n_sync) begin
     if (~rst_n_sync)
@@ -67,7 +68,7 @@ always @(posedge clock or negedge rst_n_sync) begin
         pc_next <= exu_redirect_pc;
     else if (i_pc_update)
         pc_next <= i_pc_next;
-    else if (hit && i_post_ready)
+    else if (fetch_fire)
         pc_next <= pred_taken_comb ? next_pred_pc : next_seq_pc;
     else
         pc_next <= pc_next;
