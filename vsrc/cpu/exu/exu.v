@@ -226,7 +226,8 @@ hcpu_divider exu_div(
 
 hcpu_dummy_coprocessor exu_cop(
     .clock                             (clock                     ),
-    .reset                             (reset || i_flush          ),
+    .reset                             (reset                     ),
+    .i_flush                           (i_flush                   ),
     .i_valid                           (i_pre_valid && if_cop     ),
     .i_src1                            (i_src1                    ),
     .i_src2                            (i_src2                    ),

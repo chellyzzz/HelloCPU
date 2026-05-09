@@ -21,7 +21,8 @@ reg [31:0]  resp_res;
 
 hcpu_dummy_coprocessor u_dummy_coprocessor(
     .clock      (clock),
-    .reset      (reset || i_flush),
+    .reset      (reset),
+    .i_flush    (i_flush),
     .i_valid    (i_pre_valid),
     .i_src1     (i_src1),
     .i_src2     (i_src2),
