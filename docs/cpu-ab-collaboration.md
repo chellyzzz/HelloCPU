@@ -121,90 +121,68 @@ Any patch touching redirect/refetch/flush should also record either commit-trace
 
 Current A stable context:
 
-1. CPU mainline stable base is `d9e7702 refactor: sync vector coprocessor layout`; current A WIP has also integrated vector COP lane ops through `d8d578d`.
-2. LSU fast paths and start-pulse optimization are already reflected in the current CoreMark reference.
-3. CoreMark `ITER=100` current reference is `2.381 CoreMark/MHz`, `IPC=0.729`, and `25.2%` stall rate after the low `MUL` fast path.
-4. MUL/DIV stall counters are now split into MUL and DIV sub-classes in both total stall and IFU-held-valid views.
-5. LSU wait is now further split by request-start load/store contribution: CoreMark `start = 6973588`, load start `5473195`, store start `1500393`.
+1. CPU mainline stable base is `b73e571 feat: expand BTB, add pc_update attribution, sync vector lane ops` on `cpu-mainline-branch`.
+2. 128-entry BTB, WBU `pc_update` attribution counters, and vector `d8d578d` lane ops are all landed.
+3. CoreMark `ITER=100` current reference is `2.381 CoreMark/MHz`, `IPC=0.729`, `25.2%` stall rate.
+4. MUL/DIV stall counters are split; MUL fast path landed; DIV is the only remaining MUL/DIV cost.
+5. LSU wait: `start = 6973290 (99.9% of LSU wait)`, load `5473096 (78.5%)`, store `1500194 (21.5%)`; refill/uncache/wb combined < 7000 cycles.
 
 Latest A validation:
 
 1. `make sim`: PASS.
-2. `sum.bin`: PASS, `cycles=919`.
-3. `quick-sort.bin`: PASS, `cycles=5059`.
-4. `cop-chain.bin`: PASS, `cycles=139`.
-5. `coremark.bin`: PASS, `CoreMark/MHz=2.381`, `MUL=0`, `DIV=3762` in `MUL/DIV wait`.
-6. Full CPU regression: `42 passed, 0 failed`.
+2. Full CPU regression: `48 passed, 0 failed`.
+3. `coremark.bin`: PASS, `CoreMark/MHz=2.381`.
 
-Current A conclusion:
+Latest A conclusion:
 
-1. Low `MUL` backpressure has been removed from the CoreMark bottleneck list.
-2. DIV remains important for division-heavy tests such as `wanshu`, but it is not the CoreMark-first target.
-3. A's next CPU optimization target remains LSU/load-use/internal coupling, but the latest counter split shows it is specifically LSU request-start coupling: CoreMark `LSU wait = 6980532`, `start = 6973588`, with load start `5473195` and store start `1500393`.
-4. Branch recovery remains the next explicit non-LSU class.
-
-Latest A rejected experiment:
-
-1. Experiment: remove `mul_busy` from `vsrc/cpu/exu/multiplier.v` so `mul_done` follows `mul_valid` after one pipeline register stage.
-2. Intended effect: reduce MUL global ready backpressure without changing front-end handshakes.
-3. Result: rejected. `mul-longlong.bin` failed with exit code `1` after committing only 4 multiply instructions.
-4. First observation: MUL wait dropped from `34` to `3` cycles, but architectural result was wrong, so the current EXU/multiplier result and valid timing cannot be shortened by simply deleting `mul_busy`.
-5. Status: RTL experiment reverted; keep the current 2-cycle multiplier behavior until result/valid alignment is redesigned more carefully.
+1. LSU 1-cycle hit penalty (S_IDLE → S_CHECK) is the single largest bottleneck: 6.97M cycles = 16.6% of total execution time.
+2. All AXI-level LSU optimizations (fast_done, RREADY, writeback burst) together save < 0.01% on CoreMark because cache misses are negligible.
+3. A's next target is same-cycle LSU hit, but this requires IFU/IDU handshake cooperation — documented as needing B-line interface support first.
+4. Branch recovery (7.5% of stalls, 1.9% of cycles) and frontend bubbles (18.6% of stalls, 4.7% of cycles) are the next-low-hanging-fruit after LSU.
 
 Latest A accepted experiment:
 
-1. Experiment: add a low `MUL` fast path in `vsrc/cpu/exu/exu.v` for `func3 == 3'b000` while keeping `MULH/MULHSU/MULHU` and DIV on the original multi-cycle paths.
-2. Result: accepted after targeted, full CPU, and CoreMark regressions.
-3. `mul-longlong.bin`: PASS, cycles `693 -> 681`, `MUL/DIV wait` `34 -> 20`.
-4. `matrix-mul.bin`: PASS, `MUL/DIV wait = 0`.
-5. `coremark.bin`: PASS, `CoreMark/MHz 2.279 -> 2.381`, `IPC 0.698 -> 0.729`, stall rate `28.4% -> 25.2%`.
-6. Full CPU regression: `42 passed, 0 failed`.
+1. 128-entry BTB: accepted. Cycles `42000681 → 41986504`, BTB miss reduced, small positive.
+2. WBU `pc_update` attribution counters: accepted. CoreMark unchanged, diagnostics improved.
 
-Latest A rejected LSU experiments:
+Latest A rejected experiments (unchanged):
 
-1. Experiment: drive LSU transaction start from EXU current `ready` / current `valid` instead of the existing delayed start detection.
-2. Result: rejected. Direct current-`ready` start caused `sum`, `load-store`, `mem`, and `quick-sort` to timeout before real LSU traffic; current-`valid` start passed simple cases but made `quick-sort` timeout.
-3. Experiment: add an `S_IDLE` same-cycle cacheable load-hit fast path while leaving store hit on the old path.
-4. Result: rejected. It improved `sum` locally but broke `load-store` and `quick-sort`; suppressing duplicate start then caused `load-store` to hang in LSU start.
-5. Conclusion: the remaining LSU start/load-use cost cannot be fixed by local LSU same-cycle completion alone; it needs EXU/IDU valid lifetime or request/response boundary cleanup.
+1. Remove WBU branch/JAL/JALR `pc_update`: rejected, breaks `sum`/`cop-chain`/`quick-sort`.
+2. Static backward-taken BTB miss heuristic: rejected, CoreMark regressed `2.381 → 2.373`.
+3. LSU same-cycle load-hit: rejected, breaks `load-store`/`quick-sort`.
+4. LSU same-cycle current-ready start: rejected, `sum` timeout / `quick-sort` timeout.
+5. LSU refill same-cycle result: rejected, breaks `quick-sort`.
 
-Latest A branch-recovery observations:
+Latest A LSU micro-optimization (landed, negligible on CoreMark):
 
-1. Experiment: remove WBU branch/JAL/JALR `pc_update` and rely only on EXU redirect while keeping ECALL/MRET redirects.
-2. Result: rejected. `sum` and `cop-chain` timeout; `quick-sort`, `btb-basic`, and `btb-jal` fail.
-3. Conclusion: EXU redirect and WBU architectural redirect are still both part of the current frontend recovery semantics; branch recovery must be shortened by redesigning redirect/flush ownership, not by deleting the WBU pulse.
-4. New counters split WBU `pc_update`: CoreMark has `805218` total, with branch `763699` (`94.8%`), JAL `4918` (`0.6%`), JALR `36601` (`4.5%`), ECALL/MRET `0`.
-5. Experiment: predict backward branches taken on BTB miss using a static fallback target.
-6. Result: rejected. Functional smoke tests passed, but CoreMark regressed from `2.381` to `2.373 CoreMark/MHz` and BTB mispredicts increased from `790496` to `813296`.
-7. Experiment: increase BTB from 64 to 128 entries.
-8. Result: accepted. CoreMark simulator cycles improved `42000681 -> 41986504`, BTB miss `1082991 -> 1025584`, BTB mispredict `790496 -> 780786`, WBU `pc_update` `805218 -> 795702`; rounded `CoreMark/MHz` remains `2.381`.
+1. Added `fast_refill_done`, `fast_uncache_r_done`, `fast_uncache_b_done` combinational completion paths in `lsu.v`.
+2. These eliminate the 1-cycle `done_reg` pulse after AXI completion for load miss, uncache read, and uncache store.
+3. CoreMark impact: ~0% (cache miss rate too low for this to matter).
+4. Combinational RREADY/BREADY attempt was also tested but abandoned: the AXI RAM simulation model uses a 2-phase FSM that requires registered RREADY, making combinational RREADY cause simulation hangs.
 
 ## Current B Progress
 
 Current B context:
 
 1. B has rebased to A stable point `d9e7702 refactor: sync vector coprocessor layout`.
-2. B will no longer work from old `vsrc/exu` or `vsrc/idu` COP paths; new work uses `vsrc/cpu/*` and `vsrc/vector/cop/*`.
-3. `0001` behavior-equivalent IFU `fetch_fire` RTL naming is already integrated in `d9e7702`; B currently carries no RTL diff.
-4. B's IFU/IDU analysis doc has moved to `docs/cpu/ifu-idu-handshake-analysis.md`; exported patch is `patches/0002-docs-ifu-idu-handshake-analysis.patch`.
-5. The B doc now describes the new layout and the post-`d9e7702` COP refetch rule: `cop_refetch_flush = cop_resp_fire`.
-6. B validation passed: `make sim sw`, `sum`, `quick-sort`, `cop-chain`, `cop-vadd8`, `cop-vadd8-chain`, and `cop-vadd8-after-add`.
-7. IFU/IDU-only registered-valid failure is confirmed: `sum` misses commits at `0x30000000` and `0x30000b00`; B will not repeat that local patch.
-8. B's current judgment is that true standardization must handle implicit pre-valid bubbles and may involve IDU/EXU, EXU entry valid, or `vsrc/cpu/top/hcpu.v`, so A must participate in the integration plan.
+2. B determined that **pass-through is the correct V1 frontend architecture** after ruling out registered-valid and skid buffer approaches.
+3. `0001` behavior-equivalent IFU `fetch_fire` RTL naming is already integrated in `d9e7702`; B currently carries no behavior-changing RTL diff.
+4. B's IFU/IDU analysis doc is at `docs/cpu/ifu-idu-handshake-analysis.md`; exported patch is `patches/0002-docs-ifu-idu-handshake-analysis.patch`.
+5. IFU/IDU-only registered-valid failure is confirmed: `sum` misses commits at `0x30000000` and `0x30000b00`; B will not repeat that local patch.
+6. COP interface is clean; debug/assert instrumentation is in place.
+7. B has only low-risk instrumentation patches (0003~0005) remaining; no behavior changes.
 
-Current B expected deliverables:
+B-line status document: `docs/cpu/b-line-status.md`.
 
-1. Keep `docs/cpu/ifu-idu-handshake-analysis.md` current from the B branch.
-2. Prefer macro-control debug/assertion or design-plan convergence before changing frontend ready/valid behavior.
-3. A minimal IFU/IDU standardization proposal covering PC advance, ICache hit/data, boundary payload, redirect/refetch, implicit bubbles, and flush same-cycle behavior.
-4. A small behavior patch only after the timing analysis explains why it avoids the known `sum` failure mode.
+B is now in **maintenance mode**. B will resume active work when A needs frontend/interface support for same-cycle LSU hit or other pipeline restructuring.
 
-Current B first patch scope:
+Current B assigned tasks (for A same-cycle LSU hit preparation):
 
-1. Touch only `vsrc/cpu/ifu/ifu.v`, `vsrc/cpu/ifu/ifu_idu_regs.v`, and the frontend analysis document.
-2. Start with behavior-equivalent naming such as `fetch_fire`.
-3. Do not perform IFU/IDU standardization refactor in the first patch.
-4. For any redirect/refetch/flush change, write a short semantic note and record the first failing symptom before asking A to integrate.
+1. **B-Task-1: IFU/IDU pass-through protocol specification document** — Formalize V1 correct architecture semantics: signal meanings, valid/ready lifecycle, payload hold rules, redirect/refetch semantics. Pure documentation, no RTL change. Deliverable: update `docs/cpu/ifu-idu-handshake-analysis.md` with a formal protocol section.
+
+2. **B-Task-2: IFU/IDU/EXU protocol assertion coverage** — Add `ifdef`-protected SystemVerilog assertions in `vsrc/cpu/ifu/` and `vsrc/cpu/idu/` verifying pass-through invariants: `idu2exu_valid` stability while `!exu2idu_ready`, `idu2ifu_ready` derivation from `exu2idu_ready`, payload stability guarantees, etc. No behavior change. Deliverable: assertion patches in `cpu-frontend-interface-lab`.
+
+3. **B-Task-3: same-cycle LSU result interface design memo** — Per A/B behavior-RTL rule, write a 5-line design note + failure plan describing what interface changes IFU/IDU must provide for A to implement same-cycle LSU hit: how EXU `pre_ready` should respond in the first cycle, whether IDU `valid` release conditions change, whether payload needs latching, etc. Deliverable: section in B status doc, referenced from `docs/cpu/ifu-idu-handshake-analysis.md`.
 
 ## Coordination Notes
 

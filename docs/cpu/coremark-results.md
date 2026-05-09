@@ -50,6 +50,7 @@ CoreMark/MHz     : 2.381
 | ITER=100, full predictor + LSU fast paths | Correct CRC | 43871567 | 43876399 | 2.279 | 0.698 | 28.4% |
 | ITER=100, low MUL fast path | Correct CRC | 41995856 | 42000681 | 2.381 | 0.729 | 25.2% |
 | ITER=100, 128-entry BTB | Correct CRC | 41981715 | 41986504 | 2.381 | 0.729 | 25.2% |
+| ITER=100, 128-entry BTB + LSU fast_done paths | Correct CRC | 41981176 | 41985905 | 2.382 | 0.729 | 25.2% |
 
 ITER=100 is the better throughput reference because CoreMark initialization and reporting overhead are amortized across the timed workload. The current reference is the low `MUL` fast-path run.
 
@@ -97,21 +98,21 @@ The full predictor improved CoreMark ITER=1 by about 16.4% versus the no-predict
 ## Latest Performance Counters
 
 ```text
-Total cycles         : 41986504
+Total cycles         : 41985905
 Total instructions   : 30618174 (IPC = 0.729)
-Stall cycles         : 10587545 (25.2%)
+Stall cycles         : 10586947 (25.2%)
 
-Frontend/empty       : 1969921 (18.6% of stalls)
-IFU held valid       : 6973100 (65.9% of stalls)
-  LSU                : 6969198 (99.9% of held-valid stalls)
-  MUL/DIV            :    3689 ( 0.1% of held-valid stalls)
+Frontend/empty       : 1969954 (18.6% of stalls)
+IFU held valid       : 6970793 (65.8% of stalls)
+  LSU                : 6968603 (99.97% of held-valid stalls)
+  MUL/DIV            :    3689 ( 0.05% of held-valid stalls)
     MUL              :       0 ( 0.0% of MUL/DIV held-valid stalls)
     DIV              :    3689 (100.0% of MUL/DIV held-valid stalls)
-LSU wait             : 6980234 (65.9% of stalls)
+LSU wait             : 6979639 (65.9% of stalls)
   start              : 6973290 (99.9% of LSU wait)
     load             : 5473096 (78.5% of start)
     store            : 1500194 (21.5% of start)
-  refill             : 3965 (0.1% of LSU wait)
+  refill             : 3965 (0.06% of LSU wait)
     AR wait          : 1130 (28.5% of refill)
     R data           : 2508 (63.2% of refill)
   uncached           : 2705
@@ -119,7 +120,7 @@ LSU wait             : 6980234 (65.9% of stalls)
 MUL/DIV wait         :    3762 (0.0% of stalls)
   MUL                :       0 ( 0.0% of MUL/DIV wait)
   DIV                :    3762 (100.0% of MUL/DIV wait)
-Control recovery     : 795702 (7.5% of stalls)
+Control recovery     : 795701 (7.5% of stalls)
 Other backend        : 837926 (7.9% of stalls)
 
 ALU ops              : 15816432 (51.7%)
@@ -163,9 +164,22 @@ The current bottleneck is still pipeline stalls rather than instruction-cache ca
 
 The most useful next optimizations are therefore microarchitectural rather than predictor-capacity changes:
 
-1. Continue LSU work, but focus on hit/load-use/internal coupling rather than raw AXI refill bandwidth.
-2. Improve branch recovery latency for the remaining `~0.8M` WBU redirects.
-3. Keep DIV as a separate target for division-heavy programs.
+1. **LSU same-cycle hit** (highest theoretical yield, +20% CoreMark/MHz): Eliminating the 1-cycle S_IDLE→S_CHECK penalty on every load/store would save ~6.97M cycles. However, previous A-line experiments confirmed this requires IFU/IDU handshake restructuring — local LSU changes break `sum`/`quick-sort`. B-line Task-3 design memo is a prerequisite.
+2. **Branch recovery latency** (medium yield, +2% CoreMark/MHz): Reducing mispredict penalty from ~3.5 cycles to ~2.5 cycles would save ~0.8M cycles. Requires redirect/flush ownership redesign in IFU/EXU/WBU.
+3. **Frontend bubble reduction** (medium yield, +2-3% CoreMark/MHz): Reducing IFU/empty stalls from 1.97M cycles. Requires better IFU refetch timing after redirect.
+4. **DIV optimization** (low yield for CoreMark, relevant for other workloads).
+5. **AXI-level optimizations** (negligible for CoreMark): Combinational RREADY, burst writeback, and fast_done paths save at most ~0.01% because DCache hit rate is 99.9% and misses are ~209 total.
+
+### LSU AXI Optimization Results
+
+Two approaches were tested:
+
+| Approach | CoreMark Impact | Status |
+|----------|----------------|--------|
+| `fast_refill_done`, `fast_uncache_r_done`, `fast_uncache_b_done` | ~0% (-cache misses negligible) | Landed in `lsu.v` |
+| Combinational RREADY (no registered handshake) | Simulation hang | Reverted; AXI RAM model requires 2-phase RVALID/RREADY |
+
+The fast_done paths are kept because they improve uncache-path latency (relevant for MMIO workloads) and are correct. Combinational RREADY was abandoned because the simulation AXI RAM model uses a 2-phase FSM for R channel and cannot handle immediate RREADY assertion.
 4. Revisit register-file bypass and interlock timing once pipeline valid/ready boundaries are cleaner.
 
 ## Historical Baselines

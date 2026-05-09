@@ -222,9 +222,12 @@ reg axi_arvalid, axi_awvalid, axi_bready, axi_rready;
 // Done Signal
 // ============================================================
 reg done_reg;
-wire fast_load_hit_done = (state == S_CHECK) && lat_is_load && lat_cacheable && cache_hit;
-wire fast_store_hit_done = (state == S_CHECK) && !lat_is_load && lat_cacheable && cache_hit;
-assign lsu_done = done_reg || fast_load_hit_done || fast_store_hit_done;
+wire fast_load_hit_done   = (state == S_CHECK) && lat_is_load && lat_cacheable && cache_hit;
+wire fast_store_hit_done  = (state == S_CHECK) && !lat_is_load && lat_cacheable && cache_hit;
+wire fast_refill_done     = (state == S_REFILL_R) && refill_rready && M_AXI_RLAST && lat_is_load;
+wire fast_uncache_r_done  = (state == S_UNCACHE_R) && axi_rready;
+wire fast_uncache_b_done  = (state == S_UNCACHE_B) && axi_bready;
+assign lsu_done = done_reg || fast_load_hit_done || fast_store_hit_done || fast_refill_done || fast_uncache_r_done || fast_uncache_b_done;
 
 assign o_dbg_wait_start = (state == S_IDLE) && is_ls;
 
@@ -507,17 +510,14 @@ always @(posedge clock or posedge reset) begin
             if (M_AXI_RVALID && ~refill_rready) begin
                 refill_rready <= 1'b1;
             end
-            else if (refill_rready) begin
+else if (refill_rready) begin
                 refill_rready <= 1'b0;
                 refill_cnt    <= refill_cnt + 1;
                 if (M_AXI_RLAST) begin
                     if (lat_is_load) begin
-                        // Load miss: refill done, return data
-                        done_reg <= 1'b1;
-                        state    <= S_IDLE;
+                        state <= S_IDLE;
                     end
                     else begin
-                        // Store miss: refill done, now write store data
                         state <= S_STORE_FILL;
                     end
                 end
@@ -543,7 +543,6 @@ always @(posedge clock or posedge reset) begin
             end
             else if (axi_rready) begin
                 axi_rready <= 1'b0;
-                done_reg   <= 1'b1;
                 state      <= S_IDLE;
                 `ifdef DCACHE_DEBUG
                 $display("[LSU_RD_DATA] addr=%08x rdata=%08x shift=%0d opt=%0d",
@@ -575,7 +574,6 @@ always @(posedge clock or posedge reset) begin
             end
             else if (axi_bready) begin
                 axi_bready <= 1'b0;
-                done_reg   <= 1'b1;
                 state      <= S_IDLE;
             end
         end
@@ -715,7 +713,7 @@ wire [31:0] load_res_next =
                            32'b0;
 
 reg [31:0] load_res_reg;
-assign load_res = fast_load_hit_done ? load_res_next : load_res_reg;
+assign load_res = (fast_load_hit_done || fast_refill_done || fast_uncache_r_done) ? load_res_next : load_res_reg;
 
 always @(posedge clock or posedge reset) begin
   if (reset) begin
