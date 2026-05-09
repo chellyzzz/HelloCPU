@@ -85,6 +85,14 @@ static uint64_t cnt_wbu_pcup_jal = 0;
 static uint64_t cnt_wbu_pcup_jalr = 0;
 static uint64_t cnt_wbu_pcup_ecall = 0;
 static uint64_t cnt_wbu_pcup_mret = 0;
+static uint64_t cnt_redirect_gap = 0;
+static uint64_t cnt_redirect_events = 0;
+static uint64_t cnt_redirect_gap_brch = 0;
+static uint64_t cnt_redirect_events_brch = 0;
+static uint64_t cnt_redirect_gap_jal = 0;
+static uint64_t cnt_redirect_events_jal = 0;
+static uint64_t cnt_redirect_gap_jalr = 0;
+static uint64_t cnt_redirect_events_jalr = 0;
 
 struct PcHotspot {
   uint32_t pc;
@@ -283,6 +291,19 @@ static void print_perf_summary() {
     printf("│   ├─ MRET           : %10lu (%5.1f%%)            │\n",
            cnt_wbu_pcup_mret, 100.0 * cnt_wbu_pcup_mret / cnt_wbu_pcup);
   }
+  if (cnt_redirect_events > 0) {
+    printf("│ Redirect cost       : %10lu avg cycles (%lu events) │\n",
+           cnt_redirect_gap / cnt_redirect_events, cnt_redirect_events);
+    if (cnt_redirect_events_brch > 0)
+      printf("│   ├─ branch         : %6lu avg (%lu events)            │\n",
+             cnt_redirect_gap_brch / cnt_redirect_events_brch, cnt_redirect_events_brch);
+    if (cnt_redirect_events_jal > 0)
+      printf("│   ├─ JAL            : %6lu avg (%lu events)            │\n",
+             cnt_redirect_gap_jal / cnt_redirect_events_jal, cnt_redirect_events_jal);
+    if (cnt_redirect_events_jalr > 0)
+      printf("│   ├─ JALR           : %6lu avg (%lu events)            │\n",
+             cnt_redirect_gap_jalr / cnt_redirect_events_jalr, cnt_redirect_events_jalr);
+  }
   printf("├─────────────────────────────────────────────────────┤\n");
   printf("│ Cache Statistics                                   │\n");
   uint64_t ic_total = cnt_icache_hit + cnt_icache_miss;
@@ -407,6 +428,10 @@ extern "C" void wbu_pcup_jal_dpic() { cnt_wbu_pcup_jal++; }
 extern "C" void wbu_pcup_jalr_dpic() { cnt_wbu_pcup_jalr++; }
 extern "C" void wbu_pcup_ecall_dpic() { cnt_wbu_pcup_ecall++; }
 extern "C" void wbu_pcup_mret_dpic() { cnt_wbu_pcup_mret++; }
+extern "C" void redirect_gap_dpic(int cycles) { cnt_redirect_gap += cycles; cnt_redirect_events++; }
+extern "C" void redirect_gap_brch_dpic(int cycles) { cnt_redirect_gap_brch += cycles; cnt_redirect_events_brch++; }
+extern "C" void redirect_gap_jal_dpic(int cycles) { cnt_redirect_gap_jal += cycles; cnt_redirect_events_jal++; }
+extern "C" void redirect_gap_jalr_dpic(int cycles) { cnt_redirect_gap_jalr += cycles; cnt_redirect_events_jalr++; }
 extern "C" void commit_pc_dpic(int pc) { record_commit_pc((uint32_t)pc); }
 extern "C" void commit_trace_dpic(int pc, int rd, int wdata, int wen,
                                    int is_store, int store_addr,

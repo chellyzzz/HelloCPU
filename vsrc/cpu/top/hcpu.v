@@ -1041,6 +1041,10 @@ import "DPI-C" function void wbu_pcup_jal_dpic();
 import "DPI-C" function void wbu_pcup_jalr_dpic();
 import "DPI-C" function void wbu_pcup_ecall_dpic();
 import "DPI-C" function void wbu_pcup_mret_dpic();
+import "DPI-C" function void redirect_gap_dpic(input int cycles);
+import "DPI-C" function void redirect_gap_brch_dpic(input int cycles);
+import "DPI-C" function void redirect_gap_jal_dpic(input int cycles);
+import "DPI-C" function void redirect_gap_jalr_dpic(input int cycles);
 
 // ===========================================================================
 `ifdef PERF_INST_MIX
@@ -1250,6 +1254,43 @@ always @(posedge clock) begin
         if (exu2wbu_jalr) wbu_pcup_jalr_dpic();
         if (exu2wbu_ecall) wbu_pcup_ecall_dpic();
         if (exu2wbu_mret) wbu_pcup_mret_dpic();
+    end
+end
+
+// debug: redirect recovery gap measurement
+reg        redirect_recovery;
+reg [31:0] redirect_gap_cnt;
+reg        redirect_cause_brch;
+reg        redirect_cause_jal;
+reg        redirect_cause_jalr;
+
+wire redirect_fire = exu_mispredict_flush_r || pc_update_en;
+
+always @(posedge clock or posedge reset) begin
+    if (reset) begin
+        redirect_recovery    <= 1'b0;
+        redirect_gap_cnt     <= 32'd0;
+        redirect_cause_brch  <= 1'b0;
+        redirect_cause_jal   <= 1'b0;
+        redirect_cause_jalr  <= 1'b0;
+    end else begin
+        if (wbu_pc_update_fire) begin
+            redirect_cause_brch <= exu2wbu_is_brch;
+            redirect_cause_jal  <= exu2wbu_jal;
+            redirect_cause_jalr <= exu2wbu_jalr;
+        end
+        if (redirect_fire) begin
+            redirect_recovery   <= 1'b1;
+            redirect_gap_cnt    <= 32'd0;
+        end else if (redirect_recovery && exu_wbu_valid) begin
+            redirect_gap_dpic(redirect_gap_cnt);
+            if (redirect_cause_brch) redirect_gap_brch_dpic(redirect_gap_cnt);
+            if (redirect_cause_jal)  redirect_gap_jal_dpic(redirect_gap_cnt);
+            if (redirect_cause_jalr) redirect_gap_jalr_dpic(redirect_gap_cnt);
+            redirect_recovery <= 1'b0;
+        end else if (redirect_recovery) begin
+            redirect_gap_cnt <= redirect_gap_cnt + 32'd1;
+        end
     end
 end
 `endif // PERF_BRANCH_PRED
