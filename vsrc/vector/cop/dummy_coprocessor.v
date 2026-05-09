@@ -1,6 +1,7 @@
 module hcpu_dummy_coprocessor(
     input               clock,
     input               reset,
+    input               i_flush,
     input               i_valid,
     input      [31:0]   i_src1,
     input      [31:0]   i_src2,
@@ -12,6 +13,9 @@ module hcpu_dummy_coprocessor(
 reg         busy;
 reg [1:0]   countdown;
 reg [31:0]  latched_res;
+reg [31:0]  scratch;
+reg         pending_scratch_write;
+reg [31:0]  pending_scratch_value;
 
 assign o_res = latched_res;
 
@@ -35,13 +39,25 @@ hcpu_vector_lane_alu u_scalar_lane_alu(
 wire [31:0] cop_result = (cop_funct3 == 3'b001) ? scalar_lane_result :
                           (cop_funct3 == 3'b010) ? scalar_lane_result :
                           (cop_funct3 == 3'b011) ? scalar_lane_result :
+                          (cop_funct3 == 3'b100) ? scratch :
                           (i_src1 + i_src2);
+wire        scratch_write = (cop_funct3 == 3'b100);
 
 always @(posedge clock or posedge reset) begin
     if (reset) begin
         busy        <= 1'b0;
         countdown   <= 2'b0;
         latched_res <= 32'b0;
+        scratch     <= 32'b0;
+        pending_scratch_write <= 1'b0;
+        pending_scratch_value <= 32'b0;
+        o_done      <= 1'b0;
+    end else if (i_flush) begin
+        busy        <= 1'b0;
+        countdown   <= 2'b0;
+        latched_res <= 32'b0;
+        pending_scratch_write <= 1'b0;
+        pending_scratch_value <= 32'b0;
         o_done      <= 1'b0;
     end else begin
         o_done <= 1'b0;
@@ -50,11 +66,17 @@ always @(posedge clock or posedge reset) begin
             busy        <= 1'b1;
             countdown   <= 2'd2;
             latched_res <= cop_result;
+            pending_scratch_write <= scratch_write;
+            pending_scratch_value <= i_src1;
         end else if (busy) begin
             if (countdown == 2'd1) begin
-                busy      <= 1'b0;
-                countdown <= 2'b0;
-                o_done    <= 1'b1;
+                busy                  <= 1'b0;
+                countdown             <= 2'b0;
+                o_done                <= 1'b1;
+                pending_scratch_write <= 1'b0;
+                if (pending_scratch_write) begin
+                    scratch <= pending_scratch_value;
+                end
             end else begin
                 countdown <= countdown - 2'd1;
             end
