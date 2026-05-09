@@ -10,6 +10,8 @@
 
 ## 二、当前判断
 
+> 本文档保留 CPU / 向量双线并行的总体策略。当前具体同步点以 `cpu-vector-coproc-handoff.md` 为准：向量端整理同步点为 `409575a`，后续不要继续在旧 `vsrc/exu` / `vsrc/idu` COP 路径上开发。
+
 从当前项目状态看，HelloCPU 已经具备：
 
 - 稳定可运行的五级顺序标量核；
@@ -29,6 +31,8 @@
 - 流水线停顿占比高；
 - LSU、旁路、多周期单元和控制恢复边界仍较紧耦合；
 - 未来如果直接接入向量后端，控制复杂度会上升很快。
+
+CPU 侧当前性能状态已经比本文档最初草案推进了多轮：LSU fast paths 和低位 `MUL` fast path 已落地，CoreMark `ITER=100` 当前参考为 `2.381 CoreMark/MHz`，MUL/DIV wait 也已拆成 MUL 与 DIV 子项。本文档不重复维护具体计数器数值。
 
 ---
 
@@ -218,13 +222,12 @@ CPU 侧负责把结构接入口打通；
 
 建议接下来优先做：
 
-1. 确认 `docs/vector-coprocessor-interface.md`；
-2. 先冻结 `V1 RTL` 端口和行为约束；
-3. 向量侧实现 `dummy coprocessor`；
-4. CPU 侧接入最小协处理器端口；
-5. 增加最小联调用例；
-6. 再进入 CPU 侧 LSU/执行接口重构；
-7. 与此同时向量侧推进最小真实向量执行。
+1. 以 `409575a` 的目录整理结果作为 CPU / 向量共同基线；
+2. 在新布局下继续维护 `docs/vector-coprocessor-interface.md` 和交接文档；
+3. 保持当前最小 COP 闭环与 `cop-chain` / `cop-vadd8` 回归稳定；
+4. CPU 侧继续推进 LSU、MUL/DIV、前端握手等结构优化；
+5. 向量侧在 `vsrc/vector/cop` 路径下推进最小真实向量执行；
+6. 双方通过共同回归和 trace 机制确认接口变化。
 
 这个顺序的好处是：
 

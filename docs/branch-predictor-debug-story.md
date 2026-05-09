@@ -9,6 +9,8 @@
 3. 每一个关键修复点对应的具体现象和 RTL 问题是什么；
 4. 这次调试对后续 CPU 演进有什么启发。
 
+> 本文档是分支预测 bring-up 的历史调试记录，不维护当前 CoreMark 性能数字。最新性能结果请看 `coremark-results.md`，当前 CPU 优化优先级请看 `cpu-design-plan.md`。
+
 ---
 
 ## 二、最初现象

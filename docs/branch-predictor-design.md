@@ -1,15 +1,17 @@
 # Branch Predictor Design
 
-HelloCPU uses a simple predictor in the IFU and verifies predictions in the EXU. The current validated configuration enables conditional-branch BTB prediction, static JAL prediction, and RAS return prediction.
+HelloCPU uses a simple predictor in the IFU and verifies predictions in the EXU. The validated predictor configuration enables conditional-branch BTB prediction, static JAL prediction, and RAS return prediction.
 
-## Current Status
+This document records the predictor design and the historical validation point when the full predictor became correct. Current whole-CPU performance numbers are maintained in `coremark-results.md`.
+
+## Predictor Validation Snapshot
 
 | Test | Result |
 |------|--------|
-| `make run` | `40 passed, 0 failed` |
-| `make run ALL=quick-sort` | PASS, `6750` cycles |
-| CoreMark ITER=1 | Correct CRC, `715631` simulator cycles |
-| CoreMark/MHz | `1.404` |
+| `make run` | Historical snapshot: `40 passed, 0 failed` |
+| `make run ALL=quick-sort` | Historical snapshot: PASS, `6750` cycles |
+| CoreMark ITER=1 | Historical snapshot: correct CRC, `715631` simulator cycles |
+| CoreMark/MHz | Historical predictor-only snapshot: `1.404`; current CPU reference: `2.381` |
 
 ## IFU Prediction
 
@@ -60,7 +62,7 @@ wire [31:0] jal_imm = {{12{icache_ins[31]}}, icache_ins[19:12],
 wire [31:0] jal_target = pc_next + jal_imm;
 ```
 
-Target correctness is checked in EXU. Latest validation reports `JAL tgt bad = 0` on CoreMark ITER=1.
+Target correctness is checked in EXU. The predictor bring-up validation reported `JAL tgt bad = 0` on CoreMark ITER=1.
 
 ## Misprediction Detection
 
@@ -89,7 +91,7 @@ o_pc_update <= i_pre_valid &&
 
 This avoids clearing correctly predicted JAL/JALR/branch paths and preserves the benefit of early fetch.
 
-## Latest CoreMark Predictor Counters
+## Historical CoreMark Predictor Counters
 
 ```text
 BTB hits          : 62766 (84.0%)

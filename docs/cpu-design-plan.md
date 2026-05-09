@@ -2,7 +2,7 @@
 
 ## 一、文档目标
 
-本文档专注于 HelloCPU **CPU 本体** 后续一段时间的设计规划。
+本文档专注于 HelloCPU **CPU 本体** 后续一段时间的设计规划。A/B 两条 CPU 优化线的分工、文件边界和进度记录见 `cpu-ab-collaboration.md`。
 
 目标不是泛泛讨论“还可以优化什么”，而是明确：
 
@@ -27,7 +27,7 @@ HelloCPU 当前已经具备：
 当前 `cpu-mainline-branch` 还可以作为向量端回灌 CPU 进展的稳定同步点：
 
 - LSU `load hit`、`store hit` 和 transaction start 快路径已经通过定向与全量回归；
-- CoreMark `ITER=100` 当前参考为 `2.279 CoreMark/MHz`、`IPC=0.698`；
+- CoreMark `ITER=100` 当前参考为 `2.381 CoreMark/MHz`、`IPC=0.729`；
 - COP 独立后端已经从 `vector-coproc-uarch` 同步到 CPU 主线；
 - 连续 COP / RAW 依赖用例 `cop-chain` 已通过；
 - 当前最新稳定提交为 `5a5caa9 fix: preserve consecutive cop issue flow`。
@@ -52,8 +52,8 @@ HelloCPU 当前已经具备：
 
 主要表现为：
 
-- `IPC` 已从 `0.473` 提升到 `0.698`；
-- `stall cycles` 占比已从 `51.5%` 降到 `28.4%`；
+- `IPC` 已从 `0.473` 提升到 `0.729`；
+- `stall cycles` 占比已从 `51.5%` 降到 `25.2%`；
 - loads 占比较高，但真实 load AXI 事务极少，说明 load 成本主要来自内部相关和阻塞；
 - branch recovery 仍有显著代价，但不是唯一大头；
 - MUL / DIV / LSU 这类多周期路径仍会对整条流水造成过强反压。
@@ -102,6 +102,13 @@ HelloCPU 当前已经具备：
 - `MUL/DIV wait` 已经成为第二个明确后端瓶颈，占全部 stall 的 `15.1%`；
 - `Control recovery` 仍有影响，占全部 stall 的 `6.5%`，但不是第一矛盾。
 
+当前又把 `MUL/DIV wait` 拆成了 `MUL` 和 `DIV` 子项，用于区分短延迟乘法和长延迟除法：
+
+- `mul-longlong` 中 `MUL/DIV wait` 为 `34` cycles，全部来自 `MUL`；
+- `wanshu` 中 `MUL/DIV wait` 为 `13398` cycles，全部来自 `DIV`；
+- 低位 `MUL` 快路径落地后，CoreMark `ITER=100` 中 `MUL/DIV wait` 降到 `3762` cycles，全部来自 `DIV`；
+- 因此 `MUL/DIV` 已经不是 CoreMark 第一线瓶颈，DIV 后续更适合作为除法密集程序专项。
+
 进一步把 `LSU wait` 拆开后，可以看到：
 
 - `refill` 在 CoreMark 中只占 `LSU wait` 的 `0.1%`；
@@ -113,6 +120,7 @@ HelloCPU 当前已经具备：
 - `load hit` 当前拍完成：已经在 `vsrc/exu/lsu.v` 落地，并通过 `add`、`load-store`、`mem`、`quick-sort` 回归；
 - `store hit` 当前拍完成：已经在 `vsrc/exu/lsu.v` 落地，并通过访存、排序和全量 CPU 回归；
 - LSU 启动脉冲提前：去掉第二级启动沿检测寄存器后，减少每次 load/store 前的空等周期；CoreMark `ITER=100` 从 `1.545` 提升到 `2.279 CoreMark/MHz`；
+- 低位 `MUL` 快路径：普通 `MUL` 直接走 EXU 组合乘法结果，高位 `MULH/MULHSU/MULHU` 与 DIV 仍走原多周期路径；CoreMark `ITER=100` 进一步提升到 `2.381 CoreMark/MHz`；
 - `refill` 最后一拍同拍返回：虽然在简单样例上可过，但会破坏 `quick-sort` 正确性，因此当前已明确回退，不作为现阶段可保留优化；
 - 连续拉高 refill `RREADY`：会导致 `load-store` 在 refill R data 阶段卡死，也已明确回退。
 
@@ -128,9 +136,10 @@ HelloCPU 当前已经具备：
 
 - 单独放宽一处局部 interlock，并不能稳定释放 `load hit` 提前完成的收益；
 - 一旦开始尝试把 `IFU/IDU` 改成更标准的寄存式 `valid` 持有语义，当前主线很容易立即出现跑飞或超时；
+- 最近一次仅把 `IFU/IDU` 加 `post_valid`、再连带把 `IDU/EXU` 改成 `!valid || ready` 接收新 payload 的实验，会让 `sum` 跳过 reset / redirect 后的第一条指令，commit trace 中表现为漏掉 `0x30000000` 和 `0x30000b00`，最终 `sum` fail；
 - 这说明当前问题已经不只是“某个 hazard 条件写得太保守”，而是前端握手语义、IDU 生命周期、以及 LSU 结果可见边界之间本身存在结构耦合。
 
-因此，`load-use penalty` 虽然仍然是后续重要方向，但它已经不能再被视为一个完全局部的小优化点。继续在现有握手语义上硬调条件，风险会迅速高于收益。
+因此，`load-use penalty` 虽然仍然是后续重要方向，但它已经不能再被视为一个完全局部的小优化点。继续在现有握手语义上硬调条件，风险会迅速高于收益。后续若再推进 `IFU/IDU` 标准化，需要同时处理 IFU PC 推进、ICache hit/data 与边界寄存器 payload 的同拍对齐关系，而不是只替换某一级的 `valid` 生成逻辑。
 
 这进一步支持当前规划中的优先级判断：
 

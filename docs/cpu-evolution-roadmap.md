@@ -16,6 +16,8 @@
 
 ## 二、当前 CPU 的主要现状
 
+> 本文档是较早期的 CPU 演进路线快照。最新性能数字与当前优先级以 `coremark-results.md`、`cpu-design-plan.md` 和 `microarchitecture.md` 为准。
+
 根据当前 CoreMark 和性能计数器结果，HelloCPU 已经具备：
 
 - 5 级顺序流水；
@@ -23,12 +25,12 @@
 - 4 KB ICache + 4 KB DCache；
 - BTB + RAS + static JAL 分支预测；
 - CoreMark `ITER=100` 正确通过；
-- CoreMark/MHz 达到 `1.545`。
+- 当前最新参考达到 `2.381 CoreMark/MHz`、`IPC=0.729`，历史 full-predictor 基线为 `1.545 CoreMark/MHz`。
 
 但从性能计数器来看，当前最主要的问题并不是 cache 容量不足，也不是外部总线带宽不足，而是：
 
-- `stall cycles` 仍然高达 `51.5%`；
-- `IPC` 只有 `0.473`；
+- `stall cycles` 已从历史基线 `51.5%` 降到 `25.2%`，但仍是主要性能问题；
+- `IPC` 已从历史基线 `0.473` 提升到 `0.729`；
 - 大量停顿来自流水线等待，而不是访存 miss。
 
 这说明后续优化重点应当放在：
@@ -38,6 +40,8 @@
 - 分支恢复时延；
 - 访存路径对整条流水的反压；
 - 执行/提交/冲刷接口的组织方式。
+
+当前已经落地的 LSU load-hit、store-hit、transaction start 快路径和低位 `MUL` 快路径显著改善了历史瓶颈，但 `LSU wait` 仍是后续主线。更细的当前计数器和 CoreMark 表格不在本文档重复维护。
 
 ---
 

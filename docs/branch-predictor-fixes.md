@@ -2,15 +2,17 @@
 
 This document records the fixes that made the full BTB + RAS + static JAL predictor pass CoreMark and the CPU test suite.
 
-## Final Validation
+## Historical Validation Snapshot
+
+This document records the branch-predictor correctness fixes. The numbers below are the validation snapshot from that fix series, not the latest whole-CPU performance reference. Current CoreMark results live in `coremark-results.md`.
 
 | Command | Result |
 |---------|--------|
-| `make run` | `40 passed, 0 failed` |
-| `make run ALL=quick-sort` | PASS, `6750` cycles |
+| `make run` | Historical snapshot: `40 passed, 0 failed` |
+| `make run ALL=quick-sort` | Historical snapshot: PASS, `6750` cycles |
 | `./build/Vsim_top sw/build/coremark.bin --max-cycles=100000000` | Correct CoreMark CRC |
 
-CoreMark ITER=1 final result:
+CoreMark ITER=1 predictor-fix result:
 
 ```text
 [0]crclist       : 0xe714

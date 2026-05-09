@@ -12,12 +12,22 @@
 5a5caa9 fix: preserve consecutive cop issue flow
 ```
 
+当前向量分支整理同步点：
+
+```text
+409575a refactor: organize cpu vector project layout
+```
+
+向量端已说明该点通过：`make clean && make sim`、`sw`、`cop-vadd8`、`cop-chain`、`sum`。
+
+CPU 侧后续若要继续协处理器相关开发，应优先切到 `409575a` 之后的新项目布局；不要继续在旧的 `vsrc/exu` / `vsrc/idu` COP 路径上新增设计。
+
 该点已经包含两部分内容：
 
 1. CPU 侧 LSU / CoreMark 性能稳定点：`282abe6 perf: reduce LSU startup stalls`。
 2. 向量端 COP 独立后端同步点：`c361994 refactor: clarify cop active states`，以及后续 CPU 侧连续 COP 修正 `5a5caa9`。
 
-建议向量端下一轮以 `5a5caa9` 作为 CPU 回灌同步点，而不是继续停留在旧的 `5bb827b` / `c361994` 附近。
+向量端已经把 CPU 主线同步到 `5a5caa9`，并在 `409575a` 完成 CPU / vector 目录整理。CPU 侧下一轮同步应以 `409575a` 为新的向量分支同步点，而不是继续停留在旧的 `5bb827b` / `c361994` / `5a5caa9` 布局附近。
 
 原向量端给 CPU 的同步基点：
 
@@ -51,7 +61,7 @@ CPU 侧已经稳定落地的内容包括：
 3. LSU transaction start 提前，去掉多余启动等待拍。
 4. LSU refill stall 细分计数：`AR wait` / `R data`。
 5. IFU held-valid stall 细分计数：`control` / `LSU` / `MUL/DIV` / `COP` / `other`。
-6. CoreMark `ITER=100` 正确通过，当前参考 `2.279 CoreMark/MHz`、`IPC=0.698`。
+6. CoreMark `ITER=100` 正确通过，当前参考 `2.381 CoreMark/MHz`、`IPC=0.729`。
 
 COP 侧已经从最早的“dummy cop 塞在 EXU 内部”演进到独立协处理器路径：
 
@@ -114,7 +124,7 @@ LSU/CoreMark 稳定点此前也已通过：
 
 1. `make run`：`42 passed, 0 failed`。
 2. CoreMark `ITER=1`：CRC 正确，`2.046 CoreMark/MHz`。
-3. CoreMark `ITER=100`：CRC 正确，`2.279 CoreMark/MHz`。
+3. CoreMark `ITER=100`：CRC 正确，`2.381 CoreMark/MHz`。
 
 其中 `sum` 是之前暴露 `ret/jalr` 回归的关键标量用例；`cop-chain` 是当前 CPU 主线新增的连续 COP / RAW 依赖回归。
 
@@ -169,13 +179,14 @@ assign o_post_valid = icache_hit;
 
 建议按以下顺序继续：
 
-1. 从 CPU 主线同步到 `5a5caa9`，把 LSU fast paths、性能计数器、CoreMark 文档和 COP 连续 issue 修正一起带过去。
-2. 同步时保留 `b64b051` 对 `d1d7bad` 的回退结果，不要重新引入前端 ready mux 分流方案。
-3. 先保持当前 COP V1 顺序阻塞模型，不在同一个 patch 中引入多请求在飞、scoreboard 或向量访存。
-4. 同步后至少跑 `add`、`sum`、`dummy`、`cop-smoke`、`cop-chain`、`load-store`、`quick-sort`。
-5. 稳定后再单独规划 `IFU/IDU` 标准 valid/ready 重构。
+1. CPU 侧以 `409575a` 作为新的向量分支整理同步点。
+2. 后续协处理器开发遵循新目录：CPU 本体在 `vsrc/cpu`，协处理器相关逻辑在 `vsrc/vector/cop`，不要再往旧 `vsrc/exu` / `vsrc/idu` 路径扩展 COP 设计。
+3. 同步时保留 `b64b051` 对 `d1d7bad` 的回退结果，不要重新引入前端 ready mux 分流方案。
+4. 先保持当前 COP V1 顺序阻塞模型，不在同一个 patch 中引入多请求在飞、scoreboard 或向量访存。
+5. 同步后至少跑 `make clean && make sim`、`sw`、`cop-vadd8`、`cop-chain`、`sum`；CPU 侧再补跑 `load-store`、`quick-sort` 作为标量访存/控制流保护。
+6. 稳定后再单独规划 `IFU/IDU` 标准 valid/ready 重构。
 
-建议向量端优先同步的 CPU 文件范围：
+旧布局下曾建议优先同步的 CPU 文件范围如下；在 `409575a` 之后应映射到新的 `vsrc/cpu` / `vsrc/vector` 目录：
 
 1. `vsrc/exu/lsu.v`
 2. `vsrc/ifu/ifu_idu_regs.v`

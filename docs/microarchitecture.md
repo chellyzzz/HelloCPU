@@ -112,17 +112,17 @@ Detailed predictor behavior is documented in `branch-predictor-design.md`.
 
 Performance counter hooks are emitted from `vsrc/top/hcpu.v` through DPI-C calls. They report instruction mix, stalls, cache activity, AXI transactions, branch prediction statistics, and commit PC hotspots.
 
-The current stall counters distinguish `Frontend/empty`, `IFU held valid`, `LSU wait`, `MUL/DIV wait`, `COP wait`, `Control recovery`, and `Other backend`. LSU wait is further split into hit, refill, refill AR wait, refill R data, uncached, and writeback classes.
+The current stall counters distinguish `Frontend/empty`, `IFU held valid`, `LSU wait`, `MUL/DIV wait`, `COP wait`, `Control recovery`, and `Other backend`. LSU wait is further split into hit, refill, refill AR wait, refill R data, uncached, and writeback classes. MUL/DIV wait is also split into MUL and DIV sub-classes, including the IFU-held-valid view.
 
 Current CoreMark `ITER=100` reference after the LSU fast-path work:
 
 | Metric | Value |
 |--------|-------|
-| CoreMark/MHz | `2.279` |
-| Simulator cycles | `43876399` |
-| IPC | `0.698` |
-| Stall rate | `28.4%` |
-| LSU wait | `6980533` cycles (`56.0%` of stalls) |
-| MUL/DIV wait | `1882752` cycles (`15.1%` of stalls) |
+| CoreMark/MHz | `2.381` |
+| Simulator cycles | `42000681` |
+| IPC | `0.729` |
+| Stall rate | `25.2%` |
+| LSU wait | `6980532` cycles (`65.9%` of stalls) |
+| MUL/DIV wait | `3762` cycles, all from DIV after the low `MUL` fast path |
 
-This confirms that the remaining CoreMark bottleneck is not ICache capacity or AXI refill bandwidth. LSU hit/load-use coupling is still the largest issue, with MUL/DIV backpressure now visible as the second-largest explicit backend wait class.
+This confirms that the remaining CoreMark bottleneck is not ICache capacity or AXI refill bandwidth. LSU hit/load-use coupling is still the largest issue; low `MUL` backpressure has been removed from the CoreMark bottleneck list.

@@ -76,11 +76,13 @@ IFU -> IDU -> IDU/EXU regs -> { Scalar EXU | Coprocessor } -> WBU -> Register Fi
 3. 最终由顶层把标量结果或协处理器结果选择后送入统一 `WBU`；
 4. 当协处理器存在未提交在飞项时，前端停止继续发射，保持顺序提交模型。
 
-### 当前 RTL 落点（CPU 主线同步点 `5a5caa9`）
+### 当前 RTL 落点（向量整理同步点 `409575a`）
 
 `vector-coproc-uarch` 已经实现了 V1 的最小稳定控制闭环；CPU 主线随后已经同步该闭环，并在 `5a5caa9 fix: preserve consecutive cop issue flow` 补齐连续 COP / RAW 依赖场景。当前 RTL 不是完整向量机，但协处理器边界已经从标量 EXU 中逐步拆清楚。
 
-当前主要模块职责如下：
+向量端当前建议 CPU 侧以 `409575a refactor: organize cpu vector project layout` 作为新的整理同步点。该点已经把 CPU 本体和向量/COP 相关逻辑拆到更清晰的目录结构，后续不建议继续在旧 `vsrc/exu` / `vsrc/idu` 路径上扩展 COP 设计。
+
+当前主要模块职责如下。旧路径说明保留用于理解历史演进；`409575a` 之后应按新目录映射：
 
 1. `vsrc/idu/idu.v`：识别 `custom-0`，输出 `o_is_cop_insn`。
 2. `vsrc/idu/idu_exu_regs.v`：透传 COP 标记，仍保留现有标量主流水握手。
@@ -104,7 +106,9 @@ CPU 主线在该边界上额外确认了三点：
 
 当前 CPU 主线同步点已通过：`make sim`、`cop-chain`、`dummy`、`cop-smoke`、`add`、`sum`、`load-store`、`quick-sort`。
 
-向量端下一轮建议先同步 CPU 主线到 `5a5caa9`，再继续替换 dummy 后端为真实向量执行单元；否则向量端会继续基于缺少 LSU fast paths、性能计数器细分和连续 COP 修正的旧 CPU 结构开发。
+当前向量整理同步点 `409575a` 已由向量端验证：`make clean && make sim`、`sw`、`cop-vadd8`、`cop-chain`、`sum`。
+
+CPU 侧下一轮建议先同步到 `409575a` 的目录整理结果，再继续替换 dummy 后端为真实向量执行单元；否则容易继续基于旧路径开发，后续合并成本会快速上升。
 
 ---
 
