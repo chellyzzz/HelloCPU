@@ -24,12 +24,14 @@ reg [31:0]  op_count;
 assign o_res = latched_res;
 
 wire [2:0]  cop_funct3;
+wire [6:0]  cop_funct7;
 wire [3:0]  scalar_lane_op;
 wire [31:0] scalar_lane_result;
 
 hcpu_vector_cop_decode u_cop_decode(
     .i_ins(i_ins),
     .o_funct3(cop_funct3),
+    .o_funct7(cop_funct7),
     .o_scalar_lane_op(scalar_lane_op)
 );
 
@@ -40,6 +42,9 @@ hcpu_vector_lane_alu u_scalar_lane_alu(
     .o_res(scalar_lane_result)
 );
 
+wire [31:0] scalar_op  = (cop_funct7 == 7'd1) ? (i_src1 - i_src2) :
+                          (cop_funct7 == 7'd2) ? (i_src1 * i_src2) :
+                          (i_src1 + i_src2);
 wire [31:0] cop_result = (cop_funct3 == 3'b001) ? scalar_lane_result :
                           (cop_funct3 == 3'b010) ? scalar_lane_result :
                           (cop_funct3 == 3'b011) ? scalar_lane_result :
@@ -47,7 +52,7 @@ wire [31:0] cop_result = (cop_funct3 == 3'b001) ? scalar_lane_result :
                           (cop_funct3 == 3'b101) ? vlen :
                           (cop_funct3 == 3'b110) ? vlen :
                           (cop_funct3 == 3'b111) ? op_count :
-                          (i_src1 + i_src2);
+                          scalar_op;
 wire        scratch_write = (cop_funct3 == 3'b100);
 wire        vlen_write    = (cop_funct3 == 3'b101);
 
