@@ -5,13 +5,15 @@ module hcpu_dummy_coprocessor(
     input      [31:0]   i_src1,
     input      [31:0]   i_src2,
     input      [31:0]   i_ins,
-    output reg [31:0]   o_res,
+    output     [31:0]   o_res,
     output reg          o_done
 );
 
 reg         busy;
 reg [1:0]   countdown;
 reg [31:0]  latched_res;
+
+assign o_res = latched_res;
 
 wire [2:0]  cop_funct3 = i_ins[14:12];
 wire [31:0] lane_add8 = {
@@ -27,7 +29,6 @@ always @(posedge clock or posedge reset) begin
         busy        <= 1'b0;
         countdown   <= 2'b0;
         latched_res <= 32'b0;
-        o_res       <= 32'b0;
         o_done      <= 1'b0;
     end else begin
         o_done <= 1'b0;
@@ -40,7 +41,6 @@ always @(posedge clock or posedge reset) begin
             if (countdown == 2'd1) begin
                 busy      <= 1'b0;
                 countdown <= 2'b0;
-                o_res     <= latched_res;
                 o_done    <= 1'b1;
             end else begin
                 countdown <= countdown - 2'd1;

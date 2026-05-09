@@ -30,7 +30,7 @@ hcpu_dummy_coprocessor u_dummy_coprocessor(
     .o_done     (cop_done)
 );
 
-assign o_pre_ready = resp_valid && i_post_ready;
+assign o_pre_ready = !cop_busy && !resp_valid;
 assign o_post_valid = resp_valid;
 assign o_busy = cop_busy || resp_valid;
 assign o_res = resp_res;
