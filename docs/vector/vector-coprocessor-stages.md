@@ -101,7 +101,7 @@
 - trace 中可看到发射、完成、提交闭环；
 - flush 场景下无错误状态残留。
 
-当前占位 COP 操作编码：`opcode=0x0b`，`funct3=0` 为标量加法回环，`funct3=1` 为 4x8-bit lane add，`funct3=2` 为 4x8-bit lane xor，`funct3=3` 为 4x8-bit lane and，`funct3=4` 返回旧 scratch 并写入新 scratch，`funct3=5` 写入 vlen 并返回旧 vlen，`funct3=6` 只读 vlen。前四者仅使用 GPR 源/目的寄存器；scratch 和 vlen 操作引入最小内部状态，但仍不引入独立向量寄存器或访存状态。
+当前占位 COP 操作编码：`opcode=0x0b`，`funct3=0` 为标量加法回环，`funct3=1` 为 4x8-bit lane add，`funct3=2` 为 4x8-bit lane xor，`funct3=3` 为 4x8-bit lane and，`funct3=4` 返回旧 scratch 并写入新 scratch，`funct3=5` 写入 vlen 并返回旧 vlen，`funct3=6` 只读 vlen，`funct3=7` 返回已完成 COP 操作计数。前四者仅使用 GPR 源/目的寄存器；scratch、vlen 和 op_count 操作引入最小内部状态，但仍不引入独立向量寄存器或访存状态。
 
 ### 阶段 3：向量状态与 CSR 细化
 
