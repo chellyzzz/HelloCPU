@@ -15,7 +15,7 @@ VSRCS  = $(SIM_DIR)/sim_top.v $(SIM_DIR)/axi_ram.v
 VSRCS += $(shell find -L vsrc -name "*.v" -o -name "*.sv" 2>/dev/null)
 
 VERILATOR_FLAGS  = --top-module $(TOPNAME)
-VERILATOR_FLAGS += +incdir+vsrc/include
+VERILATOR_FLAGS += +incdir+vsrc/cpu/include
 VERILATOR_FLAGS += --cc --exe --build --trace
 VERILATOR_FLAGS += -O3 --x-assign fast --x-initial fast
 VERILATOR_FLAGS += -Wno-fatal -Wno-style

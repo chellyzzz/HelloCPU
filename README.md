@@ -10,9 +10,9 @@ HelloCPU is a small RV32IM + Zicsr CPU project with a Verilator-based simulation
 | Pipeline | IFU -> IDU -> EXU -> WBU -> Register File |
 | Caches | 4 KB ICache + 4 KB DCache |
 | Branch prediction | 64-entry BTB, 8-entry RAS, static JAL prediction |
-| CPU tests | `40 passed, 0 failed` |
-| CoreMark ITER=1 | Correct CRC, `1.404 CoreMark/MHz` |
-| CoreMark ITER=100 | Correct CRC, `1.545 CoreMark/MHz` |
+| CPU tests | `45 passed, 0 failed` |
+| CoreMark ITER=1 | Correct CRC, `2.046 CoreMark/MHz` |
+| CoreMark ITER=100 | Correct CRC, `2.381 CoreMark/MHz` |
 
 Latest validated commands:
 
@@ -30,16 +30,17 @@ Latest CoreMark ITER=100 result:
 [0]crcstate      : 0x8e3a
 [0]crcfinal      : 0x988c
 Correct operation validated.
-Total cycles     : 64695430
-CoreMark/MHz     : 1.545
-[HelloCPU] PASS (cycles: 64701101)
+Total cycles     : 41995856
+CoreMark/MHz     : 2.381
+[HelloCPU] PASS (cycles: 42000681)
 ```
 
 ## Repository Layout
 
 | Path | Purpose |
 |------|---------|
-| `vsrc/` | CPU RTL source code |
+| `vsrc/cpu/` | CPU RTL source code |
+| `vsrc/vector/` | Vector/COP backend RTL source code |
 | `sim/` | Verilator top, AXI RAM model, C++ simulator |
 | `sw/` | Bare-metal runtime, tests, CoreMark benchmark |
 | `docs/` | Design notes, microarchitecture, benchmark records |
@@ -120,15 +121,17 @@ The simulator prints instruction mix, IPC, stalls, cache statistics, bus transac
 
 | Document | Purpose |
 |----------|---------|
-| `docs/microarchitecture.md` | CPU pipeline, execution units, caches, buses, CSRs |
-| `docs/cpu-evolution-roadmap.md` | CPU optimization roadmap toward cleaner execution and memory boundaries |
-| `docs/cpu-design-plan.md` | CPU-focused design plan, priorities, and staged milestones |
-| `docs/vector-coprocessor-interface.md` | Draft CPU/vector coprocessor interface and control semantics |
-| `docs/vector-coprocessor-stages.md` | Staged implementation plan for the vector coprocessor side |
-| `docs/cpu-vector-development-plan.md` | Joint CPU/vector development plan and milestones |
-| `docs/branch-predictor-design.md` | BTB/RAS/JAL prediction design |
-| `docs/branch-predictor-fixes.md` | Predictor correctness fixes and debug history |
-| `docs/coremark-results.md` | CoreMark performance and CRC records |
+| `docs/cpu/microarchitecture.md` | CPU pipeline, execution units, caches, buses, CSRs |
+| `docs/cpu/cpu-evolution-roadmap.md` | CPU optimization roadmap toward cleaner execution and memory boundaries |
+| `docs/cpu/cpu-design-plan.md` | CPU-focused design plan, priorities, and staged milestones |
+| `docs/interface/vector-coprocessor-interface.md` | Current CPU/vector coprocessor interface and control semantics |
+| `docs/interface/cpu-vector-development-plan.md` | Joint CPU/vector development plan and milestones |
+| `docs/interface/cpu-vector-coproc-handoff.md` | Current CPU/vector handoff status |
+| `docs/vector/vector-coprocessor-microarchitecture.md` | Current vector backend microarchitecture status |
+| `docs/vector/vector-coprocessor-stages.md` | Vector-side staged implementation plan |
+| `docs/cpu/branch-predictor-design.md` | BTB/RAS/JAL prediction design |
+| `docs/cpu/branch-predictor-fixes.md` | Predictor correctness fixes and debug history |
+| `docs/cpu/coremark-results.md` | CoreMark performance and CRC records |
 
 ## Known Warnings
 

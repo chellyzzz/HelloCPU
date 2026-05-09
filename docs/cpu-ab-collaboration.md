@@ -19,13 +19,13 @@ Primary responsibilities:
 Default A-owned files:
 
 1. `sim/sim_main.cpp`
-2. `vsrc/top/hcpu.v`
-3. `vsrc/exu/lsu.v`
-4. `vsrc/exu/multiplier.v`
-5. `vsrc/exu/divider.v`
-6. `docs/coremark-results.md`
-7. `docs/cpu-design-plan.md`
-8. `docs/microarchitecture.md`
+2. `vsrc/cpu/top/hcpu.v`
+3. `vsrc/cpu/exu/lsu.v`
+4. `vsrc/cpu/exu/multiplier.v`
+5. `vsrc/cpu/exu/divider.v`
+6. `docs/cpu/coremark-results.md`
+7. `docs/cpu/cpu-design-plan.md`
+8. `docs/cpu/microarchitecture.md`
 
 ### B: Frontend Handshake And Vector Interface
 
@@ -35,32 +35,32 @@ Primary responsibilities:
 
 1. Analyze IFU/IDU valid-ready, PC advance, ICache hit/data, redirect/refetch, and flush timing.
 2. Propose the smallest safe IFU/IDU standardization plan before changing RTL.
-3. Maintain CPU/vector interface notes around the `409575a` project layout.
+3. Maintain CPU/vector interface notes around the `539bf41` project layout and COP timing baseline.
 4. Keep COP/vector interface experiments isolated from A's performance mainline.
 5. Record failed experiments with the first observed failure symptom.
 
 Default B-owned files:
 
-1. `vsrc/ifu/*`
-2. `vsrc/idu/*`
+1. `vsrc/cpu/ifu/*`
+2. `vsrc/cpu/idu/*`
 3. `vsrc/vector/cop/*`
-4. `docs/cpu-vector-coproc-handoff.md`
-5. `docs/vector-coprocessor-microarchitecture.md`
+4. `docs/interface/cpu-vector-coproc-handoff.md`
+5. `docs/vector/vector-coprocessor-microarchitecture.md`
 6. B-line analysis docs such as `docs/ifu-idu-handshake-analysis.md`
 
 ## Shared Files
 
 The following files are shared integration points and should not be edited independently by both agents in long-lived WIP:
 
-1. `vsrc/top/hcpu.v`
-2. `docs/cpu-design-plan.md`
-3. `docs/microarchitecture.md`
-4. `docs/cpu-vector-development-plan.md`
-5. `docs/coremark-results.md`
+1. `vsrc/cpu/top/hcpu.v`
+2. `docs/cpu/cpu-design-plan.md`
+3. `docs/cpu/microarchitecture.md`
+4. `docs/interface/cpu-vector-development-plan.md`
+5. `docs/cpu/coremark-results.md`
 
 If B needs changes in a shared file, B should write the requested semantic change in its analysis document first. A handles final integration into the mainline unless explicitly agreed otherwise.
 
-For the current split, `vsrc/top/hcpu.v`, `docs/cpu-design-plan.md`, and `docs/coremark-results.md` are frozen for long-lived parallel edits outside A. B should not carry persistent WIP against these files.
+For the current split, `vsrc/cpu/top/hcpu.v`, `docs/cpu/cpu-design-plan.md`, and `docs/cpu/coremark-results.md` are frozen for long-lived parallel edits outside A. B should not carry persistent WIP against these files.
 
 ## Branch And Patch Rules
 
@@ -70,7 +70,7 @@ For the current split, `vsrc/top/hcpu.v`, `docs/cpu-design-plan.md`, and `docs/c
 4. A should publish a clear stable commit or tag at each integration point. B rebases only on that stable point, not on A's unverified WIP.
 5. If A cherry-picks from B, prefer taking the small RTL patch first. Large B-line documents can be merged separately.
 6. B should not reintroduce `d1d7bad feat: add dedicated IDU to cop issue queue` or its frontend ready mux approach.
-7. New COP/vector work should follow the `409575a refactor: organize cpu vector project layout` direction and avoid extending old `vsrc/exu` / `vsrc/idu` COP paths.
+7. New COP/vector work should follow the `539bf41 fix: repair consecutive cop commit timing` baseline and avoid extending old `vsrc/exu` / `vsrc/idu` COP paths.
 8. Failed B experiments should be reverted from RTL but recorded in docs with failure symptoms.
 9. Default collaboration should use normal WSL-side branches. If an auxiliary worktree or clone is needed, create and operate it inside WSL; avoid Windows Git worktrees being consumed by WSL Git.
 
@@ -97,17 +97,19 @@ B frontend/interface patches should at least run:
 1. `sum.bin`
 2. `quick-sort.bin`
 3. `cop-chain.bin`
-4. `cop-vadd8` when available in the current build/layout
+4. `cop-vadd8`
+5. `cop-vadd8-chain`
+6. `cop-vadd8-after-add`
 
 Any patch touching redirect/refetch/flush should also record either commit-trace evidence or the first failing committed PC if it fails.
 
-`cop-vadd8` is not currently present in this CPU worktree's built test set. A and the vector side need to confirm whether that test is provided by the vector branch/layout or should be added to the CPU-side regression build.
+`cop-vadd8`, `cop-vadd8-chain`, and `cop-vadd8-after-add` are now present in the CPU-side regression build after syncing the vector layout.
 
 ## Current A Progress
 
 Current A stable context:
 
-1. CPU mainline stable base is `4a2f5fb docs: update CPU coordination status`; current A WIP has also integrated B's behavior-equivalent `fetch_fire` naming patch.
+1. CPU mainline stable base is `cdedfd5 perf: attribute LSU start stalls`; current A WIP has also integrated the vector layout and COP timing sync through `539bf41`.
 2. LSU fast paths and start-pulse optimization are already reflected in the current CoreMark reference.
 3. CoreMark `ITER=100` current reference is `2.381 CoreMark/MHz`, `IPC=0.729`, and `25.2%` stall rate after the low `MUL` fast path.
 4. MUL/DIV stall counters are now split into MUL and DIV sub-classes in both total stall and IFU-held-valid views.
@@ -131,7 +133,7 @@ Current A conclusion:
 
 Latest A rejected experiment:
 
-1. Experiment: remove `mul_busy` from `vsrc/exu/multiplier.v` so `mul_done` follows `mul_valid` after one pipeline register stage.
+1. Experiment: remove `mul_busy` from `vsrc/cpu/exu/multiplier.v` so `mul_done` follows `mul_valid` after one pipeline register stage.
 2. Intended effect: reduce MUL global ready backpressure without changing front-end handshakes.
 3. Result: rejected. `mul-longlong.bin` failed with exit code `1` after committing only 4 multiply instructions.
 4. First observation: MUL wait dropped from `34` to `3` cycles, but architectural result was wrong, so the current EXU/multiplier result and valid timing cannot be shortened by simply deleting `mul_busy`.
@@ -139,7 +141,7 @@ Latest A rejected experiment:
 
 Latest A accepted experiment:
 
-1. Experiment: add a low `MUL` fast path in `vsrc/exu/exu.v` for `func3 == 3'b000` while keeping `MULH/MULHSU/MULHU` and DIV on the original multi-cycle paths.
+1. Experiment: add a low `MUL` fast path in `vsrc/cpu/exu/exu.v` for `func3 == 3'b000` while keeping `MULH/MULHSU/MULHU` and DIV on the original multi-cycle paths.
 2. Result: accepted after targeted, full CPU, and CoreMark regressions.
 3. `mul-longlong.bin`: PASS, cycles `693 -> 681`, `MUL/DIV wait` `34 -> 20`.
 4. `matrix-mul.bin`: PASS, `MUL/DIV wait = 0`.
@@ -162,7 +164,7 @@ Current B context:
 2. Previous local IFU/IDU standardization experiment failed and was reverted from RTL.
 3. The failure symptom was `sum` skipping the first instruction after reset/redirect; commit trace missed `0x30000000` and `0x30000b00`.
 4. COP response currently conservatively triggers `cop_refetch_flush` to avoid duplicate commit or skipped following instructions before IFU/IDU semantics are standardized.
-5. Vector-side layout synchronization point is `409575a refactor: organize cpu vector project layout`.
+5. Vector-side synchronization point is `539bf41 fix: repair consecutive cop commit timing`.
 
 Current B expected deliverables:
 
@@ -172,7 +174,7 @@ Current B expected deliverables:
 
 Current B first patch scope:
 
-1. Touch only `vsrc/ifu/ifu.v`, `vsrc/ifu/ifu_idu_regs.v`, and the frontend analysis document.
+1. Touch only `vsrc/cpu/ifu/ifu.v`, `vsrc/cpu/ifu/ifu_idu_regs.v`, and the frontend analysis document.
 2. Start with behavior-equivalent naming such as `fetch_fire`.
 3. Do not perform IFU/IDU standardization refactor in the first patch.
 4. For any redirect/refetch/flush change, write a short semantic note and record the first failing symptom before asking A to integrate.
