@@ -120,15 +120,17 @@ The simulator prints instruction mix, IPC, stalls, cache statistics, bus transac
 
 | Document | Purpose |
 |----------|---------|
-| `docs/microarchitecture.md` | CPU pipeline, execution units, caches, buses, CSRs |
-| `docs/cpu-evolution-roadmap.md` | CPU optimization roadmap toward cleaner execution and memory boundaries |
-| `docs/cpu-design-plan.md` | CPU-focused design plan, priorities, and staged milestones |
-| `docs/vector-coprocessor-interface.md` | Draft CPU/vector coprocessor interface and control semantics |
-| `docs/vector-coprocessor-stages.md` | Staged implementation plan for the vector coprocessor side |
-| `docs/cpu-vector-development-plan.md` | Joint CPU/vector development plan and milestones |
-| `docs/branch-predictor-design.md` | BTB/RAS/JAL prediction design |
-| `docs/branch-predictor-fixes.md` | Predictor correctness fixes and debug history |
-| `docs/coremark-results.md` | CoreMark performance and CRC records |
+| `docs/cpu/microarchitecture.md` | CPU pipeline, execution units, caches, buses, CSRs |
+| `docs/cpu/cpu-evolution-roadmap.md` | CPU optimization roadmap toward cleaner execution and memory boundaries |
+| `docs/cpu/cpu-design-plan.md` | CPU-focused design plan, priorities, and staged milestones |
+| `docs/interface/vector-coprocessor-interface.md` | Current CPU/vector coprocessor interface and control semantics |
+| `docs/interface/cpu-vector-development-plan.md` | Joint CPU/vector development plan and milestones |
+| `docs/interface/cpu-vector-coproc-handoff.md` | Current CPU/vector handoff status |
+| `docs/vector/vector-coprocessor-microarchitecture.md` | Current vector backend microarchitecture status |
+| `docs/vector/vector-coprocessor-stages.md` | Vector-side staged implementation plan |
+| `docs/cpu/branch-predictor-design.md` | BTB/RAS/JAL prediction design |
+| `docs/cpu/branch-predictor-fixes.md` | Predictor correctness fixes and debug history |
+| `docs/cpu/coremark-results.md` | CoreMark performance and CRC records |
 
 ## Known Warnings
 
