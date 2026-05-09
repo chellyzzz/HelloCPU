@@ -24,6 +24,10 @@ reg [31:0]  op_count;
 assign o_res = latched_res;
 
 wire [2:0]  cop_funct3 = i_ins[14:12];
+wire [6:0]  cop_funct7 = i_ins[31:25];
+wire [31:0] scalar_op  = (cop_funct7 == 7'd1) ? (i_src1 - i_src2) :
+                          (cop_funct7 == 7'd2) ? (i_src1 * i_src2) :
+                          (i_src1 + i_src2);
 wire [31:0] lane_add8 = {
     i_src1[31:24] + i_src2[31:24],
     i_src1[23:16] + i_src2[23:16],
@@ -39,7 +43,7 @@ wire [31:0] cop_result = (cop_funct3 == 3'b001) ? lane_add8 :
                           (cop_funct3 == 3'b101) ? vlen :
                           (cop_funct3 == 3'b110) ? vlen :
                           (cop_funct3 == 3'b111) ? op_count :
-                          (i_src1 + i_src2);
+                          scalar_op;
 wire        scratch_write = (cop_funct3 == 3'b100);
 wire        vlen_write    = (cop_funct3 == 3'b101);
 
