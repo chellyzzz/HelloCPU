@@ -89,6 +89,14 @@ module hcpu_EXU(
     input                               M_AXI_BVALID               ,
     output                              M_AXI_BREADY               ,
     input              [   3:0]         M_AXI_BID                  ,
+
+    // LSU debug / perf classification
+    output                              o_lsu_dbg_wait_hit         ,
+    output                              o_lsu_dbg_wait_refill      ,
+    output                              o_lsu_dbg_wait_refill_ar   ,
+    output                              o_lsu_dbg_wait_refill_r    ,
+    output                              o_lsu_dbg_wait_uncached    ,
+    output                              o_lsu_dbg_wait_wb          ,
   //exu -> wbu handshake
     input                               i_post_ready               ,
     input                               i_pre_valid                ,
@@ -271,7 +279,13 @@ hcpu_LSU exu_lsu(
     .M_AXI_BID                         (M_AXI_BID                 ),
   //handshake
     .o_pre_ready                       (o_pre_ready               ),
-    .lsu_done                          (lsu_done                  )
+    .lsu_done                          (lsu_done                  ),
+    .o_dbg_wait_hit                    (o_lsu_dbg_wait_hit        ),
+    .o_dbg_wait_refill                 (o_lsu_dbg_wait_refill     ),
+    .o_dbg_wait_refill_ar              (o_lsu_dbg_wait_refill_ar  ),
+    .o_dbg_wait_refill_r               (o_lsu_dbg_wait_refill_r   ),
+    .o_dbg_wait_uncached               (o_lsu_dbg_wait_uncached   ),
+    .o_dbg_wait_wb                     (o_lsu_dbg_wait_wb         )
 );
 
 wire beq, bne;

@@ -147,6 +147,12 @@ reg                    [  31:0]         exu_redirect_pc_r          ;
 wire                                    ifu2idu_valid, idu2ifu_ready;
 wire                                    idu2exu_valid, exu2idu_ready;
 wire                                    exu2wbu_valid, wbu2exu_ready;
+wire                                    exu_lsu_dbg_wait_hit      ;
+wire                                    exu_lsu_dbg_wait_refill   ;
+wire                                    exu_lsu_dbg_wait_refill_ar;
+wire                                    exu_lsu_dbg_wait_refill_r ;
+wire                                    exu_lsu_dbg_wait_uncached ;
+wire                                    exu_lsu_dbg_wait_wb       ;
 wire                                    scalar_exu2wbu_valid       ;
 wire                                    scalar_exu2idu_ready       ;
 wire                                    cop_exu2wbu_valid          ;
@@ -498,7 +504,7 @@ assign cop_issue_active = cop_issue_valid;
 assign cop_commit_active = cop_inflight;
 assign cop_pipeline_active = cop_commit_active || cop_issue_active;
 assign scalar_issue = idu2exu_valid && !cop_pipeline_active;
-assign cop_refetch_flush = cop_pipeline_active && cop_exu2wbu_valid && !ifu2idu_valid;
+assign cop_refetch_flush = cop_pipeline_active && cop_exu2wbu_valid;
 assign cop_active_pc = cop_commit_active ? cop_inflight_pc : idu2exu_pc;
 assign exu_res = cop_pipeline_active ? cop_exu_res : scalar_exu_res;
 assign exu_brch = scalar_exu_brch;
@@ -517,7 +523,7 @@ assign exu_ras_push_data = scalar_exu_ras_push_data;
 assign exu_ras_pop_en = scalar_exu_ras_pop_en;
 assign exu2wbu_valid = cop_pipeline_active ? cop_exu2wbu_valid : scalar_exu2wbu_valid;
 assign exu2idu_ready = cop_pipeline_active ? cop_exu2idu_ready : scalar_exu2idu_ready;
-assign cop_kill = pc_update_en || idu2exu_fence_i || exu_mispredict_flush_r;
+assign cop_kill = pc_update_en || idu2exu_fence_i || exu_mispredict_flush_r || cop_refetch_flush;
 assign cop_resp_fire = cop_exu2wbu_valid && wbu2exu_ready;
 assign cop_queue_dequeue = cop_resp_fire;
 
@@ -618,6 +624,12 @@ hcpu_EXU exu1(
     .M_AXI_BVALID                      (LSU_SRAM_AXI_BVALID       ),
     .M_AXI_BREADY                      (LSU_SRAM_AXI_BREADY       ),
     .M_AXI_BID                         (LSU_SRAM_AXI_BID          ),
+    .o_lsu_dbg_wait_hit                (exu_lsu_dbg_wait_hit      ),
+    .o_lsu_dbg_wait_refill             (exu_lsu_dbg_wait_refill   ),
+    .o_lsu_dbg_wait_refill_ar          (exu_lsu_dbg_wait_refill_ar),
+    .o_lsu_dbg_wait_refill_r           (exu_lsu_dbg_wait_refill_r ),
+    .o_lsu_dbg_wait_uncached           (exu_lsu_dbg_wait_uncached ),
+    .o_lsu_dbg_wait_wb                 (exu_lsu_dbg_wait_wb       ),
   //exu -> wbu handshake
     .i_pre_valid                       (scalar_issue              ),
     .i_post_ready                      (wbu2exu_ready             ),
@@ -688,6 +700,7 @@ wire                                    exu2wbu_is_div             ;
 reg  idu2exu_load_d;
 reg  idu2exu_store_d;
 reg  idu2exu_muldiv_d;
+reg  idu2exu_cop_d;
 reg  idu2exu_fence_i_d;
 reg  idu2exu_brch_d;
 reg  idu2exu_is_div_d;
@@ -697,6 +710,7 @@ always @(posedge clock or posedge reset) begin
     idu2exu_load_d    <= 1'b0;
     idu2exu_store_d   <= 1'b0;
     idu2exu_muldiv_d  <= 1'b0;
+    idu2exu_cop_d     <= 1'b0;
     idu2exu_fence_i_d <= 1'b0;
     idu2exu_brch_d    <= 1'b0;
     idu2exu_is_div_d  <= 1'b0;
@@ -704,6 +718,7 @@ always @(posedge clock or posedge reset) begin
     idu2exu_load_d    <= idu2exu_load;
     idu2exu_store_d   <= idu2exu_store;
     idu2exu_muldiv_d  <= idu2exu_muldiv;
+    idu2exu_cop_d     <= idu2exu_is_cop_insn;
     idu2exu_fence_i_d <= idu2exu_fence_i;
     idu2exu_brch_d    <= idu2exu_brch;
     idu2exu_is_div_d  <= idu2exu_muldiv && idu2exu_exu_opt[2];
@@ -971,10 +986,29 @@ import "DPI-C" function void load_dpic       ();
 import "DPI-C" function void store_dpic      ();
 import "DPI-C" function void mul_cnt_dpic    ();
 import "DPI-C" function void div_cnt_dpic    ();
+import "DPI-C" function void cop_cnt_dpic    ();
 import "DPI-C" function void alu_cnt_dpic    ();
 import "DPI-C" function void sys_cnt_dpic    ();
 import "DPI-C" function void fence_cnt_dpic  ();
 import "DPI-C" function void stall_cnt_dpic  ();
+import "DPI-C" function void stall_front_dpic();
+import "DPI-C" function void stall_ifu_held_dpic();
+import "DPI-C" function void stall_ifu_held_ctrl_dpic();
+import "DPI-C" function void stall_ifu_held_lsu_dpic();
+import "DPI-C" function void stall_ifu_held_mul_dpic();
+import "DPI-C" function void stall_ifu_held_cop_dpic();
+import "DPI-C" function void stall_ifu_held_other_dpic();
+import "DPI-C" function void stall_lsu_dpic  ();
+import "DPI-C" function void stall_lsu_hit_dpic();
+import "DPI-C" function void stall_lsu_refill_dpic();
+import "DPI-C" function void stall_lsu_refill_ar_dpic();
+import "DPI-C" function void stall_lsu_refill_r_dpic();
+import "DPI-C" function void stall_lsu_uncached_dpic();
+import "DPI-C" function void stall_lsu_wb_dpic();
+import "DPI-C" function void stall_mul_dpic  ();
+import "DPI-C" function void stall_cop_dpic  ();
+import "DPI-C" function void stall_ctrl_dpic ();
+import "DPI-C" function void stall_other_dpic();
 import "DPI-C" function void btb_hit_dpic    ();
 import "DPI-C" function void btb_miss_dpic   ();
 import "DPI-C" function void btb_misp_dpic   ();
@@ -1010,7 +1044,8 @@ always @(posedge clock) begin
       if (idu2exu_is_div_d)  div_cnt_dpic();
       else                   mul_cnt_dpic();
     end
-    if (!idu2exu_load_d && !idu2exu_store_d && !idu2exu_muldiv_d &&
+    if (idu2exu_cop_d)                   cop_cnt_dpic();
+    if (!idu2exu_load_d && !idu2exu_store_d && !idu2exu_muldiv_d && !idu2exu_cop_d &&
         !exu2wbu_jal && !exu2wbu_jalr && !idu2exu_brch_d &&
         !exu2wbu_mret && !exu2wbu_ecall && !exu2wbu_ebreak &&
         !exu2wbu_commit_csr_wen && !idu2exu_fence_i_d)
@@ -1024,7 +1059,61 @@ end
 // ===========================================================================
 `ifdef PERF_STALL
 always @(posedge clock) begin
-  if (!reset && !exu2wbu_valid) stall_cnt_dpic();
+  if (!reset && !exu2wbu_valid) begin
+    stall_cnt_dpic();
+    if (ifu2idu_valid && !idu2ifu_ready) begin
+      stall_ifu_held_dpic();
+      if (exu_mispredict_flush_r || pc_update_en) begin
+        stall_ifu_held_ctrl_dpic();
+      end else if (idu2exu_valid && !exu2idu_ready) begin
+        if (idu2exu_load || idu2exu_store) begin
+          stall_ifu_held_lsu_dpic();
+        end else if (idu2exu_muldiv) begin
+          stall_ifu_held_mul_dpic();
+        end else if (idu2exu_is_cop_insn) begin
+          stall_ifu_held_cop_dpic();
+        end else begin
+          stall_ifu_held_other_dpic();
+        end
+      end else begin
+        stall_ifu_held_other_dpic();
+      end
+    end
+  end
+
+  if (!reset && !exu2wbu_valid) begin
+    if (exu_mispredict_flush_r || pc_update_en) begin
+      stall_ctrl_dpic();
+    end else if (idu2exu_valid && !exu2idu_ready) begin
+      if (idu2exu_load || idu2exu_store) begin
+        stall_lsu_dpic();
+        if (exu_lsu_dbg_wait_hit) begin
+          stall_lsu_hit_dpic();
+        end else if (exu_lsu_dbg_wait_refill) begin
+          stall_lsu_refill_dpic();
+          if (exu_lsu_dbg_wait_refill_ar) begin
+            stall_lsu_refill_ar_dpic();
+          end else if (exu_lsu_dbg_wait_refill_r) begin
+            stall_lsu_refill_r_dpic();
+          end
+        end else if (exu_lsu_dbg_wait_uncached) begin
+          stall_lsu_uncached_dpic();
+        end else if (exu_lsu_dbg_wait_wb) begin
+          stall_lsu_wb_dpic();
+        end
+      end else if (idu2exu_muldiv) begin
+        stall_mul_dpic();
+      end else if (idu2exu_is_cop_insn) begin
+        stall_cop_dpic();
+      end else begin
+        stall_other_dpic();
+      end
+    end else if (!idu2exu_valid) begin
+      stall_front_dpic();
+    end else begin
+      stall_other_dpic();
+    end
+  end
 end
 `endif // PERF_STALL
 

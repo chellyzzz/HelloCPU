@@ -12,7 +12,7 @@ module hcpu_LSU #(
     input              [  31:0]         store_src                  ,
     input              [  31:0]         alu_res                    ,
     input              [   2:0]         exu_opt                    ,
-    output reg         [  31:0]         load_res                   ,
+    output             [  31:0]         load_res                   ,
     input                               i_load                     ,
     input                               i_store                    ,
 
@@ -57,7 +57,15 @@ module hcpu_LSU #(
 
     // Pipeline handshake
     input                               o_pre_ready                ,
-    output                              lsu_done
+    output                              lsu_done                   ,
+
+    // debug / perf classification
+    output                              o_dbg_wait_hit             ,
+    output                              o_dbg_wait_refill          ,
+    output                              o_dbg_wait_refill_ar       ,
+    output                              o_dbg_wait_refill_r        ,
+    output                              o_dbg_wait_uncached        ,
+    output                              o_dbg_wait_wb
 );
 `include "debug_macros.vh"
 // `define DCACHE_DEBUG 1
@@ -111,22 +119,20 @@ reg [3:0] state;
 // ============================================================
 // Trigger Mechanism (preserved from original LSU)
 // ============================================================
-reg                    init_txn_ff, init_txn_ff2, o_pre_ready_d1;
+reg                    init_txn_ff, o_pre_ready_d1;
 wire                   is_ls           = i_load || i_store;
 wire                   INIT_AXI_TXN   = reset ? 1'b0 : (o_pre_ready_d1 && is_ls);
-wire                   init_txn_pulse = ~init_txn_ff2 & init_txn_ff;
+wire                   init_txn_pulse = INIT_AXI_TXN && !init_txn_ff;
 wire                   txn_pulse_load  = i_load  && init_txn_pulse;
 wire                   txn_pulse_store = i_store && init_txn_pulse;
 
 always @(posedge clock or posedge reset) begin
     if (reset) begin
         init_txn_ff    <= 1'b0;
-        init_txn_ff2   <= 1'b0;
         o_pre_ready_d1 <= 1'b0;
     end else begin
         o_pre_ready_d1 <= o_pre_ready;
         init_txn_ff    <= INIT_AXI_TXN;
-        init_txn_ff2   <= init_txn_ff;
     end
 end
 
@@ -215,7 +221,35 @@ reg axi_arvalid, axi_awvalid, axi_bready, axi_rready;
 // Done Signal
 // ============================================================
 reg done_reg;
-assign lsu_done = done_reg;
+wire fast_load_hit_done = (state == S_CHECK) && lat_is_load && lat_cacheable && cache_hit;
+wire fast_store_hit_done = (state == S_CHECK) && !lat_is_load && lat_cacheable && cache_hit;
+assign lsu_done = done_reg || fast_load_hit_done || fast_store_hit_done;
+
+assign o_dbg_wait_hit =
+    (state == S_CHECK && lat_cacheable && cache_hit) ||
+    (state == S_CACHE_HIT) ||
+    (state == S_STORE_HIT);
+
+assign o_dbg_wait_refill =
+    (state == S_CHECK && lat_cacheable && !cache_hit && !victim_is_dirty) ||
+    (state == S_REFILL_AR) ||
+    (state == S_REFILL_R) ||
+    (state == S_STORE_FILL);
+
+assign o_dbg_wait_refill_ar = (state == S_REFILL_AR);
+assign o_dbg_wait_refill_r  = (state == S_REFILL_R);
+
+assign o_dbg_wait_uncached =
+    (state == S_CHECK && !lat_cacheable) ||
+    (state == S_UNCACHE_AR) ||
+    (state == S_UNCACHE_R) ||
+    (state == S_UNCACHE_AW) ||
+    (state == S_UNCACHE_B);
+
+assign o_dbg_wait_wb =
+    (state == S_CHECK && lat_cacheable && !cache_hit && victim_is_dirty) ||
+    (state == S_WB_AW) ||
+    (state == S_WB_B);
 
 // ============================================================
 // AXI Output Assignments
@@ -306,8 +340,8 @@ always @(posedge clock or posedge reset) begin
             if (lat_is_load) begin
                 // 鈹€鈹€ Load path 鈹€鈹€
                 if (lat_cacheable && cache_hit) begin
-                    // Load hit 鈫?return data next cycle
-                    state <= S_CACHE_HIT;
+                    // Load hit returns in the current cycle; load_res is combinational for this path.
+                    state <= S_IDLE;
                     `ifdef DCACHE_DEBUG
                     $display("[DCACHE] LOAD HIT : set=%0d way=%0d addr=0x%0h", addr_index, hit_way, lat_addr);
                     `endif
@@ -346,8 +380,7 @@ always @(posedge clock or posedge reset) begin
             else begin
                 // 鈹€鈹€ Store path 鈹€鈹€
                 if (lat_cacheable && cache_hit) begin
-                    // Store hit 鈫?write cache only, mark dirty, done in 1 cycle
-                    state <= S_STORE_HIT;
+                    state <= S_IDLE;
                     `ifdef DCACHE_DEBUG
                     $display("[DCACHE] STORE HIT: set=%0d way=%0d addr=0x%0h", addr_index, hit_way, lat_addr);
                     `endif
@@ -578,7 +611,7 @@ always @(posedge clock or posedge reset) begin
         // Refill: write incoming word into cache
         cache_data[addr_index][victim_way_lat][refill_cnt] <= M_AXI_RDATA;
     end
-    else if (state == S_STORE_HIT) begin
+    else if (state == S_STORE_HIT || fast_store_hit_done) begin
         // Store hit (write-back): update cache line (byte-level merge)
         if (wstrb_shifted[0]) cache_data[addr_index][hit_way][addr_word][ 7: 0] <= wdata_shifted[ 7: 0];
         if (wstrb_shifted[1]) cache_data[addr_index][hit_way][addr_word][15: 8] <= wdata_shifted[15: 8];
@@ -621,7 +654,7 @@ always @(posedge clock or posedge reset) begin
                  addr_index, victim_way_lat, addr_tag, !lat_is_load);
         `endif
     end
-    else if (state == S_STORE_HIT) begin
+    else if (state == S_STORE_HIT || fast_store_hit_done) begin
         // Store hit 鈫?mark dirty
         cache_dirty[addr_index][hit_way] <= 1'b1;
     end
@@ -648,7 +681,7 @@ always @(posedge clock or posedge reset) begin
             2'd3: plru[addr_index] <= {1'b0, plru[addr_index][1], 1'b0};
         endcase
     end
-    else if (state == S_CACHE_HIT || state == S_STORE_HIT) begin
+    else if (state == S_CACHE_HIT || state == S_STORE_HIT || fast_store_hit_done) begin
         case (hit_way)
             2'd0: plru[addr_index] <= {plru[addr_index][2], 1'b1, 1'b1};
             2'd1: plru[addr_index] <= {plru[addr_index][2], 1'b0, 1'b1};
@@ -662,28 +695,32 @@ end
 // Load Result Mux (byte extract + sign extend)
 // ============================================================
 wire refill_hit_word = (state == S_REFILL_R) && M_AXI_RVALID && refill_rready && (refill_cnt == addr_word);
-wire [31:0] raw_word = (state == S_CACHE_HIT)  ? hit_word :
+wire [31:0] raw_word = fast_load_hit_done      ? hit_word :
+                       (state == S_CACHE_HIT)  ? hit_word :
                        refill_hit_word          ? M_AXI_RDATA :
                        (state == S_REFILL_R)    ? cache_data[addr_index][victim_way_lat][addr_word] :
                        (state == S_UNCACHE_R)   ? M_AXI_RDATA :
                        32'b0;
 wire [31:0] shifted_data = raw_word >> lat_shift8;
 wire [31:0] load_src     = lat_cacheable ? shifted_data : raw_word;
+wire [31:0] load_res_next =
+    (lat_exu_opt == LB)  ? {{24{load_src[7]}},  load_src[7:0]}  :
+    (lat_exu_opt == LH)  ? {{16{load_src[15]}}, load_src[15:0]} :
+    (lat_exu_opt == LW)  ? load_src                              :
+    (lat_exu_opt == LBU) ? {24'b0, load_src[7:0]}                :
+    (lat_exu_opt == LHU) ? {16'b0, load_src[15:0]}               :
+                           32'b0;
+
+reg [31:0] load_res_reg;
+assign load_res = fast_load_hit_done ? load_res_next : load_res_reg;
 
 always @(posedge clock or posedge reset) begin
   if (reset) begin
-    load_res <= 32'b0;
+    load_res_reg <= 32'b0;
   end
   else begin
     if (state == S_CACHE_HIT || refill_hit_word || (state == S_UNCACHE_R && M_AXI_RVALID)) begin
-      case (lat_exu_opt)
-          LB:      load_res <= {{24{load_src[7]}},  load_src[7:0]};
-          LH:      load_res <= {{16{load_src[15]}}, load_src[15:0]};
-          LW:      load_res <= load_src;
-          LBU:     load_res <= {24'b0, load_src[7:0]};
-          LHU:     load_res <= {16'b0, load_src[15:0]};
-          default: load_res <= 32'b0;
-      endcase
+      load_res_reg <= load_res_next;
     end
   end
 end

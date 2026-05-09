@@ -19,8 +19,7 @@ module hcpu_ifu_idu_regs (
 
 );
 
-reg post_valid;
-assign o_post_valid = i_post_ready && icache_hit;
+assign o_post_valid = icache_hit;
 
 
 always @(posedge clock or posedge reset) begin

@@ -29,11 +29,13 @@ reg         entry_wen;
 
 assign o_inflight = entry_valid;
 assign o_pc = entry_pc;
-assign o_active_src1 = entry_valid ? entry_src1 : i_src1;
-assign o_active_src2 = entry_valid ? entry_src2 : i_src2;
+assign o_active_src1 = o_issue_fire ? i_src1 :
+                       entry_valid  ? entry_src1 : i_src1;
+assign o_active_src2 = o_issue_fire ? i_src2 :
+                       entry_valid  ? entry_src2 : i_src2;
 assign o_rd = entry_rd;
 assign o_wen = entry_wen;
-assign o_issue_ready = !o_inflight && !i_backend_busy;
+assign o_issue_ready = (!o_inflight || i_dequeue) && (!i_backend_busy || i_dequeue);
 assign o_issue_fire = i_issue_valid && o_issue_ready;
 
 always @(posedge clock or posedge reset) begin
@@ -44,13 +46,20 @@ always @(posedge clock or posedge reset) begin
         entry_src2 <= 32'b0;
         entry_rd <= 5'b0;
         entry_wen <= 1'b0;
-    end else if (i_kill || i_dequeue) begin
+    end else if (i_kill) begin
         entry_valid <= 1'b0;
         entry_pc <= 32'b0;
         entry_src1 <= 32'b0;
         entry_src2 <= 32'b0;
         entry_rd <= 5'b0;
         entry_wen <= 1'b0;
+    end else if (i_dequeue) begin
+        entry_valid <= o_issue_fire;
+        entry_pc <= o_issue_fire ? i_pc : 32'b0;
+        entry_src1 <= o_issue_fire ? i_src1 : 32'b0;
+        entry_src2 <= o_issue_fire ? i_src2 : 32'b0;
+        entry_rd <= o_issue_fire ? i_rd : 5'b0;
+        entry_wen <= o_issue_fire ? i_wen : 1'b0;
     end else if (o_issue_fire) begin
         entry_valid <= 1'b1;
         entry_pc <= i_pc;
