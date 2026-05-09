@@ -121,6 +121,8 @@ wire                                    lsu_done                   ;
 wire                   [  31:0]         mul_result, div_result     ;
 wire                                    mul_done, div_done         ;
 wire                                    if_mul, if_div             ;
+wire                                    if_mul_low                 ;
+wire                   [  31:0]         mul_low_res                ;
 wire                                    muldiv_done                ;
 wire                   [  31:0]         muldiv_res                 ;
 wire                   [  31:0]         cop_res                    ;
@@ -129,8 +131,10 @@ wire                                    if_cop                     ;
 
 assign if_mul  = i_muldiv & ~exu_opt[2]; // func3[2]==0: MUL/MULH/MULHSU/MULHU
 assign if_div  = i_muldiv &  exu_opt[2]; // func3[2]==1: DIV/DIVU/REM/REMU
-assign muldiv_done = if_mul ? mul_done : if_div ? div_done : 1'b0;
-assign muldiv_res  = if_mul ? mul_result : div_result;
+assign if_mul_low = if_mul & (exu_opt[1:0] == 2'b00);
+assign mul_low_res = i_src1 * i_src2;
+assign muldiv_done = if_mul_low ? i_pre_valid : if_mul ? mul_done : if_div ? div_done : 1'b0;
+assign muldiv_res  = if_mul_low ? mul_low_res : if_mul ? mul_result : div_result;
 assign if_cop = i_is_cop_insn;
 
 reg post_valid;
@@ -200,7 +204,7 @@ hcpu_multiplier exu_mul(
     .src1                              (i_src1                    ),
     .src2                              (i_src2                    ),
     .mul_op                            (exu_opt[1:0]              ),
-    .mul_valid                         (if_mul        ),
+    .mul_valid                         (if_mul && !if_mul_low      ),
     .mul_result                        (mul_result                ),
     .mul_done                          (mul_done                  ) 
 );
