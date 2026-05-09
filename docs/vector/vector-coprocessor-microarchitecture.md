@@ -34,6 +34,8 @@
 
 1. `funct3=0`：标量 dummy add，返回 `src1 + src2`。
 2. `funct3=1`：4x8-bit lane add，按字节分别计算 `src1[i] + src2[i]`，每个 byte 自然截断。
+3. `funct3=2`：4x8-bit lane xor，按字节分别计算 `src1[i] ^ src2[i]`。
+4. `funct3=3`：4x8-bit lane and，按字节分别计算 `src1[i] & src2[i]`。
 
 软件生成示例：
 
@@ -45,22 +47,25 @@ asm volatile (".insn r 0x0b, 1, 0, %0, %1, %2"
 
 ## 当前验证
 
-向量端 `539bf41` 最近验证通过：
+向量端 `d8d578d` 最近验证通过：
 
-1. `make run`：`45 passed, 0 failed`。
+1. `make run`：`48 passed, 0 failed`。
 2. `cop-vadd8`
 3. `cop-vadd8-chain`
 4. `cop-vadd8-after-add`
-5. `cop-smoke`
-6. `cop-chain`
-7. `sum`
-8. `load-store`
+5. `cop-vxor8`
+6. `cop-vand8`
+7. `cop-mixed-lanes`
+8. `cop-smoke`
+9. `cop-chain`
+10. `sum`
+11. `load-store`
 
-`cop-vadd8` 覆盖第一条最小真实向量算子。`cop-vadd8-chain` 和 `cop-vadd8-after-add` 覆盖连续/混合 COP 提交时序。`cop-smoke` 和 `cop-chain` 覆盖旧 dummy add 行为和连续 COP 基线。
+`cop-vadd8` 覆盖第一条最小真实向量算子。`cop-vxor8` 和 `cop-vand8` 覆盖后续 lane 逻辑算子。`cop-vadd8-chain`、`cop-vadd8-after-add` 和 `cop-mixed-lanes` 覆盖连续/混合 COP 提交时序。`cop-smoke` 和 `cop-chain` 覆盖旧 dummy add 行为和连续 COP 基线。
 
 ## 已知边界
 
-混合连续向量/COP 请求曾暴露 response fire 同拍新 issue 与 refetch/kill 竞争问题。当前 `539bf41` 保守策略是 COP 完成后先经 CPU/WBU 统一提交，再由 response fire 触发 refetch `PC+4`；同时禁止 custom 指令走 stale scalar EXU valid 提交路径。
+混合连续向量/COP 请求曾暴露 response fire 同拍新 issue 与 refetch/kill 竞争问题。当前 `d8d578d` 继承的保守策略是 COP 完成后先经 CPU/WBU 统一提交，再由 response fire 触发 refetch `PC+4`；同时禁止 custom 指令走 stale scalar EXU valid 提交路径。
 
 ## 下一步
 

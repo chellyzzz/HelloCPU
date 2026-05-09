@@ -14,8 +14,8 @@ module hcpu_btb
     input               update_taken
 );
 
-localparam ENTRIES = 64;
-localparam INDEX_W  = 6;
+localparam ENTRIES = 128;
+localparam INDEX_W  = 7;
 localparam TAG_W    = 32 - INDEX_W - 2;
 
 wire [INDEX_W-1:0] lookup_idx = lookup_pc[INDEX_W+1:2];
@@ -41,10 +41,10 @@ integer i;
 always @(posedge clock or posedge reset) begin
     if (reset) begin
         for (i = 0; i < ENTRIES; i = i + 1) begin
-            btb_valid[i]   <= 1'b0;
-            btb_tag[i]     <= {TAG_W{1'b0}};
-            btb_target[i]  <= 30'b0;
-            btb_counter[i] <= 2'b01;
+            btb_valid[i]   = 1'b0;
+            btb_tag[i]     = {TAG_W{1'b0}};
+            btb_target[i]  = 30'b0;
+            btb_counter[i] = 2'b01;
         end
     end
     else if (update_en) begin

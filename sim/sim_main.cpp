@@ -80,6 +80,11 @@ static uint64_t cnt_ras_miss = 0;
 static uint64_t cnt_jal_tgt_bad = 0;
 static uint64_t cnt_ras_push = 0;
 static uint64_t cnt_wbu_pcup = 0;
+static uint64_t cnt_wbu_pcup_brch = 0;
+static uint64_t cnt_wbu_pcup_jal = 0;
+static uint64_t cnt_wbu_pcup_jalr = 0;
+static uint64_t cnt_wbu_pcup_ecall = 0;
+static uint64_t cnt_wbu_pcup_mret = 0;
 
 struct PcHotspot {
   uint32_t pc;
@@ -266,6 +271,18 @@ static void print_perf_summary() {
          cnt_jal_tgt_bad);
   printf("│ Debug: RAS pushes   : %10lu                     │\n", cnt_ras_push);
   printf("│ Debug: WBU pcupdate : %10lu                     │\n", cnt_wbu_pcup);
+  if (cnt_wbu_pcup > 0) {
+    printf("│   ├─ branch         : %10lu (%5.1f%%)            │\n",
+           cnt_wbu_pcup_brch, 100.0 * cnt_wbu_pcup_brch / cnt_wbu_pcup);
+    printf("│   ├─ JAL            : %10lu (%5.1f%%)            │\n",
+           cnt_wbu_pcup_jal, 100.0 * cnt_wbu_pcup_jal / cnt_wbu_pcup);
+    printf("│   ├─ JALR           : %10lu (%5.1f%%)            │\n",
+           cnt_wbu_pcup_jalr, 100.0 * cnt_wbu_pcup_jalr / cnt_wbu_pcup);
+    printf("│   ├─ ECALL          : %10lu (%5.1f%%)            │\n",
+           cnt_wbu_pcup_ecall, 100.0 * cnt_wbu_pcup_ecall / cnt_wbu_pcup);
+    printf("│   ├─ MRET           : %10lu (%5.1f%%)            │\n",
+           cnt_wbu_pcup_mret, 100.0 * cnt_wbu_pcup_mret / cnt_wbu_pcup);
+  }
   printf("├─────────────────────────────────────────────────────┤\n");
   printf("│ Cache Statistics                                   │\n");
   uint64_t ic_total = cnt_icache_hit + cnt_icache_miss;
@@ -385,6 +402,11 @@ extern "C" void ras_miss_dpic() { cnt_ras_miss++; }
 extern "C" void jal_tgt_mismatch() { cnt_jal_tgt_bad++; }
 extern "C" void ras_push_dpic() { cnt_ras_push++; }
 extern "C" void wbu_pcup_dpic() { cnt_wbu_pcup++; }
+extern "C" void wbu_pcup_brch_dpic() { cnt_wbu_pcup_brch++; }
+extern "C" void wbu_pcup_jal_dpic() { cnt_wbu_pcup_jal++; }
+extern "C" void wbu_pcup_jalr_dpic() { cnt_wbu_pcup_jalr++; }
+extern "C" void wbu_pcup_ecall_dpic() { cnt_wbu_pcup_ecall++; }
+extern "C" void wbu_pcup_mret_dpic() { cnt_wbu_pcup_mret++; }
 extern "C" void commit_pc_dpic(int pc) { record_commit_pc((uint32_t)pc); }
 extern "C" void commit_trace_dpic(int pc, int rd, int wdata, int wen,
                                    int is_store, int store_addr,

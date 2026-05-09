@@ -1036,6 +1036,11 @@ import "DPI-C" function void ras_miss_dpic   ();
 import "DPI-C" function void jal_tgt_mismatch();
 import "DPI-C" function void ras_push_dpic   ();
 import "DPI-C" function void wbu_pcup_dpic   ();
+import "DPI-C" function void wbu_pcup_brch_dpic();
+import "DPI-C" function void wbu_pcup_jal_dpic();
+import "DPI-C" function void wbu_pcup_jalr_dpic();
+import "DPI-C" function void wbu_pcup_ecall_dpic();
+import "DPI-C" function void wbu_pcup_mret_dpic();
 
 // ===========================================================================
 `ifdef PERF_INST_MIX
@@ -1233,8 +1238,19 @@ always @(posedge clock) begin
 end
 
 // debug: WBU pc_update
+wire wbu_pc_update_fire = exu_wbu_valid &&
+                          (exu2wbu_ecall || exu2wbu_mret ||
+                           ((exu2wbu_jal || exu2wbu_jalr || exu2wbu_is_brch) && !exu2wbu_predict_correct));
+
 always @(posedge clock) begin
-    if (!reset && pc_update_en) wbu_pcup_dpic();
+    if (!reset && wbu_pc_update_fire) begin
+        wbu_pcup_dpic();
+        if (exu2wbu_is_brch) wbu_pcup_brch_dpic();
+        if (exu2wbu_jal) wbu_pcup_jal_dpic();
+        if (exu2wbu_jalr) wbu_pcup_jalr_dpic();
+        if (exu2wbu_ecall) wbu_pcup_ecall_dpic();
+        if (exu2wbu_mret) wbu_pcup_mret_dpic();
+    end
 end
 `endif // PERF_BRANCH_PRED
 

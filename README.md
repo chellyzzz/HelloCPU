@@ -9,8 +9,8 @@ HelloCPU is a small RV32IM + Zicsr CPU project with a Verilator-based simulation
 | ISA | RV32IM + Zicsr |
 | Pipeline | IFU -> IDU -> EXU -> WBU -> Register File |
 | Caches | 4 KB ICache + 4 KB DCache |
-| Branch prediction | 64-entry BTB, 8-entry RAS, static JAL prediction |
-| CPU tests | `45 passed, 0 failed` |
+| Branch prediction | 128-entry BTB, 8-entry RAS, static JAL prediction |
+| CPU tests | `48 passed, 0 failed` |
 | CoreMark ITER=1 | Correct CRC, `2.046 CoreMark/MHz` |
 | CoreMark ITER=100 | Correct CRC, `2.381 CoreMark/MHz` |
 
@@ -30,9 +30,9 @@ Latest CoreMark ITER=100 result:
 [0]crcstate      : 0x8e3a
 [0]crcfinal      : 0x988c
 Correct operation validated.
-Total cycles     : 41995856
+Total cycles     : 41981715
 CoreMark/MHz     : 2.381
-[HelloCPU] PASS (cycles: 42000681)
+[HelloCPU] PASS (cycles: 41986504)
 ```
 
 ## Repository Layout

@@ -22,7 +22,12 @@ wire [31:0] lane_add8 = {
     i_src1[15:8]  + i_src2[15:8],
     i_src1[7:0]   + i_src2[7:0]
 };
-wire [31:0] cop_result = (cop_funct3 == 3'b001) ? lane_add8 : (i_src1 + i_src2);
+wire [31:0] lane_xor8 = i_src1 ^ i_src2;
+wire [31:0] lane_and8 = i_src1 & i_src2;
+wire [31:0] cop_result = (cop_funct3 == 3'b001) ? lane_add8 :
+                          (cop_funct3 == 3'b010) ? lane_xor8 :
+                          (cop_funct3 == 3'b011) ? lane_and8 :
+                          (i_src1 + i_src2);
 
 always @(posedge clock or posedge reset) begin
     if (reset) begin

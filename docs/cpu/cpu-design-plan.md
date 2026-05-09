@@ -127,8 +127,14 @@ HelloCPU 当前已经具备：
 - 连续拉高 refill `RREADY`：会导致 `load-store` 在 refill R data 阶段卡死，也已明确回退。
 - LSU 直接用 EXU 当前 `ready` 或 `valid` 启动：会在简单访存或 `quick-sort` 中卡死或跑飞，说明启动条件不能只局部替换；
 - `S_IDLE` 同拍 cacheable load-hit 返回：即使只针对 load、不提前 store，也会破坏 `load-store` / `quick-sort`，并可能重复启动或卡在 load start，说明现有 IDU/EXU valid 生命周期与 LSU 内部同拍完成不兼容。
+- 仅删除 WBU 对 branch/JAL/JALR 的后级 `pc_update`、只保留 EXU redirect：会破坏控制流正确性，`sum` / `cop-chain` timeout，`quick-sort` / `btb-basic` / `btb-jal` fail；说明当前 EXU redirect 和 WBU architectural redirect 仍共同维持前端恢复语义，不能直接删掉后级 redirect。
+- BTB miss 时对后跳 branch 做静态 taken fallback：功能回归可过，但 CoreMark `ITER=100` 从 `2.381` 退到 `2.373 CoreMark/MHz`，BTB mispredict 从 `790496` 增加到 `813296`，说明当前 workload 下该启发式会伤害 BTB 学习/恢复整体效果，已回退。
 
 当前可以确认的一点是：`cache hit` 路径和 LSU 请求启动路径确实偏保守，提早一拍能够稳定带来收益；但 `refill -> result` 路径仍然和主流水、写回边界存在更深耦合，不能直接按同样思路激进推进。
+
+分支恢复方面，新增 WBU `pc_update` 原因拆分后，CoreMark `ITER=100` 中 `805218` 次 WBU redirect 里 `763699` 次来自 branch（`94.8%`）、`4918` 次来自 JAL（`0.6%`）、`36601` 次来自 JALR（`4.5%`），ECALL/MRET 为 0。因此后续若优化 control recovery，优先目标应是 branch redirect / flush 边界，而不是 call/return 或异常路径。
+
+128-entry BTB 已作为小优化保留：CoreMark `ITER=100` simulator cycles 从 `42000681` 降到 `41986504`，BTB miss 从 `1082991` 降到 `1025584`，mispredict 从 `790496` 降到 `780786`，WBU redirect 从 `805218` 降到 `795702`。收益不大，但改动局部、回归风险低。
 
 这说明当前 LSU 的问题并不只是“外部存储太慢”，还包括：
 

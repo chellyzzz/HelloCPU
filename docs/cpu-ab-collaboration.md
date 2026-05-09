@@ -35,9 +35,10 @@ Primary responsibilities:
 
 1. Analyze IFU/IDU valid-ready, PC advance, ICache hit/data, redirect/refetch, and flush timing.
 2. Propose the smallest safe IFU/IDU standardization plan before changing RTL.
-3. Maintain CPU/vector interface notes around the `539bf41` project layout and COP timing baseline.
+3. Maintain CPU/vector interface notes around the `d8d578d` project layout and COP lane-operation baseline.
 4. Keep COP/vector interface experiments isolated from A's performance mainline.
 5. Record failed experiments with the first observed failure symptom.
+6. Maintain B-line analysis documents and low-risk cleanup commits in `cpu-frontend-interface-lab` before asking A to review or cherry-pick.
 
 Default B-owned files:
 
@@ -46,7 +47,8 @@ Default B-owned files:
 3. `vsrc/vector/cop/*`
 4. `docs/interface/cpu-vector-coproc-handoff.md`
 5. `docs/vector/vector-coprocessor-microarchitecture.md`
-6. B-line analysis docs such as `docs/ifu-idu-handshake-analysis.md`
+6. `docs/cpu/ifu-idu-handshake-analysis.md`
+7. CPU/COP interface notes under `docs/interface/*`
 
 ## Shared Files
 
@@ -68,11 +70,18 @@ For the current split, `vsrc/cpu/top/hcpu.v`, `docs/cpu/cpu-design-plan.md`, and
 2. B works in a separate frontend/interface experiment branch or isolated context.
 3. Mainline entry is controlled by A. B outputs small diffs from `cpu-frontend-interface-lab` and does not land directly in `cpu-mainline-branch`.
 4. A should publish a clear stable commit or tag at each integration point. B rebases only on that stable point, not on A's unverified WIP.
-5. If A cherry-picks from B, prefer taking the small RTL patch first. Large B-line documents can be merged separately.
+5. B should form complete small commits in `cpu-frontend-interface-lab`; A reviews or cherry-picks those commits instead of reorganizing B's patches for B.
 6. B should not reintroduce `d1d7bad feat: add dedicated IDU to cop issue queue` or its frontend ready mux approach.
 7. New COP/vector work should follow the `539bf41 fix: repair consecutive cop commit timing` baseline and avoid extending old `vsrc/exu` / `vsrc/idu` COP paths.
 8. Failed B experiments should be reverted from RTL but recorded in docs with failure symptoms.
 9. Default collaboration should use normal WSL-side branches. If an auxiliary worktree or clone is needed, create and operate it inside WSL; avoid Windows Git worktrees being consumed by WSL Git.
+10. B-owned analysis docs such as `docs/cpu/ifu-idu-handshake-analysis.md` are maintained by B; A gives direction-level review and does not need to integrate them line by line.
+
+Low-risk B RTL cleanup may be submitted to A review after the B-line gate when it is naming-only, signal splitting, read-only debug macro work, or default-off assertion/debug instrumentation that does not change behavior.
+
+Behavior RTL changes must not enter through the low-risk path. Any change touching ready/valid, flush/refetch, COP response, EXU entry valid, or shared recovery semantics must first include a short design note plus the expected first failure mode and validation plan; A decides whether and how it enters mainline integration.
+
+A remains the integrator for shared CPU mainline semantics and files such as `vsrc/cpu/top/hcpu.v`, performance counters, CoreMark documentation, LSU, MUL, and DIV.
 
 ## Regression Gates
 
@@ -100,16 +109,19 @@ B frontend/interface patches should at least run:
 4. `cop-vadd8`
 5. `cop-vadd8-chain`
 6. `cop-vadd8-after-add`
+7. `cop-vxor8`
+8. `cop-vand8`
+9. `cop-mixed-lanes`
 
 Any patch touching redirect/refetch/flush should also record either commit-trace evidence or the first failing committed PC if it fails.
 
-`cop-vadd8`, `cop-vadd8-chain`, and `cop-vadd8-after-add` are now present in the CPU-side regression build after syncing the vector layout.
+`cop-vadd8`, `cop-vadd8-chain`, `cop-vadd8-after-add`, `cop-vxor8`, `cop-vand8`, and `cop-mixed-lanes` are now present in the CPU-side regression build after syncing the vector layout.
 
 ## Current A Progress
 
 Current A stable context:
 
-1. CPU mainline stable base is `cdedfd5 perf: attribute LSU start stalls`; current A WIP has also integrated the vector layout and COP timing sync through `539bf41`.
+1. CPU mainline stable base is `d9e7702 refactor: sync vector coprocessor layout`; current A WIP has also integrated vector COP lane ops through `d8d578d`.
 2. LSU fast paths and start-pulse optimization are already reflected in the current CoreMark reference.
 3. CoreMark `ITER=100` current reference is `2.381 CoreMark/MHz`, `IPC=0.729`, and `25.2%` stall rate after the low `MUL` fast path.
 4. MUL/DIV stall counters are now split into MUL and DIV sub-classes in both total stall and IFU-held-valid views.
@@ -156,21 +168,36 @@ Latest A rejected LSU experiments:
 4. Result: rejected. It improved `sum` locally but broke `load-store` and `quick-sort`; suppressing duplicate start then caused `load-store` to hang in LSU start.
 5. Conclusion: the remaining LSU start/load-use cost cannot be fixed by local LSU same-cycle completion alone; it needs EXU/IDU valid lifetime or request/response boundary cleanup.
 
+Latest A branch-recovery observations:
+
+1. Experiment: remove WBU branch/JAL/JALR `pc_update` and rely only on EXU redirect while keeping ECALL/MRET redirects.
+2. Result: rejected. `sum` and `cop-chain` timeout; `quick-sort`, `btb-basic`, and `btb-jal` fail.
+3. Conclusion: EXU redirect and WBU architectural redirect are still both part of the current frontend recovery semantics; branch recovery must be shortened by redesigning redirect/flush ownership, not by deleting the WBU pulse.
+4. New counters split WBU `pc_update`: CoreMark has `805218` total, with branch `763699` (`94.8%`), JAL `4918` (`0.6%`), JALR `36601` (`4.5%`), ECALL/MRET `0`.
+5. Experiment: predict backward branches taken on BTB miss using a static fallback target.
+6. Result: rejected. Functional smoke tests passed, but CoreMark regressed from `2.381` to `2.373 CoreMark/MHz` and BTB mispredicts increased from `790496` to `813296`.
+7. Experiment: increase BTB from 64 to 128 entries.
+8. Result: accepted. CoreMark simulator cycles improved `42000681 -> 41986504`, BTB miss `1082991 -> 1025584`, BTB mispredict `790496 -> 780786`, WBU `pc_update` `805218 -> 795702`; rounded `CoreMark/MHz` remains `2.381`.
+
 ## Current B Progress
 
 Current B context:
 
-1. B has not yet delivered a mainline patch in this branch.
-2. Previous local IFU/IDU standardization experiment failed and was reverted from RTL.
-3. The failure symptom was `sum` skipping the first instruction after reset/redirect; commit trace missed `0x30000000` and `0x30000b00`.
-4. COP response currently conservatively triggers `cop_refetch_flush` to avoid duplicate commit or skipped following instructions before IFU/IDU semantics are standardized.
-5. Vector-side synchronization point is `539bf41 fix: repair consecutive cop commit timing`.
+1. B has rebased to A stable point `d9e7702 refactor: sync vector coprocessor layout`.
+2. B will no longer work from old `vsrc/exu` or `vsrc/idu` COP paths; new work uses `vsrc/cpu/*` and `vsrc/vector/cop/*`.
+3. `0001` behavior-equivalent IFU `fetch_fire` RTL naming is already integrated in `d9e7702`; B currently carries no RTL diff.
+4. B's IFU/IDU analysis doc has moved to `docs/cpu/ifu-idu-handshake-analysis.md`; exported patch is `patches/0002-docs-ifu-idu-handshake-analysis.patch`.
+5. The B doc now describes the new layout and the post-`d9e7702` COP refetch rule: `cop_refetch_flush = cop_resp_fire`.
+6. B validation passed: `make sim sw`, `sum`, `quick-sort`, `cop-chain`, `cop-vadd8`, `cop-vadd8-chain`, and `cop-vadd8-after-add`.
+7. IFU/IDU-only registered-valid failure is confirmed: `sum` misses commits at `0x30000000` and `0x30000b00`; B will not repeat that local patch.
+8. B's current judgment is that true standardization must handle implicit pre-valid bubbles and may involve IDU/EXU, EXU entry valid, or `vsrc/cpu/top/hcpu.v`, so A must participate in the integration plan.
 
 Current B expected deliverables:
 
-1. `docs/ifu-idu-handshake-analysis.md` or equivalent timing analysis.
-2. A minimal IFU/IDU standardization proposal covering PC advance, ICache hit/data, boundary payload, redirect/refetch, and flush same-cycle behavior.
-3. A small patch only after the timing analysis explains why it avoids the known `sum` failure mode.
+1. Keep `docs/cpu/ifu-idu-handshake-analysis.md` current from the B branch.
+2. Prefer macro-control debug/assertion or design-plan convergence before changing frontend ready/valid behavior.
+3. A minimal IFU/IDU standardization proposal covering PC advance, ICache hit/data, boundary payload, redirect/refetch, implicit bubbles, and flush same-cycle behavior.
+4. A small behavior patch only after the timing analysis explains why it avoids the known `sum` failure mode.
 
 Current B first patch scope:
 

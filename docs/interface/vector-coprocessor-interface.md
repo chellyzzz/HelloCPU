@@ -69,7 +69,10 @@ cop_kill = pc_update_en || idu2exu_fence_i || exu_mispredict_flush_r || cop_refe
 1. `cop-smoke`：单条 `funct3=0` dummy add。
 2. `cop-chain`：连续 dummy add / RAW 基线。
 3. `cop-vadd8`：单条 `funct3=1` 4x8-bit lane add。
-4. `sum`、`load-store`：标量和 LSU 回归。
+4. `cop-vxor8`：单条 `funct3=2` 4x8-bit lane xor。
+5. `cop-vand8`：单条 `funct3=3` 4x8-bit lane and。
+6. `cop-mixed-lanes`：`vadd8 -> vxor8 -> vand8` 连续 mixed lane chain。
+7. `sum`、`load-store`：标量和 LSU 回归。
 
 ## 后续接口扩展
 

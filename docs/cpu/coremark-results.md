@@ -36,10 +36,10 @@ seedcrc          : 0xe9f5
 [0]crcstate      : 0x8e3a
 [0]crcfinal      : 0x988c
 Correct operation validated.
-Total cycles     : 41995856
+Total cycles     : 41981715
 CoreMark/MHz     : 2.381
 
-[HelloCPU] PASS (cycles: 42000681)
+[HelloCPU] PASS (cycles: 41986504)
 ```
 
 ## Current Benchmark Summary
@@ -49,6 +49,7 @@ CoreMark/MHz     : 2.381
 | ITER=1, full predictor + LSU fast paths | Correct CRC | 488632 | 491595 | 2.046 | 0.674 | 30.9% |
 | ITER=100, full predictor + LSU fast paths | Correct CRC | 43871567 | 43876399 | 2.279 | 0.698 | 28.4% |
 | ITER=100, low MUL fast path | Correct CRC | 41995856 | 42000681 | 2.381 | 0.729 | 25.2% |
+| ITER=100, 128-entry BTB | Correct CRC | 41981715 | 41986504 | 2.381 | 0.729 | 25.2% |
 
 ITER=100 is the better throughput reference because CoreMark initialization and reporting overhead are amortized across the timed workload. The current reference is the low `MUL` fast-path run.
 
@@ -89,26 +90,27 @@ This places the current HelloCPU CoreMark/MHz slightly above older Cortex-M3 / e
 | Full predictor + LSU fast paths | 1 | Correct CRC | 491595 | 2.046 |
 | Full predictor + LSU fast paths | 100 | Correct CRC | 43876399 | 2.279 |
 | Low `MUL` fast path | 100 | Correct CRC | 42000681 | 2.381 |
+| 128-entry BTB | 100 | Correct CRC | 41986504 | 2.381 |
 
 The full predictor improved CoreMark ITER=1 by about 16.4% versus the no-prediction reference. The LSU fast-path work improved ITER=100 throughput by about 47.5% over the previous full-predictor baseline, and the low `MUL` fast path adds another 4.5% over the LSU fast-path reference.
 
 ## Latest Performance Counters
 
 ```text
-Total cycles         : 42000681
+Total cycles         : 41986504
 Total instructions   : 30618174 (IPC = 0.729)
-Stall cycles         : 10592012 (25.2%)
+Stall cycles         : 10587545 (25.2%)
 
-Frontend/empty       : 1955405 (18.5% of stalls)
-IFU held valid       : 6973146 (65.8% of stalls)
-  LSU                : 6969244 (99.9% of held-valid stalls)
+Frontend/empty       : 1969921 (18.6% of stalls)
+IFU held valid       : 6973100 (65.9% of stalls)
+  LSU                : 6969198 (99.9% of held-valid stalls)
   MUL/DIV            :    3689 ( 0.1% of held-valid stalls)
     MUL              :       0 ( 0.0% of MUL/DIV held-valid stalls)
     DIV              :    3689 (100.0% of MUL/DIV held-valid stalls)
-LSU wait             : 6980532 (65.9% of stalls)
-  start              : 6973588 (99.9% of LSU wait)
-    load             : 5473195 (78.5% of start)
-    store            : 1500393 (21.5% of start)
+LSU wait             : 6980234 (65.9% of stalls)
+  start              : 6973290 (99.9% of LSU wait)
+    load             : 5473096 (78.5% of start)
+    store            : 1500194 (21.5% of start)
   refill             : 3965 (0.1% of LSU wait)
     AR wait          : 1130 (28.5% of refill)
     R data           : 2508 (63.2% of refill)
@@ -117,8 +119,8 @@ LSU wait             : 6980532 (65.9% of stalls)
 MUL/DIV wait         :    3762 (0.0% of stalls)
   MUL                :       0 ( 0.0% of MUL/DIV wait)
   DIV                :    3762 (100.0% of MUL/DIV wait)
-Control recovery     : 805218 (7.6% of stalls)
-Other backend        : 847095 (8.0% of stalls)
+Control recovery     : 795702 (7.5% of stalls)
+Other backend        : 837926 (7.9% of stalls)
 
 ALU ops              : 15816432 (51.7%)
 Branches             : 6241782 (20.4%)
@@ -128,16 +130,21 @@ Stores               : 1505532 (4.9%)
 Multiplies           : 939697 (3.1%)
 Divides              : 114
 
-BTB hits             : 5887034 (84.5%)
-BTB misses           : 1082991 (15.5%)
-BTB mispredicts      : 790496 (11.3%)
-RAS hits             : 204863 (99.2%)
-RAS misses           : 1738 (0.8%)
+BTB hits             : 5939881 (85.3%)
+BTB misses           : 1025584 (14.7%)
+BTB mispredicts      : 780786 (11.2%)
+RAS hits             : 204795 (99.4%)
+RAS misses           : 1268 (0.6%)
 JAL target bad       : 0
-WBU pcupdate         : 805218
+WBU pcupdate         : 795702
+  branch             : 754234 (94.8% of WBU pcupdate)
+  JAL                : 4966 (0.6% of WBU pcupdate)
+  JALR               : 36502 (4.6% of WBU pcupdate)
+  ECALL              : 0
+  MRET               : 0
 
-ICache hits          : 40739669 (99.7%)
-ICache misses        : 122768 (0.3%)
+ICache hits          : 40701717 (99.7%)
+ICache misses        : 124452 (0.3%)
 Load xacts           : 209 / done: 209
 Store xacts          : 596 / done: 595
 ```
@@ -149,7 +156,7 @@ The current bottleneck is still pipeline stalls rather than instruction-cache ca
 | Area | Evidence | Impact |
 |------|----------|--------|
 | LSU/internal data stalls | `LSU wait` is `6980532` cycles, `65.9%` of all stalls; `start` is `6973588` cycles (`78.5%` load / `21.5%` store); refill is only `3965` cycles | Remaining LSU cost is mostly request start, load-use, and main-pipeline coupling, not memory refill |
-| Branch recovery | Branches are `20.4%`; BTB mispredicts are `790496` (`11.3%`) and WBU redirects are `805218` | Now the second-largest explicit remaining class after LSU |
+| Branch recovery | Branches are `20.4%`; BTB mispredicts are `780786` (`11.2%`) and WBU redirects are `795702`, split into `754234` branch (`94.8%`), `4966` JAL (`0.6%`), and `36502` JALR (`4.6%`) after the 128-entry BTB change | Now the second-largest explicit remaining class after LSU; most recovery cost is branch-driven, not calls/returns |
 | MUL/DIV stalls | `MUL/DIV wait` is only `3762` cycles after the low `MUL` fast path, all from DIV | No longer a CoreMark bottleneck, but still relevant for division-heavy programs |
 | ICache misses | ICache hit rate is `99.7%`; only `122768` IFU fetches for 42.0M cycles | Not the primary bottleneck after 4 KB ICache |
 | DCache/AXI traffic | Load transactions are only `209`; store transactions are `596` | External memory bandwidth is not saturated |
@@ -174,6 +181,7 @@ The most useful next optimizations are therefore microarchitectural rather than 
 | LSU load/store hit fast paths + start pulse, ITER=1 | 2.046 | Current correctness smoke reference |
 | LSU load/store hit fast paths + start pulse, ITER=100 | 2.279 | Historical pre-low-MUL-fast-path throughput reference |
 | Low `MUL` fast path, ITER=100 | 2.381 | Current throughput reference |
+| 128-entry BTB, ITER=100 | 2.381 | Small cycle reduction from `42000681` to `41986504`; rounded CoreMark/MHz unchanged |
 
 ## Correctness Notes
 

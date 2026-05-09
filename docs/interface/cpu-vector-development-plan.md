@@ -223,9 +223,9 @@ CPU 侧负责把结构接入口打通；
 建议接下来优先做：
 
 1. 以 `409575a` 的目录整理结果作为 CPU / 向量共同基线；
-2. 以 `539bf41` 的 COP 连续/混合指令提交修复作为当前接口语义基线；
+2. 以 `d8d578d` 的 COP lane operation 与连续/混合指令提交修复作为当前接口语义基线；
 3. 在新布局下继续维护 `docs/interface/vector-coprocessor-interface.md` 和交接文档；
-4. 保持当前最小 COP 闭环与 `cop-chain` / `cop-vadd8` / `cop-vadd8-chain` / `cop-vadd8-after-add` 回归稳定；
+4. 保持当前最小 COP 闭环与 `cop-chain` / `cop-vadd8` / `cop-vadd8-chain` / `cop-vadd8-after-add` / `cop-vxor8` / `cop-vand8` / `cop-mixed-lanes` 回归稳定；
 5. CPU 侧继续推进 LSU、MUL/DIV、前端握手等结构优化；
 6. 向量侧在 `vsrc/vector/cop` 路径下推进最小真实向量执行；
 7. 双方通过共同回归和 trace 机制确认接口变化。
