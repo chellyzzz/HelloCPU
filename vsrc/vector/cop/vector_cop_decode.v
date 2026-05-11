@@ -12,6 +12,9 @@ localparam LANE_OP_ADD8 = 4'd0;
 localparam LANE_OP_XOR8 = 4'd1;
 localparam LANE_OP_AND8 = 4'd2;
 localparam LANE_OP_SUB8 = 4'd3;
+localparam LANE_OP_MUL8 = 4'd4;
+localparam LANE_OP_SLL8 = 4'd5;
+localparam LANE_OP_SRL8 = 4'd6;
 
 assign o_funct3 = i_ins[14:12];
 assign o_funct7 = i_ins[31:25];
@@ -23,9 +26,12 @@ assign o_scalar_lane_op = (o_funct3 == 3'b010) ? LANE_OP_XOR8 :
 assign o_vrf_lane_op = (o_funct7 == 7'd6) ? LANE_OP_XOR8 :
                        (o_funct7 == 7'd7) ? LANE_OP_AND8 :
                        (o_funct7 == 7'd8) ? LANE_OP_SUB8 :
+                       (o_funct7 == 7'd9) ? LANE_OP_MUL8 :
+                       (o_funct7 == 7'd10) ? LANE_OP_SLL8 :
+                       (o_funct7 == 7'd11) ? LANE_OP_SRL8 :
                        LANE_OP_ADD8;
 
-assign o_is_vrf_op   = (o_funct3 == 3'b000) && (o_funct7 >= 7'd3) && (o_funct7 <= 7'd8);
-assign o_is_vrf_lane = (o_funct3 == 3'b000) && (o_funct7 >= 7'd5) && (o_funct7 <= 7'd8);
+assign o_is_vrf_op   = (o_funct3 == 3'b000) && (o_funct7 >= 7'd3) && (o_funct7 <= 7'd11);
+assign o_is_vrf_lane = (o_funct3 == 3'b000) && (o_funct7 >= 7'd5) && (o_funct7 <= 7'd11);
 
 endmodule

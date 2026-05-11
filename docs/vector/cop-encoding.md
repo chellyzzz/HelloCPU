@@ -18,6 +18,15 @@
 | 0 | 0 | scalar add | rs1 + rs2 | 无 | sum, cop-scalar-ext |
 | 0 | 1 | scalar sub | rs1 - rs2 | 无 | cop-scalar-ext |
 | 0 | 2 | scalar mul | (rs1 * rs2)[31:0] | 无 | cop-scalar-ext |
+| 0 | 3 | vload | GPR → VRF，返回旧 v[rs2] | VRF | cop-vrf-load-store |
+| 0 | 4 | vstore | VRF → GPR，只读 | 无 | cop-vrf-load-store |
+| 0 | 5 | vrf lane add | v0 + v1（4x8-bit） | VRF | cop-vrf-vadd8 |
+| 0 | 6 | vrf lane xor | v0 ^ v1 | VRF | cop-vrf-vadd8 |
+| 0 | 7 | vrf lane and | v0 & v1 | VRF | cop-vrf-vadd8 |
+| 0 | 8 | vrf lane sub | v0 - v1（4x8-bit） | VRF | cop-vrf-vadd8 |
+| 0 | 9 | vrf lane mul | v0 * v1（4x8-bit，取低 8 位） | VRF | cop-vrf-mul-shift |
+| 0 | 10 | vrf lane sll | v0 << v1（4x8-bit，每字节低 3 位） | VRF | cop-vrf-mul-shift |
+| 0 | 11 | vrf lane srl | v0 >> v1（4x8-bit，每字节低 3 位） | VRF | cop-vrf-mul-shift |
 | 1 | * | vadd8 | 4x8-bit lane add | 无 | cop-vadd8, cop-vadd8-chain |
 | 2 | * | vxor8 | rs1 ^ rs2 | 无 | cop-vxor8 |
 | 3 | * | vand8 | rs1 & rs2 | 无 | cop-vand8, cop-mixed-lanes |
@@ -126,3 +135,6 @@ opcode = 0x0b (custom-0)
 | cop-vlen-cross | vlen + lane ops | vlen 与 lane ops 互不干扰 |
 | cop-opcount | opcount | 计数器递增 |
 | cop-opcount-cross | opcount + mixed ops | 计数器跨多种操作 |
+| cop-vrf-load-store | vload, vstore | VRF 读写基本功能 |
+| cop-vrf-vadd8 | vrf lane add/xor/and/sub | VRF lane ops |
+| cop-vrf-mul-shift | vrf lane mul/sll/srl | VRF lane 乘法和移位 |
