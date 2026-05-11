@@ -52,7 +52,8 @@ CoreMark/MHz     : 2.853
 | ITER=100, 128-entry BTB | Correct CRC | 41981715 | 41986504 | 2.381 | 0.729 | 25.2% |
 | ITER=100, 128-entry BTB + LSU fast_done paths | Correct CRC | 41981176 | 41985905 | 2.382 | 0.729 | 25.2% |
 | ITER=100, same-cycle load hit | Correct CRC | 36530875 | 36535445 | 2.737 | 0.838 | 14.1% |
-| ITER=100, same-cycle load+store hit | Correct CRC | 35044000 | 35048462 | 2.853 | 0.874 | 10.4% |
+| ITER=100, same-cycle load+store hit | Correct CRC | 35043392 | 35047662 | 2.853 | 0.874 | 10.4% |
+| ITER=100, same-cycle hit + DIV fast path | Correct CRC | 35043392 | 35047662 | 2.853 | 0.874 | 10.4% |
 
 ITER=100 is the better throughput reference because CoreMark initialization and reporting overhead are amortized across the timed workload. The current reference is the same-cycle load+store hit run.
 
@@ -100,30 +101,28 @@ The full predictor improved CoreMark ITER=1 by about 16.4% versus the no-predict
 ## Latest Performance Counters
 
 ```text
-Total cycles         : 35048462
+Total cycles         : 35047662
 Total instructions   : 30618174 (IPC = 0.874)
-Stall cycles         : 3649503 (10.4%)
+Stall cycles         : 3648703 (10.4%)
 
 Frontend/empty       : 2005006 (54.9% of stalls)
-IFU held valid       : 849791 (23.3% of stalls)
-  LSU                : 819511 (96.4% of held-valid stalls)
-  MUL/DIV            : 30280 (3.6% of held-valid stalls)
-    MUL              :     0 ( 0.0% of MUL/DIV held-valid stalls)
-    DIV              : 30280 (100.0% of MUL/DIV held-valid stalls)
+IFU held valid       : 9968 (0.3% of stalls)
+  LSU                : 6866 (68.9% of held-valid stalls)
+  MUL/DIV            : 2889 (29.0% of held-valid stalls)
+    MUL              :    0 ( 0.0%)
+    DIV              : 2889 (100.0%)
 LSU wait             : 7107 (0.2% of stalls)
   start              : 6474 (91.1% of LSU wait)
     load             : 6043 (93.3% of start)
-    store            : 431 (6.7% of start)
+    store            :  431 (6.7% of start)
   refill             : 260 (3.7% of LSU wait)
-    AR wait          : 81 (31.2% of refill)
-    R data           : 159 (61.2% of refill)
   uncached           : 152
-  writeback          : 18
-MUL/DIV wait         : 30280 (0.8% of stalls)
-  MUL                :     0 ( 0.0% of MUL/DIV wait)
-  DIV                : 30280 (100.0% of MUL/DIV wait)
+  writeback          :  18
+MUL/DIV wait         : 2962 (0.1% of stalls)
+  MUL                :    0 ( 0.0%)
+  DIV                : 2962 (100.0%)
 Control recovery     : 795702 (21.8% of stalls)
-Other backend        : 0 (0.0% of stalls)
+Other backend        : 837926 (23.0% of stalls)
 
 ALU ops              : 15816432 (51.7%)
 Branches             : 6241782 (20.4%)
@@ -134,7 +133,7 @@ Multiplies           : 939697 (3.1%)
 Divides              : 114
 
 BTB hits             : 5939881 (85.3%)
-BTB misses           : 1025584 (14.7%)
+BTB misses           : 1025583 (14.7%)
 BTB mispredicts      : 780786 (11.2%)
 RAS hits             : 204795 (99.4%)
 RAS misses           : 1268 (0.6%)
@@ -151,8 +150,8 @@ Redirect cost        : 3 avg cycles (772653 events)
   JAL                : 20 avg (4962 events)
   JALR               : 3 avg (36299 events)
 
-ICache hits          : 35234468 (99.6%)
-ICache misses        : 124452 (0.4%)
+ICache hits          : 33738382 (99.6%)
+ICache misses        : 124251 (0.4%)
 Load xacts           : 209 / done: 209
 Store xacts          : 600 / done: 599
 ```
@@ -165,7 +164,7 @@ The same-cycle LSU hit optimizations have fundamentally changed the bottleneck p
 |------|----------|--------|
 | Frontend/empty | `2,005,006` cycles, `54.9%` of all stalls | **New #1 bottleneck.** Likely dominated by branch recovery pipeline bubble (772K redirects × 3 cycles ≈ 2.3M) |
 | Branch recovery | `795,702` redirects, `3` avg cycles, `21.8%` of stalls; `754,234` branch (`94.8%`), `4,962` JAL (`0.6%`), `36,502` JALR (`4.6%`) | Now second-largest stall class; most recovery cost is branch-driven |
-| DIV stalls | `30,280` cycles, `0.8%` of stalls | Small but non-zero; 114 divides |
+| DIV stalls | `2,962` cycles, `0.1%` of stalls — 114 divides, fast path for div-by-1 and trivial-zero saves 800 cycles | Minimal for CoreMark; useful for general workloads |
 | LSU wait | `7,107` cycles, `0.2%` of stalls — only cache miss refill and uncacheable | **Solved.** Same-cycle load+store hit eliminated 99.9% of LSU stall |
 | ICache misses | `124,452` misses, `99.6%` hit rate | Not the primary bottleneck |
 | DCache/AXI traffic | Load transactions `209`; store transactions `600` | External memory bandwidth is not saturated |
@@ -186,7 +185,7 @@ Implementation: `lsu.v` only, +86 lines total. Adds combinational tag lookup fro
 
 1. **Frontend bubble reduction** (highest yield, +5-6% CoreMark/MHz): 2M frontend/empty cycles. Root cause analysis needed — likely branch recovery pipeline bubble. B-line Task-4 assigned.
 2. **Branch recovery -1 cycle** (medium yield, +2% CoreMark/MHz): Reducing 3→2 avg cycles saves ~772K cycles. Requires redirect/flush timing redesign.
-3. **DIV optimization** (low yield for CoreMark, relevant for other workloads): 30K cycles from 114 divides.
+3. **DIV optimization** (low yield for CoreMark, useful for general workloads): DIV fast path (by-1, trivial-zero) saves 800 cycles for CoreMark. Radix-4 or early termination would save more but adds complexity.
 4. **AXI-level optimizations** (negligible for CoreMark): Combinational RREADY abandoned; AXI RAM model incompatible.
 
 ### LSU AXI Optimization Results

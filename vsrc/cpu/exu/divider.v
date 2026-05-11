@@ -33,11 +33,23 @@ module hcpu_divider_pre (
 
     wire div_by_zero     = (src2 == 32'b0);
     wire signed_overflow = is_signed & (src1 == 32'h80000000) & (src2 == 32'hFFFFFFFF);
-    assign is_special    = div_by_zero | signed_overflow;
+    wire div_by_one      = (src2 == 32'd1) & ~div_by_zero;
+    wire trivial_zero    = (abs_divisor > abs_dividend) & ~div_by_zero;
+    assign is_special    = div_by_zero | signed_overflow | div_by_one | trivial_zero;
+
+    wire [31:0] one_q = div_by_one ? src1 : 32'b0;
+    wire [31:0] one_r = div_by_zero ? src1 : 32'b0;
+    wire [31:0] tz_q  = 32'b0;
+    wire [31:0] tz_r  = src1;
 
     assign special_q = div_by_zero     ? 32'hFFFFFFFF :
-                       signed_overflow ? 32'h80000000 : 32'b0;
-    assign special_r = div_by_zero     ? src1 : 32'b0;
+                       signed_overflow ? 32'h80000000 :
+                       div_by_one     ? one_q :
+                       trivial_zero   ? tz_q : 32'b0;
+    assign special_r = div_by_zero     ? src1 :
+                       signed_overflow ? 32'b0 :
+                       div_by_one     ? one_r :
+                       trivial_zero   ? tz_r : 32'b0;
 endmodule
 
 // ----------------------------------------------------------------------------
