@@ -37,6 +37,8 @@
 | 0 | 9 | vrf lane mul | v0 * v1（4x8-bit，取低 8 位） | VRF | cop-vrf-mul-shift |
 | 0 | 10 | vrf lane sll | v0 << v1（4x8-bit，每字节低 3 位） | VRF | cop-vrf-mul-shift |
 | 0 | 11 | vrf lane srl | v0 >> v1（4x8-bit，每字节低 3 位） | VRF | cop-vrf-mul-shift |
+| 0 | 12 | vrf lane sra | v0 >>> v1（4x8-bit，符号扩展） | VRF | cop-vrf-sra-or |
+| 0 | 13 | vrf lane or | v0 \| v1 | VRF | cop-vrf-sra-or |
 | 1 | * | vadd8 | 4x8-bit lane add | 无 | cop-vadd8, cop-vadd8-chain |
 | 2 | * | vxor8 | rs1 ^ rs2 | 无 | cop-vxor8 |
 | 3 | * | vand8 | rs1 & rs2 | 无 | cop-vand8, cop-mixed-lanes |
@@ -148,3 +150,4 @@ opcode = 0x0b (custom-0)
 | cop-vrf-load-store | vload, vstore | VRF 读写基本功能 |
 | cop-vrf-vadd8 | vrf lane add/xor/and/sub | VRF lane ops |
 | cop-vrf-mul-shift | vrf lane mul/sll/srl | VRF lane 乘法和移位 |
+| cop-vrf-sra-or | vrf lane sra/or | VRF lane 算术右移和按位或 |

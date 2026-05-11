@@ -70,6 +70,13 @@ wire [31:0] vrf_lane_srl8 = {
     vrf[0][15:8]  >> vrf[1][10:8],
     vrf[0][7:0]   >> vrf[1][2:0]
 };
+wire [31:0] vrf_lane_sra8 = {
+    $signed(vrf[0][31:24]) >>> vrf[1][26:24],
+    $signed(vrf[0][23:16]) >>> vrf[1][18:16],
+    $signed(vrf[0][15:8])  >>> vrf[1][10:8],
+    $signed(vrf[0][7:0])   >>> vrf[1][2:0]
+};
+wire [31:0] vrf_lane_or8 = vrf[0] | vrf[1];
 wire [31:0] vrf_op_result = (cop_funct7 == 7'd5) ? vrf_lane_add8 :
                             (cop_funct7 == 7'd6) ? vrf_lane_xor8 :
                             (cop_funct7 == 7'd7) ? vrf_lane_and8 :
@@ -77,9 +84,11 @@ wire [31:0] vrf_op_result = (cop_funct7 == 7'd5) ? vrf_lane_add8 :
                             (cop_funct7 == 7'd9) ? vrf_lane_mul8 :
                             (cop_funct7 == 7'd10) ? vrf_lane_sll8 :
                             (cop_funct7 == 7'd11) ? vrf_lane_srl8 :
+                            (cop_funct7 == 7'd12) ? vrf_lane_sra8 :
+                            (cop_funct7 == 7'd13) ? vrf_lane_or8 :
                             vrf_lane_add8;
-wire        is_vrf_op  = (cop_funct3 == 3'b000) && (cop_funct7 >= 7'd3) && (cop_funct7 <= 7'd11);
-wire        is_vrf_lane = (cop_funct3 == 3'b000) && (cop_funct7 >= 7'd5) && (cop_funct7 <= 7'd11);
+wire        is_vrf_op  = (cop_funct3 == 3'b000) && (cop_funct7 >= 7'd3) && (cop_funct7 <= 7'd13);
+wire        is_vrf_lane = (cop_funct3 == 3'b000) && (cop_funct7 >= 7'd5) && (cop_funct7 <= 7'd13);
 wire [31:0] cop_result = (cop_funct3 == 3'b001) ? lane_add8 :
                           (cop_funct3 == 3'b010) ? lane_xor8 :
                           (cop_funct3 == 3'b011) ? lane_and8 :
