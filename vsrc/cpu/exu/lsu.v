@@ -133,7 +133,10 @@ always @(posedge clock or posedge reset) begin
         o_pre_ready_d1 <= 1'b0;
     end else begin
         o_pre_ready_d1 <= o_pre_ready;
-        init_txn_ff    <= INIT_AXI_TXN;
+        if (fast_idle_load_hit_done)
+            init_txn_ff <= 1'b0;
+        else
+            init_txn_ff <= INIT_AXI_TXN;
     end
 end
 
@@ -171,6 +174,32 @@ wire [31:0] hit_word = w0_hit ? cache_data[addr_index][0][addr_word] :
                        w1_hit ? cache_data[addr_index][1][addr_word] :
                        w2_hit ? cache_data[addr_index][2][addr_word] :
                                 cache_data[addr_index][3][addr_word] ;
+
+// ============================================================
+// Same-Cycle Hit Detection (combinational, from alu_res)
+// ============================================================
+wire [TAG_BITS-1:0]      alu_addr_tag   = alu_res[ADDR_WIDTH-1 : INDEX_BITS+OFFSET_BITS];
+wire [INDEX_BITS-1:0]    alu_addr_index = alu_res[INDEX_BITS+OFFSET_BITS-1 : OFFSET_BITS];
+wire [WORD_IDX_BITS-1:0] alu_addr_word  = alu_res[OFFSET_BITS-1 : 2];
+wire                     alu_cacheable  = (alu_res >= CACHE_START && alu_res < CACHE_END);
+
+wire alu_w0_hit = cache_valid[alu_addr_index][0] && (cache_tag[alu_addr_index][0] == alu_addr_tag);
+wire alu_w1_hit = cache_valid[alu_addr_index][1] && (cache_tag[alu_addr_index][1] == alu_addr_tag);
+wire alu_w2_hit = cache_valid[alu_addr_index][2] && (cache_tag[alu_addr_index][2] == alu_addr_tag);
+wire alu_w3_hit = cache_valid[alu_addr_index][3] && (cache_tag[alu_addr_index][3] == alu_addr_tag);
+wire alu_cache_hit = alu_w0_hit | alu_w1_hit | alu_w2_hit | alu_w3_hit;
+
+wire [1:0] alu_hit_way = alu_w0_hit ? 2'd0 : alu_w1_hit ? 2'd1 : alu_w2_hit ? 2'd2 : 2'd3;
+
+wire [31:0] alu_hit_word = alu_w0_hit ? cache_data[alu_addr_index][0][alu_addr_word] :
+                           alu_w1_hit ? cache_data[alu_addr_index][1][alu_addr_word] :
+                           alu_w2_hit ? cache_data[alu_addr_index][2][alu_addr_word] :
+                                        cache_data[alu_addr_index][3][alu_addr_word] ;
+
+wire fast_idle_load_hit_done = (state == S_IDLE) && i_load && alu_cacheable && alu_cache_hit;
+wire [1:0] idle_hit_way = fast_idle_load_hit_done ? alu_hit_way : hit_way;
+wire [31:0] idle_hit_word = fast_idle_load_hit_done ? alu_hit_word : hit_word;
+wire [INDEX_BITS-1:0] idle_addr_index = fast_idle_load_hit_done ? alu_addr_index : addr_index;
 
 // ============================================================
 // PLRU Victim Selection
@@ -227,7 +256,7 @@ wire fast_store_hit_done  = (state == S_CHECK) && !lat_is_load && lat_cacheable 
 wire fast_refill_done     = (state == S_REFILL_R) && refill_rready && M_AXI_RLAST && lat_is_load;
 wire fast_uncache_r_done  = (state == S_UNCACHE_R) && axi_rready;
 wire fast_uncache_b_done  = (state == S_UNCACHE_B) && axi_bready;
-assign lsu_done = done_reg || fast_load_hit_done || fast_store_hit_done || fast_refill_done || fast_uncache_r_done || fast_uncache_b_done;
+assign lsu_done = done_reg || fast_idle_load_hit_done || fast_load_hit_done || fast_store_hit_done || fast_refill_done || fast_uncache_r_done || fast_uncache_b_done;
 
 assign o_dbg_wait_start = (state == S_IDLE) && is_ls;
 
@@ -327,7 +356,10 @@ always @(posedge clock or posedge reset) begin
         case (state)
         // 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
         S_IDLE: begin
-            if (txn_pulse_load || txn_pulse_store) begin
+            if (fast_idle_load_hit_done) begin
+                // Same-cycle load hit: no FSM transition needed
+            end
+            else if (txn_pulse_load || txn_pulse_store) begin
                 // Latch request
                 lat_addr      <= alu_res;
                 lat_shift     <= alu_res[1:0];
@@ -690,13 +722,32 @@ always @(posedge clock or posedge reset) begin
             2'd3: plru[addr_index] <= {1'b0, plru[addr_index][1], 1'b0};
         endcase
     end
+    else if (fast_idle_load_hit_done) begin
+        case (alu_hit_way)
+            2'd0: plru[alu_addr_index] <= {plru[alu_addr_index][2], 1'b1, 1'b1};
+            2'd1: plru[alu_addr_index] <= {plru[alu_addr_index][2], 1'b0, 1'b1};
+            2'd2: plru[alu_addr_index] <= {1'b1, plru[alu_addr_index][1], 1'b0};
+            2'd3: plru[alu_addr_index] <= {1'b0, plru[alu_addr_index][1], 1'b0};
+        endcase
+    end
 end
 
 // ============================================================
 // Load Result Mux (byte extract + sign extend)
 // ============================================================
 wire refill_hit_word = (state == S_REFILL_R) && M_AXI_RVALID && refill_rready && (refill_cnt == addr_word);
-wire [31:0] raw_word = fast_load_hit_done      ? hit_word :
+wire [4:0] idle_shift8 = {alu_res[1:0], 3'b0};
+wire [31:0] idle_shifted_data = alu_hit_word >> idle_shift8;
+wire [31:0] idle_load_src = idle_shifted_data;
+wire [31:0] idle_load_res_next =
+    (exu_opt == LB)  ? {{24{idle_load_src[7]}},  idle_load_src[7:0]}  :
+    (exu_opt == LH)  ? {{16{idle_load_src[15]}}, idle_load_src[15:0]} :
+    (exu_opt == LW)  ? idle_load_src                              :
+    (exu_opt == LBU) ? {24'b0, idle_load_src[7:0]}                :
+    (exu_opt == LHU) ? {16'b0, idle_load_src[15:0]}               :
+                       32'b0;
+wire [31:0] raw_word = fast_idle_load_hit_done ? alu_hit_word :
+                       fast_load_hit_done      ? hit_word :
                        (state == S_CACHE_HIT)  ? hit_word :
                        refill_hit_word          ? M_AXI_RDATA :
                        (state == S_REFILL_R)    ? cache_data[addr_index][victim_way_lat][addr_word] :
@@ -713,14 +764,15 @@ wire [31:0] load_res_next =
                            32'b0;
 
 reg [31:0] load_res_reg;
-assign load_res = (fast_load_hit_done || fast_refill_done || fast_uncache_r_done) ? load_res_next : load_res_reg;
+assign load_res = fast_idle_load_hit_done ? idle_load_res_next :
+                  (fast_load_hit_done || fast_refill_done || fast_uncache_r_done) ? load_res_next : load_res_reg;
 
 always @(posedge clock or posedge reset) begin
   if (reset) begin
     load_res_reg <= 32'b0;
   end
   else begin
-    if (state == S_CACHE_HIT || refill_hit_word || (state == S_UNCACHE_R && M_AXI_RVALID)) begin
+    if (fast_idle_load_hit_done || state == S_CACHE_HIT || refill_hit_word || (state == S_UNCACHE_R && M_AXI_RVALID)) begin
       load_res_reg <= load_res_next;
     end
   end
