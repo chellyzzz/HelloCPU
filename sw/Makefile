@@ -8,7 +8,7 @@ CFLAGS   = -march=rv32im_zicsr -mabi=ilp32 -nostdlib -nostartfiles -ffreestandin
 LDFLAGS  = -T link.ld -static -Wl,--build-id=none
 
 BUILD_DIR        = build
-SCALAR_TEST_DIR  = tests/cpu-tests
+SCALAR_TEST_DIR  = tests/scalar-tests
 VECTOR_TEST_DIR  = tests/vector-tests
 SCALAR_BUILD_DIR = $(BUILD_DIR)/scalar
 VECTOR_BUILD_DIR = $(BUILD_DIR)/vector

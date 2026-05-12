@@ -30,7 +30,8 @@ VERILATOR_FLAGS += "+define+PERF_BRANCH_PRED"
 VERILATOR_FLAGS += $(EXTRA_VERILATOR_FLAGS)
 
 # Tests
-TESTS := $(basename $(notdir $(wildcard $(SW_DIR)/tests/cpu-tests/*.c)))
+SCALAR_TESTS := $(basename $(notdir $(wildcard $(SW_DIR)/tests/scalar-tests/*.c)))
+VECTOR_TESTS := $(basename $(notdir $(wildcard $(SW_DIR)/tests/vector-tests/*.c)))
 
 # === Targets ===
 
@@ -58,16 +59,27 @@ sw:
 ifeq ($(ALL),)
 run: sim sw
 	@pass=0; fail=0; \
-	for t in $(TESTS); do \
-		echo "=== $$t ==="; \
-		$(BUILD_DIR)/V$(TOPNAME) $(SW_DIR)/build/$$t.bin; \
+	for t in $(SCALAR_TESTS); do \
+		echo "=== scalar/$$t ==="; \
+		$(BUILD_DIR)/V$(TOPNAME) $(SW_DIR)/build/scalar/$$t.bin; \
+		if [ $$? -eq 0 ]; then pass=$$((pass+1)); else fail=$$((fail+1)); fi; \
+	done; \
+	for t in $(VECTOR_TESTS); do \
+		echo "=== vector/$$t ==="; \
+		$(BUILD_DIR)/V$(TOPNAME) $(SW_DIR)/build/vector/$$t.bin; \
 		if [ $$? -eq 0 ]; then pass=$$((pass+1)); else fail=$$((fail+1)); fi; \
 	done; \
 	echo ""; echo "Results: $$pass passed, $$fail failed"
 else
 run: sim sw
 	@echo "=== Running test: $(ALL) ==="
-	@$(BUILD_DIR)/V$(TOPNAME) $(SW_DIR)/build/$(ALL).bin
+	@if [ -f "$(SW_DIR)/build/scalar/$(ALL).bin" ]; then \
+		$(BUILD_DIR)/V$(TOPNAME) $(SW_DIR)/build/scalar/$(ALL).bin; \
+	elif [ -f "$(SW_DIR)/build/vector/$(ALL).bin" ]; then \
+		$(BUILD_DIR)/V$(TOPNAME) $(SW_DIR)/build/vector/$(ALL).bin; \
+	else \
+		echo "Unknown test: $(ALL)"; exit 1; \
+	fi
 endif
 
 # Run benchmark
