@@ -17,7 +17,29 @@
 - 分阶段目标；
 - A/B 两条 CPU 线的职责分配。
 
-## 二、当前全局判断
+## 二、长期性能目标
+
+当前需要明确一个现实约束：
+
+> **在当前单发射、顺序、单结果提交的标量核框架下，IPC 不可能长期达到 2。**
+
+因此，如果长期目标是 **`IPC >= 2`**，那么这已经不是“继续做局部优化”的问题，而是要明确进入新的微架构阶段。
+
+这意味着：
+
+1. 短期目标不再是单纯抬高当前单发射核的 IPC 上限；
+2. 中期要把当前核心演进成“可双发射、可解耦、可扩展”的结构；
+3. 长期要接受如下事实：
+   - `IPC ~0.8 -> 1.0` 可以靠当前单发射核内的局部优化实现；
+   - `IPC > 1.0` 需要显著减少 bubble 和等待；
+   - **`IPC >= 2` 基本要求至少 2-wide in-order issue/commit 能力**，或者等价的更强结构并行性。
+
+所以本文档后续路线分为两层：
+
+- **阶段 A：把当前单发射核做到接近它的合理上限**；
+- **阶段 B：为 IPC 2 目标做结构跃迁准备，并最终进入双发射顺序核。**
+
+## 三、当前全局判断
 
 当前稳定点：`8f48295`
 
@@ -50,7 +72,7 @@
    - backend 语义清晰化；
    - 面向未来向量扩展的统一接口。
 
-## 三、长期整体优化主线
+## 四、长期整体优化主线
 
 如果跳出单点优化，HelloCPU 后续的长期性能提升应当沿着三条主线推进。
 
@@ -85,7 +107,7 @@
 
 这是“把结构理清，避免假瓶颈和接口混乱”的路线。
 
-## 四、分阶段路线
+## 五、分阶段路线
 
 ## 阶段 0：已完成的高收益局部优化
 
@@ -108,27 +130,28 @@
 
 这一阶段说明：HelloCPU 已经不再是“被 LSU 卡死的教学核”，而是一个前端恢复成本主导的顺序核。
 
-## 阶段 1：redirect 成本压缩（当前主阶段）
+## 阶段 1：把当前单发射核做到接近上限（当前主阶段）
 
 ### 目标
 
-把当前 2.8M redirect 相关成本继续压低。
+把当前单发射核的明显浪费尽可能清掉，让 IPC 从当前 `0.874` 继续向 `~1.0` 靠近。
 
 ### 主要任务
 
 1. 降低 BTB miss / mispredict
 2. 缩短 redirect recovery latency
 3. 精确区分 frontend bubble、control recovery、normal pipeline occupancy
+4. 分清 `Other backend` 中哪些是“真 stall”，哪些只是正常 EXU→WBU latency
 
 ### 预期收益
 
-这是当前唯一仍有 **5%~10% 级别潜力** 的方向。
+这是当前唯一仍有 **5%~10% 级别潜力** 的方向，也是单发射核继续抬高 IPC 的最后高收益区间。
 
-## 阶段 2：backend 语义清晰化
+## 阶段 2：为更高 issue 宽度做结构准备
 
 ### 目标
 
-把当前“局部快路径很多，但 backend 边界仍模糊”的状态，整理成更稳定的结构。
+把当前 CPU 从“高性能单发射核”推进成“具备双发射前提条件的顺序核”。
 
 ### 主要任务
 
@@ -138,46 +161,79 @@
 4. 让 performance counters 区分：
    - normal pipe occupancy
    - true backend block
+5. 引入更明确的 issue boundary，避免“当前拍 decode、当前拍 accept、下一拍 commit”这些边界混杂
+6. 明确以后 2-wide issue 时哪些结构必须扩展：
+   - IFU fetch width
+   - IDU decode width
+   - Register file read/write 端口
+   - EXU/WBU commit bandwidth
 
 ### 预期收益
 
-短期跑分不一定最大，但它决定后面是否还能继续稳定优化。
+短期跑分不一定最大，但它决定后面能不能真的向 IPC 2 迈进，而不是被当前单发射结构卡死。
 
-## 阶段 3：memory 和协处理器接口结构化
-
-### 目标
-
-让 scalar LSU、COP memory、future vector memory 不再是彼此独立的特例。
-
-### 主要任务
-
-1. 统一 memory request / response 语义
-2. 评估 store buffer / queue / request tracking
-3. 为 C 线最小向量访存、后续 RVV migration 预留 CPU 接口
-4. 统一 kill / flush / exception 传播方式
-
-### 预期收益
-
-这是“为未来的更大优化铺路”的阶段，不只是为了当前 CoreMark。
-
-## 阶段 4：轻量解耦与结构扩展
+## 阶段 3：前后端解耦与局部并行
 
 ### 目标
 
-在保持 in-order 的前提下，减少短期抖动和全局反压。
+在不立刻上 2-wide 的情况下，先让前端和后端不再彼此死死绑住，为双发射创造稳定环境。
 
 ### 主要任务
 
 1. fetch / decode 小队列
 2. 轻量级 scoreboard
-3. 更清晰的 issue boundary
-4. 多周期单元 busy 的局部化
+3. store buffer / memory request tracking
+4. 将 COP / future vector memory 接口整理成 service model
+5. 统一 kill / flush / exception 传播方式
 
 ### 预期收益
 
-这一阶段不是马上追 superscalar，而是把顺序核做成“结构成熟、可继续演化”的基底。
+这一步的收益不是马上把 IPC 拉到 2，而是让“同时让两类工作并行存在”成为可能。
 
-## 五、A/B 分工
+## 阶段 4：进入双发射顺序核
+
+### 目标
+
+正式进入 **2-wide in-order**，这是 IPC 2 目标的必要阶段。
+
+### 主要任务
+
+1. IFU 至少 2-wide fetch / predecode
+2. IDU 至少 2-wide decode / dispatch
+3. Register file / bypass / scoreboard 支持双发射依赖检查
+4. EXU 后端支持两条指令并行存在：
+   - ALU + branch
+   - ALU + LSU
+   - ALU + MUL
+5. WBU 至少 2-result commit，或者等价的双返回通路
+6. 分支和访存冲突规则明确定义
+
+### 预期收益
+
+这一阶段完成后，IPC 目标才真正从“接近 1”切换到“可以实质性冲击 2”。
+
+## 阶段 5：面向 IPC 2 的整体验证
+
+### 目标
+
+验证双发射顺序核在真实 workload 下是否能稳定逼近 IPC 2，而不是只在微基准上漂亮。
+
+### 主要任务
+
+1. 构建不止 CoreMark 的 benchmark matrix
+2. 区分：
+   - integer ALU heavy
+   - branch heavy
+   - load/store heavy
+   - mul/div heavy
+   - cop/vector mixed
+3. 验证 issue 利用率、commit 利用率、bypass 覆盖率、queue occupancy
+
+### 预期收益
+
+这一阶段输出的不是单个 patch，而是对“IPC 2 目标是否真的可行”的系统性回答。
+
+## 六、A/B 分工
 
 ## A 线：Backend Performance And Integration
 
@@ -241,7 +297,29 @@ B 线负责：
 
 辅助 A 一起把 redirect bubble、icache miss、normal refill 这几类前端事件继续拆干净。
 
-## 六、跳出分工框架后的真正优先级
+## 七、阶段化 A/B 任务映射
+
+### 阶段 1（当前）
+
+- A：清洗 `Other backend`，定义 normal occupancy vs true stall
+- B：BTB miss reduction + redirect recovery
+
+### 阶段 2
+
+- A：backend 接口统一、WBU/commit 语义清晰化
+- B：IFU/IDU/issue boundary 清晰化，准备更宽 issue
+
+### 阶段 3
+
+- A：memory service model、store buffer、COP/vector memory 接口
+- B：fetch/decode queue、frontend decoupling、predictor 与 queue 协同
+
+### 阶段 4
+
+- A：双发射 backend / dual writeback / bypass matrix
+- B：双发射 frontend / dual decode / issue arbitration
+
+## 八、跳出分工框架后的真正优先级
 
 如果完全不考虑 A/B 分工，只从全局收益排序，当前最合理的顺序是：
 
@@ -256,7 +334,7 @@ B 线负责：
 - 眼前最大的性能收益仍在前端
 - 真正决定长期上限的，是结构边界是否清晰
 
-## 七、结论
+## 九、结论
 
 HelloCPU 的长期路线已经从“继续抠 LSU”转变成：
 
@@ -268,5 +346,11 @@ HelloCPU 的长期路线已经从“继续抠 LSU”转变成：
 
 - **B 线主攻 frontend / predictor / redirect**
 - **A 线主攻 backend 语义清理和 future interface**
+
+如果长期目标明确为 **IPC ≥ 2**，那么后续路线就必须承认：
+
+1. 当前单发射核只能作为过渡阶段继续榨干；
+2. 真正到 IPC 2，必须进入 **2-wide in-order** 或等价结构跃迁；
+3. 现在做的所有 frontend/backend/interface 清理，都是在为那一步降低风险，而不是可有可无的“整理代码”。
 
 这两条线如果都走通，HelloCPU 才会从“已经很快的教学核”进一步演进成“结构清晰、可持续优化、可扩展”的成熟核心。
