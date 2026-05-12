@@ -164,9 +164,9 @@ Current CoreMark ITER=100 stall picture:
 | Source | Cycles | % of stalls | Owner |
 |--------|--------|-------------|-------|
 | Frontend/empty | `2,005,006` | 55.0% | B |
-| Other backend | `837,926` | 23.0% | A |
+| Other backend | `837,926` | 23.0% | A (currently mostly normal EXU→WBU pipe occupancy) |
 | Control recovery | `795,702` | 21.8% | B |
 | LSU wait | `7,107` | 0.2% | A done |
 | DIV wait | `2,962` | 0.1% | A done |
 
-This means HelloCPU is no longer limited by LSU/cache-hit latency. The current bottleneck is frontend redirect recovery, followed by an unclassified backend bubble source under A analysis.
+This means HelloCPU is no longer limited by LSU/cache-hit latency. The current bottleneck is frontend redirect recovery. The `Other backend` bucket is now understood to be dominated by normal EXU→WBU pipe occupancy for ordinary scalar instructions, not a large true backend stall source.

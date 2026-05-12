@@ -58,7 +58,7 @@
 |--------|--------|-------------|------|
 | Frontend/empty | 2,005,006 | 55.0% | 主要是 redirect recovery bubble |
 | Control recovery | 795,702 | 21.8% | redirect 本体开销 |
-| Other backend | 837,926 | 23.0% | 当前统计口径混入正常 EXU→WBU pipe latency，需要继续清洗 |
+| Other backend | 837,926 | 23.0% | 当前已确认不是“真 stall”热点，几乎全部是普通标量指令经过 EXU→WBU 的正常 pipe latency，需要继续从 stall 统计里剥离 |
 | LSU wait | 7,107 | 0.2% | 已基本解决 |
 | DIV wait | 2,962 | 0.1% | 已基本解决 |
 
@@ -66,7 +66,7 @@
 
 1. **LSU 已不是主瓶颈。** same-cycle load/store hit 已经把 LSU 从 6.98M cycles 降到 7K。
 2. **真正的大头已经转到 redirect 链。** `Frontend/empty + Control recovery ≈ 2.8M cycles`，占当前 stall 的约 77%。
-3. **“Other backend” 目前不能直接当成性能热点。** 其中混入了普通指令在 EXU→WBU 的正常 1-cycle pipe latency，需继续拆分“真 stall”和“正常在飞”。
+3. **“Other backend” 目前不能直接当成性能热点。** 最新细分显示 `blocked = 0`、`pipe latency = 100%`，说明这里主要是正常 backend occupancy，而不是后端真正阻塞。
 4. 后续优化不应再继续以 LSU 局部 patch 为主，而应转向：
    - 前端预测与恢复；
    - backend 语义清晰化；
@@ -254,7 +254,7 @@ A 线负责：
 - true backend blocked
 - mul-high / cop / residual
 
-这是 A 线当前最直接的工作。
+这仍然是 A 线当前最直接的工作，而且已经确认：这一桶当前大头不是 MUL 或 COP，而是普通 `ALU/other` 指令的正常一拍传递。
 
 #### A-2：统一 backend 接口语义
 
