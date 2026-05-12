@@ -161,6 +161,8 @@ Future vector memory access and RVV migration will require CPU-side decode, LSU 
 
 Current CoreMark ITER=100 stall picture:
 
+The historical table below still reflects the older mixed reporting bucket. Current counter semantics now print `True stall cycles` separately from `Backend pipe occ`, so normal EXU->WBU occupancy is no longer presented as backend stall.
+
 | Source | Cycles | % of stalls | Owner |
 |--------|--------|-------------|-------|
 | Frontend/empty | `2,005,006` | 55.0% | B |

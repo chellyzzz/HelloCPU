@@ -115,6 +115,23 @@ So the near-term A-line goal is not “rewrite LSU”, but:
 2. identify the scalar completion boundary
 3. make those boundaries explicit in documentation and top-level wiring
 
+Current V1 code-facing boundary signals are now exposed at CPU top level through the scalar EXU instance:
+
+- `scalar_mem_req_valid`
+- `scalar_mem_req_store`
+- `scalar_mem_req_addr`
+- `scalar_mem_req_wdata`
+- `scalar_mem_req_size`
+- `scalar_mem_resp_valid`
+- `scalar_mem_resp_rdata`
+
+Important V1 semantic note:
+
+- `scalar_mem_req_valid` currently means **the scalar EXU entry owns an active memory request**, not a new decoupled one-cycle launch handshake.
+- `scalar_mem_resp_valid` means **the active scalar memory request has completed**.
+
+This is intentional. The current step is to expose a clean boundary first, without rewriting LSU into a new protocol all at once.
+
 ### COP memory tomorrow
 
 For the first COP memory prototype, the safest rule is:

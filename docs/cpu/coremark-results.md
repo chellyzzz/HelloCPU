@@ -164,7 +164,7 @@ The same-cycle LSU hit optimizations have fundamentally changed the bottleneck p
 |------|----------|--------|-------|
 | Frontend/empty | `2,005,006` cycles, `54.9%` of all stalls | **#1 bottleneck.** 96% = redirect recovery bubble (772K redirects × ~2.5 frontend/empty cycles). Root cause: BTB miss → mispredict → redirect. | B |
 | Control recovery | `795,702` cycles, `21.8%` of stalls; `754,234` branch (`94.8%`), `4,962` JAL, `36,502` JALR | #3 bottleneck. Redirect cost 3 avg cycles. Combined with frontend/empty bubble = 2.73M total redirect cost (74.8% of stalls). | B |
-| Other backend | `837,926` cycles, `23.0%` of stalls | **Not a true stall hotspot.** Counter split shows `blocked = 0`, `pipe latency = 100%`, and pipe latency is almost entirely ordinary `ALU/other` instructions moving through the EXU→WBU register. This is normal backend occupancy mixed into the stall bucket. | A |
+| Other backend | `837,926` cycles, `23.0%` of stalls | Historical mixed bucket. New simulator counter semantics now report this as `Other blocked bknd` plus separate `Backend pipe occ` / `Pipe occ breakdown`, because the old bucket was dominated by normal EXU→WBU occupancy rather than true stall. | A |
 | DIV stalls | `2,962` cycles, `0.1%` — 114 divides; fast path (by-1, trivial-zero) saves 800 cycles | Solved. Minimal for CoreMark. | A |
 | LSU wait | `7,107` cycles, `0.2%` — only cache miss refill and uncacheable | **Solved.** Same-cycle load+store hit eliminated 99.9% of LSU stall. | A |
 | ICache misses | `124,452` misses, `99.6%` hit rate | Not the primary bottleneck. | — |
@@ -186,7 +186,7 @@ Implementation: `lsu.v` only, +86 lines total. Adds combinational tag lookup fro
 | # | Optimization | Yield | Owner | Status |
 |---|---|---|---|---|
 | 1 | **BTB miss rate reduction** (780K mispredicts × 3 cycles = 2.3M) | +5-8% | B | B-Task-7 assigned |
-| 2 | **Stall counter cleanup** (separate true stall from normal backend occupancy) | Better observability | A | In progress |
+| 2 | **Stall counter cleanup** (separate true stall from normal backend occupancy) | Better observability | A | Landed in simulator/RTL counters; official ITER=100 republish still pending clean baseline rerun |
 | 3 | **Redirect recovery -1 cycle** (772K × 1 cycle saved) | +2% | B | B-Task-8, previous attempt failed |
 | 4 | DIV fast path (by-1, trivial-zero) | +0% for CoreMark | A | Done (`8f48295`) |
 | 5 | AXI-level (combinational RREADY) | ~0% | — | Abandoned, AXI RAM incompatible |

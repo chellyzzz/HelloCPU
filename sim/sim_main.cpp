@@ -64,6 +64,14 @@ static uint64_t cnt_stall_div = 0;
 static uint64_t cnt_stall_cop = 0;
 static uint64_t cnt_stall_ctrl = 0;
 static uint64_t cnt_stall_other = 0;
+static uint64_t cnt_stall_other_blocked = 0;
+static uint64_t cnt_stall_other_pipe = 0;
+static uint64_t cnt_stall_other_pipe_alu = 0;
+static uint64_t cnt_stall_other_pipe_brch = 0;
+static uint64_t cnt_stall_other_pipe_jal = 0;
+static uint64_t cnt_stall_other_pipe_jalr = 0;
+static uint64_t cnt_stall_other_pipe_sys = 0;
+static uint64_t cnt_backend_pipe_occ = 0;
 static uint64_t cnt_icache_hit = 0;
 static uint64_t cnt_icache_miss = 0;
 static uint64_t cnt_ifu_fetch = 0;
@@ -75,6 +83,9 @@ static uint64_t cnt_store_done = 0;
 static uint64_t cnt_btb_hit = 0;
 static uint64_t cnt_btb_miss = 0;
 static uint64_t cnt_btb_mispredict = 0;
+static uint64_t cnt_br_misp_pred_nt = 0;
+static uint64_t cnt_br_misp_pred_taken_nt = 0;
+static uint64_t cnt_br_misp_target_bad = 0;
 static uint64_t cnt_ras_hit = 0;
 static uint64_t cnt_ras_miss = 0;
 static uint64_t cnt_jal_tgt_bad = 0;
@@ -150,8 +161,10 @@ static void print_perf_summary() {
   printf("│ Total cycles         : %12lu                 │\n", total_clk);
   printf("│ Total instructions   : %12lu (IPC = %.3f)       │\n", cnt_inst,
          (double)cnt_inst / total_clk);
-  printf("│ Stall cycles         : %12lu (%.1f%%)            │\n", cnt_stall,
+  printf("│ True stall cycles    : %12lu (%.1f%%)            │\n", cnt_stall,
          100.0 * cnt_stall / total_clk);
+  printf("│ Backend pipe occ     : %12lu (%.1f%%)            │\n",
+         cnt_backend_pipe_occ, 100.0 * cnt_backend_pipe_occ / total_clk);
   if (cnt_stall > 0) {
     printf("│   Frontend/empty     : %10lu (%5.1f%%)            │\n",
            cnt_stall_front, 100.0 * cnt_stall_front / cnt_stall);
@@ -226,8 +239,32 @@ static void print_perf_summary() {
            cnt_stall_cop, 100.0 * cnt_stall_cop / cnt_stall);
     printf("│   Control recovery   : %10lu (%5.1f%%)            │\n",
            cnt_stall_ctrl, 100.0 * cnt_stall_ctrl / cnt_stall);
-    printf("│   Other backend      : %10lu (%5.1f%%)            │\n",
+    printf("│   Other blocked bknd : %10lu (%5.1f%%)            │\n",
            cnt_stall_other, 100.0 * cnt_stall_other / cnt_stall);
+    if (cnt_stall_other > 0) {
+      printf("│     ├─ blocked       : %10lu (%5.1f%%)            │\n",
+             cnt_stall_other_blocked,
+             100.0 * cnt_stall_other_blocked / cnt_stall_other);
+    }
+  }
+  if (cnt_backend_pipe_occ > 0) {
+    printf("│   Pipe occ breakdown : %10lu (%5.1f%%)            │\n",
+           cnt_stall_other_pipe, 100.0 * cnt_stall_other_pipe / cnt_backend_pipe_occ);
+    printf("│     ├─ ALU/other     : %10lu (%5.1f%%)            │\n",
+           cnt_stall_other_pipe_alu,
+           100.0 * cnt_stall_other_pipe_alu / cnt_backend_pipe_occ);
+    printf("│     ├─ branch        : %10lu (%5.1f%%)            │\n",
+           cnt_stall_other_pipe_brch,
+           100.0 * cnt_stall_other_pipe_brch / cnt_backend_pipe_occ);
+    printf("│     ├─ JAL           : %10lu (%5.1f%%)            │\n",
+           cnt_stall_other_pipe_jal,
+           100.0 * cnt_stall_other_pipe_jal / cnt_backend_pipe_occ);
+    printf("│     ├─ JALR          : %10lu (%5.1f%%)            │\n",
+           cnt_stall_other_pipe_jalr,
+           100.0 * cnt_stall_other_pipe_jalr / cnt_backend_pipe_occ);
+    printf("│     ├─ sys/csr       : %10lu (%5.1f%%)            │\n",
+           cnt_stall_other_pipe_sys,
+           100.0 * cnt_stall_other_pipe_sys / cnt_backend_pipe_occ);
   }
   printf("├─────────────────────────────────────────────────────┤\n");
   printf("│ Instruction Mix                                    │\n");
@@ -267,6 +304,17 @@ static void print_perf_summary() {
            cnt_btb_miss, 100.0 * cnt_btb_miss / btb_total);
     printf("│   BTB mispredicts   : %10lu (%5.1f%%)            │\n",
            cnt_btb_mispredict, 100.0 * cnt_btb_mispredict / btb_total);
+    if (cnt_btb_mispredict > 0) {
+      printf("│     ├─ pred NT,taken: %10lu (%5.1f%%)            │\n",
+             cnt_br_misp_pred_nt,
+             100.0 * cnt_br_misp_pred_nt / cnt_btb_mispredict);
+      printf("│     ├─ pred T,NT    : %10lu (%5.1f%%)            │\n",
+             cnt_br_misp_pred_taken_nt,
+             100.0 * cnt_br_misp_pred_taken_nt / cnt_btb_mispredict);
+      printf("│     ├─ target bad   : %10lu (%5.1f%%)            │\n",
+             cnt_br_misp_target_bad,
+             100.0 * cnt_br_misp_target_bad / cnt_btb_mispredict);
+    }
   }
   uint64_t ras_total = cnt_ras_hit + cnt_ras_miss;
   if (ras_total > 0) {
@@ -403,6 +451,14 @@ extern "C" void stall_div_dpic() { cnt_stall_div++; }
 extern "C" void stall_cop_dpic() { cnt_stall_cop++; }
 extern "C" void stall_ctrl_dpic() { cnt_stall_ctrl++; }
 extern "C" void stall_other_dpic() { cnt_stall_other++; }
+extern "C" void stall_other_blocked_dpic() { cnt_stall_other_blocked++; }
+extern "C" void stall_other_pipe_dpic() { cnt_stall_other_pipe++; }
+extern "C" void stall_other_pipe_alu_dpic() { cnt_stall_other_pipe_alu++; }
+extern "C" void stall_other_pipe_brch_dpic() { cnt_stall_other_pipe_brch++; }
+extern "C" void stall_other_pipe_jal_dpic() { cnt_stall_other_pipe_jal++; }
+extern "C" void stall_other_pipe_jalr_dpic() { cnt_stall_other_pipe_jalr++; }
+extern "C" void stall_other_pipe_sys_dpic() { cnt_stall_other_pipe_sys++; }
+extern "C" void backend_pipe_occ_dpic() { cnt_backend_pipe_occ++; }
 extern "C" void cache_miss() { cnt_icache_miss++; }
 extern "C" void ifu_start() { cnt_ifu_fetch++; }
 extern "C" void ifu_end() { cnt_ifu_done++; }
@@ -418,6 +474,9 @@ extern "C" void icache_end() { cnt_icache_hit++; }
 extern "C" void btb_hit_dpic() { cnt_btb_hit++; }
 extern "C" void btb_miss_dpic() { cnt_btb_miss++; }
 extern "C" void btb_misp_dpic() { cnt_btb_mispredict++; }
+extern "C" void br_misp_pred_nt_dpic() { cnt_br_misp_pred_nt++; }
+extern "C" void br_misp_pred_taken_nt_dpic() { cnt_br_misp_pred_taken_nt++; }
+extern "C" void br_misp_target_bad_dpic() { cnt_br_misp_target_bad++; }
 extern "C" void ras_hit_dpic() { cnt_ras_hit++; }
 extern "C" void ras_miss_dpic() { cnt_ras_miss++; }
 extern "C" void jal_tgt_mismatch() { cnt_jal_tgt_bad++; }

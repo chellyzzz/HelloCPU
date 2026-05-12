@@ -98,6 +98,15 @@ module hcpu_EXU(
     output                              o_lsu_dbg_wait_refill_r    ,
     output                              o_lsu_dbg_wait_uncached    ,
     output                              o_lsu_dbg_wait_wb          ,
+
+    // scalar memory service boundary (V1, semantic only)
+    output                              o_mem_req_valid            ,
+    output                              o_mem_req_store            ,
+    output             [  31:0]         o_mem_req_addr             ,
+    output             [  31:0]         o_mem_req_wdata            ,
+    output             [   2:0]         o_mem_req_size             ,
+    output                              o_mem_resp_valid           ,
+    output             [  31:0]         o_mem_resp_rdata           ,
   //exu -> wbu handshake
     input                               i_post_ready               ,
     input                               i_pre_valid                ,
@@ -117,6 +126,7 @@ parameter BGEU  = 3'b111;
 wire                   [  31:0]         alu_res, load_res          ;
 wire                                    if_lsu                     ;
 wire                                    lsu_done                   ;
+wire                   [   2:0]         mem_req_size               ;
 
 // M extension signals
 wire                   [  31:0]         mul_result, div_result     ;
@@ -137,6 +147,9 @@ assign mul_low_res = i_src1 * i_src2;
 assign muldiv_done = if_mul_low ? i_pre_valid : if_mul ? mul_done : if_div ? div_done : 1'b0;
 assign muldiv_res  = if_mul_low ? mul_low_res : if_mul ? mul_result : div_result;
 assign if_cop = i_is_cop_insn;
+assign mem_req_size = (exu_opt == 3'b001 || exu_opt == 3'b101) ? 3'd1 :
+                      (exu_opt == 3'b010)                       ? 3'd2 :
+                                                                   3'd0;
 
 reg post_valid;
 
@@ -150,6 +163,14 @@ assign o_pre_ready  =  if_lsu   ?  lsu_done    :
                        if_cop   ?  cop_done    :
                        i_muldiv ?  muldiv_done :
                        1'b1;
+
+assign o_mem_req_valid  = i_pre_valid && if_lsu;
+assign o_mem_req_store  = i_store;
+assign o_mem_req_addr   = alu_res;
+assign o_mem_req_wdata  = i_src2;
+assign o_mem_req_size   = mem_req_size;
+assign o_mem_resp_valid = i_pre_valid && if_lsu && lsu_done;
+assign o_mem_resp_rdata = load_res;
 
 always @(posedge clock or posedge reset) begin
     if(reset || i_flush) begin
@@ -324,7 +345,6 @@ assign o_brch = i_brch && brch_res;
 wire actual_taken = (i_brch && brch_res) || i_jal || i_jalr;
 wire is_control   = i_brch || i_jal || i_jalr;
 wire [31:0] pred_target_full = {i_predict_target, 2'b00};
-
 wire mispredict = (is_control && (i_predict_taken != actual_taken)) ||
                   ((i_jal || i_jalr || i_brch) && i_predict_taken && (pred_target_full != o_pc_next));
 
