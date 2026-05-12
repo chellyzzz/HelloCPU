@@ -23,7 +23,7 @@ A-owned files:
 3. `vsrc/cpu/top/hcpu.v`
 4. `sim/sim_main.cpp`
 5. `docs/cpu/coremark-results.md`
-6. `docs/cpu/cpu-design-plan.md`
+6. `docs/cpu/cpu-evolution-roadmap.md`
 
 ### B: CPU Frontend Performance
 
@@ -58,7 +58,7 @@ Files that require coordination:
 
 1. `vsrc/cpu/top/hcpu.v` — A integrates, B requests changes via analysis doc
 2. `docs/cpu/coremark-results.md` — A maintains
-3. `docs/cpu/cpu-design-plan.md` — A maintains
+3. `docs/cpu/cpu-evolution-roadmap.md` — A maintains
 4. `docs/cpu-ab-collaboration.md` — A maintains
 
 B may modify shared files only with A's explicit approval for each change.
