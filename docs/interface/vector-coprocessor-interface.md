@@ -83,3 +83,5 @@ cop_kill = pc_update_en || idu2exu_fence_i || exu_mispredict_flush_r || cop_refe
 3. 独立向量访存 request/response 通道。
 4. 向量 CSR/状态可见性定义。
 5. response fire 同拍新 issue 与 refetch/kill 的精确定义。
+
+其中 CPU 侧 memory request/response 的总边界，以 `docs/interface/cpu-memory-service-model.md` 为当前主参考；本文件只描述当前已经落地的 COP issue/response/kill 语义。

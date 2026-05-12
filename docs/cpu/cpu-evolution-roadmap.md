@@ -288,6 +288,8 @@ A 线负责：
 
 不是再做快路径，而是开始考虑更清晰的 request / response 模型。
 
+当前 A 线的基线文档是 `docs/interface/cpu-memory-service-model.md`，后续 scalar LSU、COP memory、future vector memory 的 CPU 侧边界统一以该文档为参考。
+
 ## B 线：Frontend Performance
 
 B 线负责：
@@ -337,6 +339,8 @@ B 线负责：
 
 - A：memory service model、store buffer、COP/vector memory 接口
 - B：fetch/decode queue、frontend decoupling、predictor 与 queue 协同
+
+其中 memory service model 的当前文档入口为 `docs/interface/cpu-memory-service-model.md`。
 
 ### 阶段 4
 
