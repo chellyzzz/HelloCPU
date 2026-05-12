@@ -1,6 +1,6 @@
 # Software Test Layout
 
-- `tests/cpu-tests/`: scalar CPU tests
+- `tests/scalar-tests/`: scalar CPU tests
 - `tests/vector-tests/`: COP/vector-facing tests
 
 Build targets:

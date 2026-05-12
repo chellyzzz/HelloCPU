@@ -8,7 +8,7 @@ CFLAGS   = -march=rv32im_zicsr -mabi=ilp32 -nostdlib -nostartfiles -ffreestandin
 LDFLAGS  = -T link.ld -static -Wl,--build-id=none
 
 BUILD_DIR        = build
-SCALAR_TEST_DIR  = tests/cpu-tests
+SCALAR_TEST_DIR  = tests/scalar-tests
 VECTOR_TEST_DIR  = tests/vector-tests
 SCALAR_BUILD_DIR = $(BUILD_DIR)/scalar
 VECTOR_BUILD_DIR = $(BUILD_DIR)/vector
@@ -54,7 +54,6 @@ $(BUILD_DIR)/coremark.bin: $(BUILD_DIR)/coremark_iter$(ITER).stamp
 
 $(BUILD_DIR) $(SCALAR_BUILD_DIR) $(VECTOR_BUILD_DIR):
 	mkdir -p $@
-
 
 $(SCALAR_BUILD_DIR)/%.bin: $(SCALAR_TEST_DIR)/%.c start.S lib/klib.c link.ld | $(SCALAR_BUILD_DIR)
 	$(CC) $(CFLAGS) $(LDFLAGS) start.S lib/klib.c $< -o $(SCALAR_BUILD_DIR)/$*.elf
