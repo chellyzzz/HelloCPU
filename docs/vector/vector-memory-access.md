@@ -24,19 +24,29 @@
 
 ## 二、设计方案
 
-### 2.1 方案选择：CPU 侧 LSU 共享路径
+### 2.1 方案选择：COP 直连 AXI（绕过 DCache）
 
-**选项 A：共享 CPU 侧 LSU（推荐）**
-- COP 通过 CPU 侧已有的 LSU 路径访问内存
-- 优点：复用已有 AXI 接口、cache、仲裁逻辑，低风险
-- 缺点：COP 访存与标量访存共享带宽，可能有性能瓶颈
+**选项 A：COP 直连 AXI（推荐，V1 采用）**
+- COP 访存时绕过 LSU DCache，直接发起 AXI single-beat 请求
+- 在 `hcpu.v` 加一个 AXI mux（标量 LSU vs COP）
+- 优点：不动 LSU FSM，干净，V1 阶段 DCache 对 4 字节访存收益不大
+- 缺点：COP 访存不经过 DCache（V1 可接受，阶段 D 再优化）
 
-**选项 B：独立 COP 内存端口**
-- COP 有独立的内存请求/响应端口
-- 优点：可并行访问，高吞吐
-- 缺点：需要修改 AXI 仲裁、增加复杂度、高风险
+**选项 B：COP 通过 LSU FSM**
+- LSU FSM 新增 `S_COP_LOAD` / `S_COP_STORE` 状态
+- 优点：COP 自动获得 DCache 加速
+- 缺点：修改 LSU FSM，风险较高
 
 **选择理由**：V1 阶段优先正确性，选择方案 A。后续阶段可升级到方案 B。
+
+### 2.2 仲裁策略：COP busy 自然串行化
+
+**不需要显式仲裁逻辑**。原因：
+- COP 访存时 `o_busy=1`，CPU 流水线 stall（`exu2idu_ready=0`）
+- 标量 LSU 不会同时发起请求（CPU 流水线被阻塞）
+- COP busy 自然串行化了标量访存和 COP 访存
+
+**确认**：COP 访存期间，COP 的 `o_busy=1`，CPU 流水线 stall，标量 LSU 不会同时发起事务。
 
 ### 2.2 编码方案
 
@@ -91,9 +101,9 @@ Cycle N+1: o_done 置 1
 
 ### 2.5 异常处理
 
-- 内存访问异常（地址错误、权限错误等）需要上报给 CPU
-- 异常时 COP 不写入 VRF（保持原子性）
-- 异常通过 COP 接口的 `o_exception` 信号上报（需要新增）
+- V1 阶段不支持异常上报（`o_exception` 端口暂不需要）
+- 当前所有访存地址是软件构造的，TLB/misalign 异常处理是 V2 的事
+- 减少接口复杂度，降低实现风险
 
 ---
 
@@ -116,20 +126,28 @@ dummy_coprocessor.v
 
 ### 3.2 COP 接口扩展
 
-需要新增内存请求/响应端口：
+需要新增内存请求/响应端口（A 线确认的接口）：
 
 ```verilog
-// 新增端口
-output reg          o_mem_req_valid,
-output reg [31:0]   o_mem_req_addr,
-output reg [31:0]   o_mem_req_wdata,
-output reg          o_mem_req_wen,
-input               i_mem_resp_valid,
-input      [31:0]   i_mem_resp_rdata,
-output reg          o_exception
+// COP → AXI（请求）
+output        o_mem_req,       // =1 表示 COP 要访存
+output [31:0] o_mem_addr,      // 访存地址
+output [31:0] o_mem_wdata,     // 写数据（store 时有效）
+output        o_mem_wen,       // =1 store, =0 load
+
+// AXI → COP（响应）
+input         i_mem_done,      // =1 访存完成
+input  [31:0] i_mem_rdata,     // 读数据（load 时有效）
 ```
 
-**注意**：这些端口需要连接到 CPU 侧的 LSU，需要修改 `cop_backend.v` 和 `hcpu.v`。
+**接口说明**：
+- 不需要 `_valid`/`_ready` 握手 — COP 访存时 LSU 被独占，COP 等 `i_mem_done` 即可
+- COP 访存期间 `o_busy=1`，CPU 流水线 stall，标量 LSU 不会同时发起事务
+- 不需要仲裁逻辑，COP busy 自然串行化
+
+**连接方式**：
+- `cop_backend.v`：透传内存端口
+- `hcpu.v`：AXI mux（标量 LSU vs COP），COP 直连 AXI 绕过 DCache
 
 ### 3.3 状态机设计
 
@@ -194,9 +212,9 @@ DONE: 合并结果，写入 VRF，o_done 置 1
 
 ### Phase 2：COP 接口扩展（1-2 天）
 
-1. 在 `dummy_coprocessor.v` 中新增内存请求/响应端口
+1. 在 `dummy_coprocessor.v` 中新增内存请求/响应端口（6 个信号）
 2. 在 `cop_backend.v` 中透传内存端口
-3. 在 `hcpu.v` 中连接内存端口到 LSU
+3. 在 `hcpu.v` 中添加 AXI mux（标量 LSU vs COP），COP 直连 AXI 绕过 DCache
 
 ### Phase 3：向量 load 实现（2-3 天）
 
@@ -223,10 +241,10 @@ DONE: 合并结果，写入 VRF，o_done 置 1
 
 | 风险 | 影响 | 缓解措施 |
 |------|------|----------|
-| 内存请求与标量访存冲突 | 性能下降 | V1 先串行，后续可优化 |
+| 内存请求与标量访存冲突 | 性能下降 | COP busy 自然串行化，不需要仲裁 |
 | flush 时内存请求未完成 | 状态不一致 | flush 时取消所有未完成请求 |
-| 内存异常处理 | 需要新增异常上报 | V1 先不支持异常，后续扩展 |
-| CPU 侧 LSU 接口变更 | 需要修改 CPU 侧 | 先确认接口设计，再实现 |
+| AXI mux 复杂度 | CPU 侧改动 | 仅修改 hcpu.v，不动 LSU FSM |
+| COP 访存不经过 DCache | 性能 | V1 可接受，阶段 D 再优化 |
 
 ---
 
@@ -247,9 +265,11 @@ DONE: 合并结果，写入 VRF，o_done 置 1
 本草案设计了最小向量访存方案，通过共享 CPU 侧 LSU 路径实现 VRF 与内存的交互。V1 实现仅支持 unit-stride 8-bit 访存，后续可逐步扩展到 RVV 标准。
 
 关键设计决策：
-1. **共享 LSU**：低风险，复用已有基础设施
-2. **串行请求**：简单，V1 先用串行
-3. **固定 4 元素**：与现有 VRF 一致
-4. **不支持掩码**：V1 先不支持，后续扩展
+1. **COP 直连 AXI**：绕过 DCache，不动 LSU FSM，低风险
+2. **COP busy 串行化**：不需要仲裁逻辑，COP busy 自然阻塞标量 LSU
+3. **串行 4 次请求**：每次 COP 操作约 20-40 cycles，V1 可接受
+4. **固定 4 元素**：与现有 VRF 一致
+5. **不支持异常**：V1 暂不需要，减少接口复杂度
+6. **6 个信号接口**：`o_mem_req`/`o_mem_addr`/`o_mem_wdata`/`o_mem_wen`/`i_mem_done`/`i_mem_rdata`
 
-下一步：评审本草案，确认后开始实现。
+下一步：A 线确认接口设计后，C 线开始实现。A 在下一个集成点接收。
