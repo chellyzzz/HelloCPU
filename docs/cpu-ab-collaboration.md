@@ -4,190 +4,218 @@ This document coordinates the two-agent CPU optimization split.
 
 ## Roles
 
-### A: CPU Mainline Performance And Integration
+### A: CPU Backend Performance And Integration
 
-A owns the stable CPU mainline and short-cycle performance work.
+A owns the stable CPU mainline, backend execution, and performance integration.
 
 Primary responsibilities:
 
 1. Maintain the stable CPU baseline on `cpu-mainline-branch`.
-2. Own LSU, MUL/DIV, performance counters, CoreMark data, and regression summaries.
-3. Decide which patches are safe to enter the mainline.
-4. Keep CPU performance documentation current.
-5. Integrate B-line patches only after their risk and regression status are clear.
+2. Own EXU pipeline: LSU, MUL/DIV, ALU, performance counters.
+3. Decide which patches enter the mainline.
+4. Run CoreMark benchmarks and maintain performance documentation.
+5. Integrate B-line behavioral patches after review.
 
-Default A-owned files:
+A-owned files:
 
-1. `sim/sim_main.cpp`
-2. `vsrc/cpu/top/hcpu.v`
-3. `vsrc/cpu/exu/lsu.v`
-4. `vsrc/cpu/exu/multiplier.v`
-5. `vsrc/cpu/exu/divider.v`
-6. `docs/cpu/coremark-results.md`
-7. `docs/cpu/cpu-design-plan.md`
-8. `docs/cpu/microarchitecture.md`
+1. `vsrc/cpu/exu/*` (lsu, multiplier, divider, alu, exu)
+2. `vsrc/cpu/wbu/*`
+3. `vsrc/cpu/top/hcpu.v`
+4. `sim/sim_main.cpp`
+5. `docs/cpu/coremark-results.md`
+6. `docs/cpu/cpu-design-plan.md`
 
-### B: Frontend Handshake And Vector Interface
+### B: CPU Frontend Performance
 
-B owns high-risk frontend/interface exploration.
+B owns the frontend pipeline and is responsible for **delivering measurable performance improvements** through RTL changes.
 
 Primary responsibilities:
 
-1. Analyze IFU/IDU valid-ready, PC advance, ICache hit/data, redirect/refetch, and flush timing.
-2. Propose the smallest safe IFU/IDU standardization plan before changing RTL.
-3. Maintain CPU/vector interface notes around the `d8d578d` project layout and COP lane-operation baseline.
-4. Keep COP/vector interface experiments isolated from A's performance mainline.
-5. Record failed experiments with the first observed failure symptom.
-6. Maintain B-line analysis documents and low-risk cleanup commits in `cpu-frontend-interface-lab` before asking A to review or cherry-pick.
+1. Own IFU, IDU, pipeline registers (`ifu_idu_regs`, `idu_exu_regs`), BTB, RAS, ICache.
+2. **Reduce frontend/empty stalls and redirect recovery cost** — currently the #1 bottleneck at 2M cycles (55% of all stalls).
+3. Implement behavioral RTL changes that pass regression and show CoreMark improvement.
+4. Record failed experiments with failure symptoms.
 
-Default B-owned files:
+B-owned files (B has full authority to modify these files):
 
-1. `vsrc/cpu/ifu/*`
-2. `vsrc/cpu/idu/*`
-3. `vsrc/vector/cop/*`
-4. `docs/interface/cpu-vector-coproc-handoff.md`
-5. `docs/vector/vector-coprocessor-microarchitecture.md`
-6. `docs/cpu/ifu-idu-handshake-analysis.md`
-7. CPU/COP interface notes under `docs/interface/*`
+1. `vsrc/cpu/ifu/*` (ifu, btb, ras, icache, ifu_idu_regs)
+2. `vsrc/cpu/idu/*` (idu, idu_exu_regs)
+3. `vsrc/cpu/Registers/*` (if needed for frontend-related CSR)
+4. `docs/cpu/ifu-idu-handshake-analysis.md`
+5. `docs/cpu/frontend-stall-analysis.md`
+6. `docs/cpu/b-line-status.md`
+
+### Vector/COP (C line)
+
+C owns vector coprocessor development on `vector-next`. Separate from A/B split. A integrates C's changes at stable points. COP interface files are C-owned:
+
+1. `vsrc/vector/cop/*`
+2. `docs/vector/*`
 
 ## Shared Files
 
-The following files are shared integration points and should not be edited independently by both agents in long-lived WIP:
+Files that require coordination:
 
-1. `vsrc/cpu/top/hcpu.v`
-2. `docs/cpu/cpu-design-plan.md`
-3. `docs/cpu/microarchitecture.md`
-4. `docs/interface/cpu-vector-development-plan.md`
-5. `docs/cpu/coremark-results.md`
+1. `vsrc/cpu/top/hcpu.v` — A integrates, B requests changes via analysis doc
+2. `docs/cpu/coremark-results.md` — A maintains
+3. `docs/cpu/cpu-design-plan.md` — A maintains
+4. `docs/cpu-ab-collaboration.md` — A maintains
 
-If B needs changes in a shared file, B should write the requested semantic change in its analysis document first. A handles final integration into the mainline unless explicitly agreed otherwise.
+B may modify shared files only with A's explicit approval for each change.
 
-For the current split, `vsrc/cpu/top/hcpu.v`, `docs/cpu/cpu-design-plan.md`, and `docs/cpu/coremark-results.md` are frozen for long-lived parallel edits outside A. B should not carry persistent WIP against these files.
+## Branch Rules
 
-## Branch And Patch Rules
+1. A works on `cpu-mainline-branch`.
+2. B works on `cpu-frontend-interface-lab`.
+3. A controls mainline entry. B does not push to `cpu-mainline-branch`.
+4. A publishes stable commits. B rebases on A's stable points.
+5. Failed experiments must be reverted from RTL but documented.
 
-1. A works on the stable CPU performance branch and keeps changes small and regression-backed.
-2. B works in a separate frontend/interface experiment branch or isolated context.
-3. Mainline entry is controlled by A. B outputs small diffs from `cpu-frontend-interface-lab` and does not land directly in `cpu-mainline-branch`.
-4. A should publish a clear stable commit or tag at each integration point. B rebases only on that stable point, not on A's unverified WIP.
-5. B should form complete small commits in `cpu-frontend-interface-lab`; A reviews or cherry-picks those commits instead of reorganizing B's patches for B.
-6. B should not reintroduce `d1d7bad feat: add dedicated IDU to cop issue queue` or its frontend ready mux approach.
-7. New COP/vector work should follow the `539bf41 fix: repair consecutive cop commit timing` baseline and avoid extending old `vsrc/exu` / `vsrc/idu` COP paths.
-8. Failed B experiments should be reverted from RTL but recorded in docs with failure symptoms.
-9. Default collaboration should use normal WSL-side branches. If an auxiliary worktree or clone is needed, create and operate it inside WSL; avoid Windows Git worktrees being consumed by WSL Git.
-10. B-owned analysis docs such as `docs/cpu/ifu-idu-handshake-analysis.md` are maintained by B; A gives direction-level review and does not need to integrate them line by line.
+## Delivery Standard
 
-Low-risk B RTL cleanup may be submitted to A review after the B-line gate when it is naming-only, signal splitting, read-only debug macro work, or default-off assertion/debug instrumentation that does not change behavior.
+**Both A and B are held to the same delivery standard:**
 
-Behavior RTL changes must not enter through the low-risk path. Any change touching ready/valid, flush/refetch, COP response, EXU entry valid, or shared recovery semantics must first include a short design note plus the expected first failure mode and validation plan; A decides whether and how it enters mainline integration.
+Every behavioral RTL change must include:
 
-A remains the integrator for shared CPU mainline semantics and files such as `vsrc/cpu/top/hcpu.v`, performance counters, CoreMark documentation, LSU, MUL, and DIV.
+1. The RTL diff itself
+2. Full regression pass (see gates below)
+3. CoreMark ITER=100 data showing cycle count change
+4. If no CoreMark change, explain why the change is still worthwhile
+
+Analysis documents, debug macros, and assertions alone do **not** count as deliveries. They are tools to support RTL work, not end products.
 
 ## Regression Gates
 
 ### A-line Gate
 
-A patches should run the most specific relevant tests first, then broader protection tests when behavior changes.
-
-Current minimum for performance-counter-only patches:
-
-1. `make sim`
-2. `mul-longlong.bin`
-3. `wanshu.bin`
-4. `sum.bin`
-5. `cop-chain.bin`
-6. `quick-sort.bin`
-7. `coremark.bin` when CoreMark-facing numbers or conclusions are updated
+1. `make sim` (Verilator build)
+2. Full regression: 48 tests, 0 failures
+3. `coremark.bin` PASS when performance claims are made
 
 ### B-line Gate
 
-B frontend/interface patches should at least run:
+B must pass **at minimum** these tests before requesting A review:
 
 1. `sum.bin`
 2. `quick-sort.bin`
-3. `cop-chain.bin`
-4. `cop-vadd8`
-5. `cop-vadd8-chain`
-6. `cop-vadd8-after-add`
-7. `cop-vxor8`
-8. `cop-vand8`
-9. `cop-mixed-lanes`
+3. `load-store.bin`
+4. `cop-chain.bin`
+5. `cop-vadd8.bin`
+6. `cop-vadd8-chain.bin`
+7. `cop-vadd8-after-add.bin`
+8. `cop-vxor8.bin`
+9. `cop-vand8.bin`
+10. `cop-mixed-lanes.bin`
 
-Any patch touching redirect/refetch/flush should also record either commit-trace evidence or the first failing committed PC if it fails.
+Any patch touching redirect/refetch/flush must include trace evidence or the first failing committed PC if it fails.
 
-`cop-vadd8`, `cop-vadd8-chain`, `cop-vadd8-after-add`, `cop-vxor8`, `cop-vand8`, and `cop-mixed-lanes` are now present in the CPU-side regression build after syncing the vector layout.
+B must also run CoreMark ITER=100 and report cycle count before submitting for A review.
 
 ## Current A Progress
 
-Current A stable context:
+Stable HEAD: `8f48295 perf: DIV fast paths (by-1, trivial-zero) + fix perf counter docs`
 
-1. CPU mainline stable base is `b73e571 feat: expand BTB, add pc_update attribution, sync vector lane ops` on `cpu-mainline-branch`.
-2. 128-entry BTB, WBU `pc_update` attribution counters, and vector `d8d578d` lane ops are all landed.
-3. CoreMark `ITER=100` current reference is `2.381 CoreMark/MHz`, `IPC=0.729`, `25.2%` stall rate.
-4. MUL/DIV stall counters are split; MUL fast path landed; DIV is the only remaining MUL/DIV cost.
-5. LSU wait: `start = 6973290 (99.9% of LSU wait)`, load `5473096 (78.5%)`, store `1500194 (21.5%)`; refill/uncache/wb combined < 7000 cycles.
+CoreMark ITER=100 reference:
 
-Latest A validation:
+| Metric | Value |
+|--------|-------|
+| CoreMark/MHz | 2.853 |
+| Total cycles | 35,047,662 |
+| IPC | 0.874 |
+| Stall rate | 10.4% |
 
-1. `make sim`: PASS.
-2. Full CPU regression: `48 passed, 0 failed`.
-3. `coremark.bin`: PASS, `CoreMark/MHz=2.381`.
+Stall breakdown:
 
-Latest A conclusion:
+| Source | Cycles | % of stalls |
+|--------|--------|-------------|
+| Frontend/empty | 2,005,006 | 54.9% |
+| Control recovery | 795,702 | 21.8% |
+| Other backend | 837,926 | 23.0% |
+| LSU wait | 7,107 | 0.2% |
+| DIV wait | 2,962 | 0.1% |
 
-1. LSU 1-cycle hit penalty (S_IDLE → S_CHECK) is the single largest bottleneck: 6.97M cycles = 16.6% of total execution time.
-2. All AXI-level LSU optimizations (fast_done, RREADY, writeback burst) together save < 0.01% on CoreMark because cache misses are negligible.
-3. A's next target is same-cycle LSU hit, but this requires IFU/IDU handshake cooperation — documented as needing B-line interface support first.
-4. Branch recovery (7.5% of stalls, 1.9% of cycles) and frontend bubbles (18.6% of stalls, 4.7% of cycles) are the next-low-hanging-fruit after LSU.
+A-line completed optimizations:
 
-Latest A accepted experiment:
+1. Same-cycle LSU load hit (+14.9% CoreMark/MHz): `442bff8`
+2. Same-cycle LSU store hit (+4.2%): `9e92c22`
+3. DIV fast paths (by-1, trivial-zero): `8f48295`
+4. Redirect recovery cost measurement: `27d0e4f`
+5. 128-entry BTB: `b73e571`
+6. MUL low fast path: `2ce4777`
 
-1. 128-entry BTB: accepted. Cycles `42000681 → 41986504`, BTB miss reduced, small positive.
-2. WBU `pc_update` attribution counters: accepted. CoreMark unchanged, diagnostics improved.
+A-line EXU optimization is substantially complete. Remaining stall is dominated by frontend.
 
-Latest A rejected experiments (unchanged):
+## Current B Assignment
 
-1. Remove WBU branch/JAL/JALR `pc_update`: rejected, breaks `sum`/`cop-chain`/`quick-sort`.
-2. Static backward-taken BTB miss heuristic: rejected, CoreMark regressed `2.381 → 2.373`.
-3. LSU same-cycle load-hit: rejected, breaks `load-store`/`quick-sort`.
-4. LSU same-cycle current-ready start: rejected, `sum` timeout / `quick-sort` timeout.
-5. LSU refill same-cycle result: rejected, breaks `quick-sort`.
+**B is in active development mode, not maintenance.**
 
-Latest A LSU micro-optimization (landed, negligible on CoreMark):
+The #1 performance bottleneck is now entirely in B's domain: frontend/empty (55%) + control recovery (22%) = **77% of all stalls**. Root cause: 772K redirects × 3 cycles each = 2.3M cycles, driven by 780K BTB mispredicts.
 
-1. Added `fast_refill_done`, `fast_uncache_r_done`, `fast_uncache_b_done` combinational completion paths in `lsu.v`.
-2. These eliminate the 1-cycle `done_reg` pulse after AXI completion for load miss, uncache read, and uncache store.
-3. CoreMark impact: ~0% (cache miss rate too low for this to matter).
-4. Combinational RREADY/BREADY attempt was also tested but abandoned: the AXI RAM simulation model uses a 2-phase FSM that requires registered RREADY, making combinational RREADY cause simulation hangs.
+### B-Task-7: BTB Miss Rate Reduction (HIGH PRIORITY)
 
-## Current B Progress
+**Target:** Reduce BTB mispredict rate from 11.2% (780K events) to below 8%.
 
-Current B context:
+**Why this task:** 780K mispredicts × 3 cycles = 2.3M cycles = 65% of total stalls. Even a 3% absolute reduction in BTB miss rate saves ~200K cycles.
 
-1. B has rebased to A stable point `d9e7702 refactor: sync vector coprocessor layout`.
-2. B determined that **pass-through is the correct V1 frontend architecture** after ruling out registered-valid and skid buffer approaches.
-3. `0001` behavior-equivalent IFU `fetch_fire` RTL naming is already integrated in `d9e7702`; B currently carries no behavior-changing RTL diff.
-4. B's IFU/IDU analysis doc is at `docs/cpu/ifu-idu-handshake-analysis.md`; exported patch is `patches/0002-docs-ifu-idu-handshake-analysis.patch`.
-5. IFU/IDU-only registered-valid failure is confirmed: `sum` misses commits at `0x30000000` and `0x30000b00`; B will not repeat that local patch.
-6. COP interface is clean; debug/assert instrumentation is in place.
-7. B has only low-risk instrumentation patches (0003~0005) remaining; no behavior changes.
+**Approaches to evaluate (B chooses and implements):**
+- BTB capacity increase (current 128 entries)
+- BTB associativity improvement (current direct-mapped within sets)
+- Better replacement policy
+- Static prediction heuristics (backward-taken was rejected for CoreMark but other heuristics may work)
+- Two-level prediction (local/global history)
 
-B-line status document: `docs/cpu/b-line-status.md`.
+**B has full authority over** `vsrc/cpu/ifu/btb.v` and `vsrc/cpu/ifu/ifu.v`. B may also modify `ifu_idu_regs.v` and `idu_exu_regs.v` if pipeline timing changes are needed.
 
-B is now in **maintenance mode**. B will resume active work when A needs frontend/interface support for same-cycle LSU hit or other pipeline restructuring.
+**Delivery:**
+- RTL diff with behavioral change
+- B-line gate: 10 tests PASS
+- CoreMark ITER=100 data
+- If no CoreMark improvement, document why and propose next approach
 
-Current B assigned tasks (for A same-cycle LSU hit preparation):
+### B-Task-8: Redirect Recovery Latency Reduction (MEDIUM PRIORITY)
 
-1. **B-Task-1: IFU/IDU pass-through protocol specification document** — Formalize V1 correct architecture semantics: signal meanings, valid/ready lifecycle, payload hold rules, redirect/refetch semantics. Pure documentation, no RTL change. Deliverable: update `docs/cpu/ifu-idu-handshake-analysis.md` with a formal protocol section.
+**Target:** Reduce redirect recovery from 3 cycles to 2 cycles.
 
-2. **B-Task-2: IFU/IDU/EXU protocol assertion coverage** — Add `ifdef`-protected SystemVerilog assertions in `vsrc/cpu/ifu/` and `vsrc/cpu/idu/` verifying pass-through invariants: `idu2exu_valid` stability while `!exu2idu_ready`, `idu2ifu_ready` derivation from `exu2idu_ready`, payload stability guarantees, etc. No behavior change. Deliverable: assertion patches in `cpu-frontend-interface-lab`.
+**Why this task:** 772K redirects × 1 cycle saved = 772K cycles (~2% CoreMark/MHz).
 
-3. **B-Task-3: same-cycle LSU result interface design memo** — Per A/B behavior-RTL rule, write a 5-line design note + failure plan describing what interface changes IFU/IDU must provide for A to implement same-cycle LSU hit: how EXU `pre_ready` should respond in the first cycle, whether IDU `valid` release conditions change, whether payload needs latching, etc. Deliverable: section in B status doc, referenced from `docs/cpu/ifu-idu-handshake-analysis.md`.
+**Previous attempt (B-Task-6) failed:** `skip_pre_valid` approach had zero effect because `ifu_idu_regs.o_pc` is registered — the payload is stale on the cycle `accel_fire` captures it. The fundamental issue is that correct instruction data arrives 1 cycle after `icache_hit` asserts.
+
+**B must find a different approach.** Possible directions:
+- Combinational bypass of `o_pc`/`o_ins` from IFU inputs when register is in reset state
+- Earlier redirect signal (move flush from WBU to EXU)
+- Overlap redirect recovery with last cycle of previous instruction
+
+**Delivery:** Same standard as Task-7.
+
+### B-Task-9: Pipeline Integration and Testing (ONGOING)
+
+For every behavioral change, B must:
+1. Activate `PROTOCOL_ASSERT` and `FRONTEND_ASSERT` builds and verify zero triggers
+2. Run full B-line gate (10 tests)
+3. Report CoreMark data
+
+## Historical Record
+
+### Completed B Tasks
+
+| Task | Deliverable | Outcome |
+|------|-------------|---------|
+| B-Task-1 | Protocol spec doc | Completed. Analysis document only. |
+| B-Task-2 | PROTOCOL_ASSERT hooks | Completed. Default-off, no behavioral change. |
+| B-Task-3 | Same-cycle LSU design memo | Completed. Analysis confirmed correct; A implemented independently. |
+| B-Task-4 | Frontend stall analysis | Completed. Identified 96% = redirect bubble. |
+| B-Task-5 | PROTOCOL_ASSERT extension | Completed. Default-off, no behavioral change. |
+| B-Task-6 | Redirect -1 cycle | **Failed.** Zero CoreMark impact. `skip_pre_valid` captures stale payload. |
+
+### A-Line Rejected Experiments
+
+1. Remove WBU branch/JAL/JALR `pc_update`: breaks `sum`/`cop-chain`/`quick-sort`
+2. Static backward-taken BTB miss heuristic: CoreMark regressed 2.381 → 2.373
+3. Combinational RREADY/BREADY: simulation hang, AXI RAM model incompatible
 
 ## Coordination Notes
 
 1. A controls mainline entry.
-2. B can experiment aggressively, but should not leave failed RTL in the shared branch.
-3. Shared-file conflicts are resolved by semantic ownership, not by whichever agent sees the conflict first.
-4. Documentation updates should state whether they describe current mainline behavior, a historical snapshot, or an experiment.
-5. Stable points should be documented before they are suggested for vector-side synchronization.
+2. B can modify any B-owned file without pre-approval. Shared files need A's explicit approval.
+3. Documentation should state whether it describes current mainline behavior, a historical snapshot, or an experiment.
+4. Stable points are documented before suggesting vector-side synchronization.
