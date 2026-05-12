@@ -2,440 +2,134 @@
 
 ## 一、文档目标
 
-本文档整理 HelloCPU 后续一段时间内面向 **CPU 本体性能提升** 的主要思路，并且明确一个额外约束：
+本文档描述 HelloCPU 从当前高性能顺序标量核继续演进的主线，同时考虑未来与向量协处理器的协同扩展。
 
-> 后续希望接入协同向量处理器，因此当前 CPU 的优化方向不能只追求短期跑分，还需要让整体结构边界清晰、接口稳定、控制语义统一，方便未来扩展。
+当前阶段不是简单继续堆局部 patch，而是：
 
-换句话说，当前阶段的目标不是简单“再榨一点 IPC”，而是：
+1. 继续提升标量 CPU 性能；
+2. 让微架构边界更清晰；
+3. 为未来的 RVV/COP 扩展留出自然接口。
 
-1. 提升现有标量 CPU 的真实性能；
-2. 让微架构更清晰；
-3. 为未来接入向量协处理器预留自然的结构位置。
+## 二、当前快照
 
----
+当前稳定点：`8f48295`（DIV fast path）
 
-## 二、当前 CPU 的主要现状
+| Metric | Value |
+|--------|-------|
+| CoreMark/MHz | 2.853 |
+| Total cycles | 35,047,662 |
+| IPC | 0.874 |
+| Stall rate | 10.4% |
 
-> 本文档是较早期的 CPU 演进路线快照。最新性能数字与当前优先级以 `coremark-results.md`、`cpu-design-plan.md` 和 `microarchitecture.md` 为准。
+当前主要 stall：
 
-根据当前 CoreMark 和性能计数器结果，HelloCPU 已经具备：
+| Source | Cycles | % of stalls | Owner |
+|--------|--------|-------------|-------|
+| Frontend/empty | 2,005,006 | 55.0% | B |
+| Other backend | 837,926 | 23.0% | A |
+| Control recovery | 795,702 | 21.8% | B |
+| LSU wait | 7,107 | 0.2% | Done |
+| DIV wait | 2,962 | 0.1% | Done |
 
-- 5 级顺序流水；
-- RV32IM + Zicsr；
-- 4 KB ICache + 4 KB DCache；
-- BTB + RAS + static JAL 分支预测；
-- CoreMark `ITER=100` 正确通过；
-- 当前最新参考达到 `2.381 CoreMark/MHz`、`IPC=0.729`，历史 full-predictor 基线为 `1.545 CoreMark/MHz`。
+这说明 HelloCPU 已经不再是“访存太慢”的 CPU，而是一个前端恢复成本和后端局部时序仍待继续优化的顺序核。
 
-但从性能计数器来看，当前最主要的问题并不是 cache 容量不足，也不是外部总线带宽不足，而是：
+## 三、已经完成的阶段
 
-- `stall cycles` 已从历史基线 `51.5%` 降到 `25.2%`，但仍是主要性能问题；
-- `IPC` 已从历史基线 `0.473` 提升到 `0.729`；
-- 大量停顿来自流水线等待，而不是访存 miss。
+### 阶段 A：显式后端大瓶颈清除（已完成）
 
-这说明后续优化重点应当放在：
+已完成项目：
 
-- 流水线内部数据相关；
-- 多周期单元阻塞；
-- 分支恢复时延；
-- 访存路径对整条流水的反压；
-- 执行/提交/冲刷接口的组织方式。
+1. 128-entry BTB
+2. WBU `pc_update` 原因归因
+3. Same-cycle LSU load hit
+4. Same-cycle LSU store hit
+5. MUL low fast path
+6. DIV trivial fast path（by-1, trivial-zero）
 
-当前已经落地的 LSU load-hit、store-hit、transaction start 快路径和低位 `MUL` 快路径显著改善了历史瓶颈，但 `LSU wait` 仍是后续主线。更细的当前计数器和 CoreMark 表格不在本文档重复维护。
+效果：
 
----
+- CoreMark/MHz: 2.382 → 2.853（+19.8%）
+- LSU wait: 6.98M → 7K（-99.9%）
+- Stall rate: 25.2% → 10.4%
 
-## 三、总的演进原则
+结论：后端显式 LSU/DIV 大瓶颈已经基本清空。
 
-如果未来要接入协同向量处理器，那么当前 CPU 优化最好遵守以下原则。
+## 四、当前演进主线
 
-### 1. 边界清晰优先于局部 patch
+### 主线 1：前端恢复和预测（B 线）
 
-不要继续把大量特殊情况硬塞进现有 EXU/WBU 的条件分支中。应尽量把：
+当前最大的浪费来自 redirect 相关成本：
 
-- 执行请求；
-- 执行完成；
-- 结果提交；
-- 异常/冲刷；
-- 访存请求/返回；
+- Frontend/empty 2.0M cycles，其中 96% 是 redirect recovery bubble
+- Control recovery 796K cycles
+- 合计 redirect 总成本约 2.73M cycles，占全部 stall 的 74.8%
 
-这些语义分得更清楚。
+这条线的任务不是继续写分析文档，而是交付带 CoreMark 改善的 RTL：
 
-这样做的价值不只在于代码整洁，更在于未来接入向量协处理器时，不需要推翻现有控制框架。
+1. BTB miss rate 降低
+2. redirect recovery 缩短
 
-### 2. 减少“全局停顿”，增加“局部等待”
+### 主线 2：Other backend 归因与优化（A 线）
 
-当前很多 stall 的根本原因是：
+`Other backend = 837,926 cycles`，目前尚未归因。
 
-> 某一个单元忙，整条流水都跟着等。
+该类 stall 的判定条件是：
 
-未来优化方向应该是：
+`idu2exu_valid && exu2idu_ready && !exu2wbu_valid`
 
-- 哪个单元忙，哪个单元自己 backpressure；
-- 不相关的前后端尽量继续运行；
-- 让结构上具备部分解耦能力。
+意味着 EXU 已接收指令，但结果尚未到达 WBU。高概率来源：
 
-这对未来长延迟的向量运算单元尤其关键。
+1. MULH/MULHSU/MULHU 的 2-cycle latency
+2. COP backend 2-cycle latency
+3. EXU→WBU 边界中的结构气泡
 
-### 3. 统一控制流恢复语义
+这是 A 线的下一个实际优化目标。
 
-未来无论是：
+### 主线 3：结构化扩展准备（A/C）
 
-- 标量分支误预测；
-- trap / ecall / mret；
-- 协处理器异常；
-- 向量访存异常；
+在前端和后端现有瓶颈进一步降低后，再推进：
 
-都应该尽量走一套统一的 flush / redirect / kill / commit 语义。
+1. 统一执行后端接口
+2. 前后端解耦（fetch/decode queue）
+3. 轻量级 scoreboard
+4. Vector memory access / RVV migration 所需的 CPU 接口改造
 
-如果这一层不先统一，后续引入向量协处理器时会非常痛苦。
+## 五、未来与向量协处理器的关系
 
----
+当前 CPU 的优化已经证明：
 
-## 四、CPU 本身最值得做的优化方向
+- 标量后端性能可以通过局部语义理顺获得大收益；
+- 未来接入更强 COP/RVV 时，真正关键的不是 AXI 带宽本身，而是 issue / complete / commit / flush 的边界清晰度。
 
-下面按“既能提升 CPU 本身，又有利于以后接入向量协处理器”的标准来排序。
+因此 CPU 演进路线与向量扩展的兼容原则是：
 
-### 方向一：重构执行单元接口
+1. 标量 LSU / COP / future vector memory path 使用统一的完成语义
+2. flush / redirect / exception 尽量统一控制框架
+3. 不把 future vector support 继续塞进 EXU 条件分支里
 
-这是最重要的一项基础性工作。
-
-当前 EXU 内部已经包含：
-
-- ALU
-- Branch
-- LSU
-- Multiplier
-- Divider
-
-但从后续扩展角度看，最好把这些单元进一步抽象成统一的执行接口，而不是只是“都挂在 EXU 下面”。
-
-建议统一成类似下面的语义：
-
-- request valid
-- request ready
-- response valid
-- response ready
-- kill / flush
-- exception / status
-- destination metadata
-
-这样未来新增一个“vector coprocessor issue port”时，逻辑上就是再增加一个执行后端，而不是修改整条标量 EXU 的特殊路径。
-
-#### 收益
-
-- 降低 EXU 内部控制复杂度；
-- 便于细化 stall 来源；
-- 便于未来插入向量执行单元；
-- 便于做 scoreboard 或 issue tracking。
-
-#### 与性能的关系
-
-这项改造本身不一定立刻带来最大跑分提升，但它是后续大部分高收益优化的前提。
-
----
-
-### 方向二：重构 LSU / Memory Subsystem
-
-这是最有可能带来显著收益的方向之一。
-
-当前从计数器上看，load/store 指令数量很多，但真实 AXI 事务并不多，说明多数访存已经被 cache 吸收；然而 stall 仍然很高，说明问题主要不是“cache 太小”，而是：
-
-- load-use 相关导致等待；
-- LSU 命中路径的返回时机偏晚；
-- store 对后续路径存在不必要阻塞；
-- 访存返回与提交之间耦合过紧。
-
-建议的演进方向：
-
-1. 增加 **store buffer**；
-2. 让 store 尽量早于真正写入 cache/AXI 就从主流水中退休；
-3. 逐步引入 **可排队式 LSU**；
-4. 尽量做到 load hit 更早可用；
-5. 为未来扩展成 memory request/response channel 打基础。
-
-#### 为什么这对未来向量协处理器重要
-
-向量处理器最容易把系统打爆的地方通常不是算力，而是访存接口。
-
-如果现在 CPU 的 LSU 就做成清晰的请求/返回模型，那么以后可以自然发展为：
-
-- 标量 LSU
-- 向量 LSU
-- 共享 DCache / 共享 Xbar / 独立 request queue
-
-这样的组织形式。
-
-#### 预期收益
-
-- 显著减少 pipeline stall；
-- 提升 load/store 密集程序表现；
-- 为后续 vector load/store 铺路。
-
----
-
-### 方向三：强化旁路网络，缩短 load-use penalty
-
-这是最“直接提升 CPU 本身性能”的方向之一。
-
-当前大量 stall 的一个强嫌疑来源是：
-
-- 数据其实已经算出来或 cache hit 了；
-- 但后续指令不能足够早地使用它；
-- 导致不得不插气泡等待。
-
-可优化方向包括：
-
-1. 更强的 EXU/WBU/RegisterFile 旁路；
-2. load hit 结果尽早旁路；
-3. 减少“明明无依赖也被统一拦住”的时机；
-4. 更细粒度地区分“结果不可用”和“只是尚未提交”。
-
-#### 为什么它重要
-
-对于 5 级顺序单发射核，旁路质量基本直接决定 IPC 上限。
-
-#### 为什么它对未来 vector 也有帮助
-
-未来即使引入协同向量处理器，标量前端和标量后端仍然需要高效；
-旁路和依赖处理做得清楚，也更容易在标量/向量之间定义数据交互边界。
-
----
-
-### 方向四：降低多周期单元对整条流水的阻塞
-
-当前乘法、除法、LSU 都属于会拉低前级 ready 的单元。
-
-这种方式实现简单，但问题是：
-
-> 一条慢指令会把很多本来无依赖的后续工作也一起拖住。
-
-改进方向：
-
-1. 让 multiplier 更流水化；
-2. 让 divider/LSU 的 busy 对 issue 的影响更局部化；
-3. 允许更多“非依赖指令继续走”；
-4. 在不进入乱序的前提下，做轻量级 issue tracking。
-
-#### 预期收益
-
-- 减少 MUL/DIV/LSU 造成的整体阻塞；
-- 改善 CoreMark、算法测试、未来更复杂 benchmark 的表现。
-
-#### 对未来 vector 的意义
-
-向量单元天然是长延迟单元。如果现在连标量多周期单元都只能“全局阻塞”，那么以后接入向量协处理器几乎必然非常难看。
-
----
-
-### 方向五：优化分支恢复时延，而不仅是提高预测命中率
-
-当前 BTB/RAS/JAL 预测已经做到了可用，且命中率不差。但性能上仍有不少 `pcupdate` 和恢复开销。
-
-因此后续分支优化的重点不应只是：
-
-- 增大 BTB；
-- 修改计数器策略；
-
-而应更多关注：
-
-- 分支结果能否更早确认；
-- 正确预测路径能否更少受到晚级干扰；
-- 误预测恢复能否再少一拍；
-- flush/redirect 是否还能更轻量。
-
-#### 这比“继续堆 predictor 容量”更值钱
-
-因为当前 ICache 和 BTB 统计已经说明前端不是最主要瓶颈。真正值钱的是恢复成本，而不是单纯提高查表命中率。
-
----
-
-### 方向六：前后端解耦
-
-可以考虑逐步引入：
-
-- fetch queue
-- decode queue
-- 更明确的 issue 边界
-
-目的不是一下子变成乱序，而是让：
-
-- IFU 不必完全受后端短暂停顿牵制；
-- 后端不必每次都强依赖当前拍取到的新指令；
-- 控制流与执行流之间有更好的缓冲层。
-
-#### 收益
-
-- 改善短周期抖动；
-- 提高前端连续供给能力；
-- 为以后标量核 + 向量协处理器并行存在创造更自然的结构。
-
----
-
-### 方向七：引入轻量级 scoreboard
-
-这是未来扩展能力很强的一步。
-
-即使不做乱序，也可以用 scoreboard 管理：
-
-- 哪些寄存器结果尚未就绪；
-- 哪些执行单元在忙；
-- 哪些访存请求未完成；
-- 哪些指令可以继续 issue。
-
-#### 为什么值得
-
-这会比纯粹依赖分散在各处的 hazard 判断更容易扩展。
-
-未来若接入协向量处理器，scoreboard 可以自然扩展成：
-
-- 标量寄存器依赖管理；
-- 向量结果忙状态；
-- 标量/向量共享资源冲突管理。
-
-这一步对架构清晰度的帮助非常大。
-
----
-
-## 五、如果从“宏大且收益显著”角度排序
-
-如果按“改动规模较大，但长期收益和扩展价值都高”的标准排序，建议顺序如下：
+## 六、近期排序
 
 ### 第一梯队
 
-1. **LSU / memory subsystem 重构**
-2. **统一执行单元接口**
-3. **强化旁路 + 降低 load-use penalty**
-
-这是当前最值得投入的方向。
+1. B：BTB miss rate 改善
+2. A：Other backend 归因和优化
 
 ### 第二梯队
 
-4. **前后端解耦（fetch/decode queue）**
-5. **轻量级 scoreboard**
-6. **多周期单元局部化阻塞**
-
-这些会让 CPU 从“能跑且正确”走向“结构成熟”。
+3. B：真正有效的 redirect recovery -1 cycle
+4. A：统一 EXU 后端接口（为 vector memory/COP 扩展铺路）
 
 ### 第三梯队
 
-7. **dual-issue in-order**
-8. **更强的动态调度能力（有限乱序）**
+5. A/C：vector memory access 接口准备
+6. A/B：前后端轻量解耦
 
-这是更宏大的方向，但建议放在前面基础结构清晰之后再考虑。
+## 七、结论
 
-否则会在现有控制复杂度上继续叠加复杂度，得不偿失。
+HelloCPU 当前已经从“LSU 阻塞型顺序核”演进到“前端 redirect 成本主导的高性能顺序核”。
 
----
+后续最值得投入的方向已经非常明确：
 
-## 六、从“未来接入向量协处理器”角度，当前最应该优先做什么
-
-如果把“未来向量协处理器接入”作为重要约束，那么现在最应该优先做的，不是直接做 vector 相关功能，而是做下面这些基础整理：
-
-### 1. 明确 issue / execute / complete / commit 四个边界
-
-未来 vector 单元一般具备：
-
-- 长延迟；
-- 多拍完成；
-- 可能存在部分完成；
-- 可能有独立异常；
-- 可能需要独立访存通道。
-
-因此现在 CPU 必须先把标量核自己的边界定义清楚。
-
-### 2. 统一 kill / flush / redirect / exception 语义
-
-未来向量协处理器最怕的是：
-
-- 标量分支 flush 一套；
-- trap 一套；
-- 协处理器返回再来一套。
-
-这会导致控制路径极其混乱。
-
-### 3. 让 memory 接口更像“服务”而不是“阻塞式函数调用”
-
-向量访存天然要求：
-
-- 更高吞吐；
-- 更深排队；
-- 更清晰仲裁。
-
-所以现在重构标量 LSU，本质上就是在给未来 vector memory path 铺路。
-
-### 4. 让执行单元可插拔
-
-未来理想状态下，向量协处理器应该更像：
-
-- 一个新的 issue target；
-- 一个新的 long-latency result source；
-- 一个新的 exception source；
-
-而不是在现有 EXU 里插很多 if/else 分支。
-
----
-
-## 七、建议的阶段性路线
-
-### 第一阶段：先把结构变清楚
-
-建议依次做：
-
-1. 明确 EXU 子单元统一接口；
-2. 梳理提交语义；
-3. 梳理 flush / redirect / kill；
-4. 明确 LSU request/response 语义；
-5. 补充更细粒度 stall 分类计数器。
-
-这一阶段不一定马上带来最大跑分提升，但会极大提高后续优化效率。
-
-### 第二阶段：针对当前 CPU 的高收益性能优化
-
-建议优先做：
-
-1. store buffer；
-2. load-use penalty 优化；
-3. 更强旁路；
-4. 降低 MUL/DIV/LSU 阻塞；
-5. 前后端解耦。
-
-### 第三阶段：为协同向量处理器预留正式接口
-
-这一阶段可以开始定义：
-
-- coprocessor issue port；
-- coprocessor result return port；
-- coprocessor exception / interrupt 回报口；
-- 标量/向量共享 LSU 或共享 Xbar 的仲裁接口；
-- CSR 扩展方式。
-
----
-
-## 八、结论
-
-当前 HelloCPU 后续提升 CPU 本身的正确思路，不是继续在局部 patch 中堆功能，而是：
-
-> 把 CPU 从“能跑、已正确”的状态，演进成“结构清晰、局部解耦、执行单元可插拔、访存系统可扩展”的标量核心。
-
-对当前最值得投入的方向，可以总结为：
-
-1. **重构 LSU 和 memory subsystem**；
-2. **强化旁路，缩短 load-use penalty**；
-3. **统一执行单元接口**；
-4. **降低多周期单元的全局阻塞**；
-5. **优化分支恢复时延**；
-6. **逐步引入 queue / scoreboard 等结构化机制**。
-
-如果未来希望自然接入向量协处理器，那么最关键的不是先做 vector，而是先把当前 CPU 的：
-
-- issue
-- execute
-- complete
-- commit
-- flush
-- memory
-
-这些边界定义得足够清楚。
-
-这样未来扩展时，向量协处理器才会成为“自然接入的新执行后端”，而不是“必须重写整颗 CPU 才能塞进去的新特殊模块”。
+1. 前端预测与恢复（B）
+2. Other backend 归因和后端局部优化（A）
+3. 统一结构边界，为向量访存和 RVV 迁移铺路（A/C）

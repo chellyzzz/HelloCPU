@@ -1,10 +1,10 @@
 # HelloCPU Microarchitecture
 
-This document describes the CPU microarchitecture. Project usage, build commands, and validation status live in `../../README.md`.
+This document describes the current CPU microarchitecture. Build commands and usage live in `../../README.md`.
 
 ## Pipeline Overview
 
-HelloCPU is an in-order RV32IM + Zicsr core with valid/ready-style pipeline flow control.
+HelloCPU is an in-order RV32IM + Zicsr core with valid/ready pipeline control.
 
 ```text
 IFU -> IDU -> EXU/COP -> WBU -> Register File
@@ -15,114 +15,158 @@ ICache        ALU / LSU / Multiplier / Divider / Branch / COP backend
  +--------------+-> Xbar -> AXI RAM / MMIO
 ```
 
-Pipeline stages exchange `valid` and `ready` information so multi-cycle units can apply backpressure.
+Current validated throughput: `2.853 CoreMark/MHz`, `IPC=0.874`, `10.4%` stall rate.
 
 ## IFU
 
-The instruction fetch unit owns the fetch PC and selects the next PC from these sources, in priority order:
+The IFU owns the fetch PC and selects the next PC from these sources, in priority order:
 
 | Source | Purpose |
 |--------|---------|
-| EXU redirect | Recovery from misprediction |
-| WBU PC update | Architectural redirect for unresolved control flow and traps |
+| EXU redirect | Mispredict recovery |
+| WBU PC update | Architectural redirect / unresolved control flow |
 | Predictor target | BTB, RAS, or static JAL prediction |
 | `pc + 4` | Sequential fetch |
 
-The IFU reads instructions through a 4 KB ICache. A cache hit can deliver an instruction without an AXI transaction; a miss fetches a cache line through the Xbar.
+The IFU reads through a 4 KB ICache. Cache hit rate on CoreMark is `99.6%`, so current frontend bottleneck is not cache capacity but redirect recovery.
 
 ## IDU
 
-The instruction decode unit is combinational and decodes RV32I, RV32M, and Zicsr instructions. It generates:
+The IDU is combinational. It decodes RV32I, RV32M, and Zicsr instructions and produces:
 
-| Output | Purpose |
-|--------|---------|
-| Immediate values | I/S/B/U/J formats |
-| ALU operation | Arithmetic, logic, shift, compare |
-| EXU operation | Load/store width, multiply/divide mode, branch mode |
-| Register controls | Source/destination register addresses and write enable |
-| Control-flow signals | Branch, JAL, JALR, ecall, mret |
-| Predictor metadata | Predicted-taken bit and predicted target |
+- immediate values
+- ALU operation
+- EXU operation (load/store width, mul/div mode, branch mode)
+- register controls
+- control-flow signals
+- predictor metadata
+
+The IFU/IDU/IDU-EXU path uses pass-through ready chaining. Registered-valid and skid-buffer variants were tested and rejected because they break control-flow alignment.
 
 ## EXU
 
-The execution stage contains the ALU, branch comparator, multiplier, divider, LSU, and predictor update logic.
+The EXU contains the ALU, branch logic, multiplier, divider, LSU, and redirect generation.
 
 | Unit | Latency | Notes |
 |------|---------|-------|
-| ALU | 1 cycle | Add/sub, logic, shifts, comparisons |
-| Branch | 1 cycle | BEQ/BNE/BLT/BGE/BLTU/BGEU |
-| Multiplier | 2 cycles | Booth-2 partial products and Wallace tree compression |
-| Divider | Multi-cycle | Radix-2 non-restoring divider |
-| LSU | Variable | DCache access or uncached AXI transaction |
+| ALU | 1 cycle | add/sub/logic/shift/compare |
+| Branch | 1 cycle | resolves direction and target |
+| Multiplier | 0 or 2 cycles | low `MUL` fast path is combinational; high-part multiply remains multi-cycle |
+| Divider | multi-cycle | radix-2 non-restoring divider with trivial fast paths |
+| LSU | 0 / variable | same-cycle cache-hit paths; miss and uncached remain blocking |
 
-The EXU checks predicted direction and target against actual control-flow results. On mismatch it raises `o_mispredict_flush` and provides `o_redirect_pc`. COP/custom instructions are routed to `vsrc/vector/cop` through the top-level mux and are committed only through the shared WBU path.
+On branch mismatch, EXU raises `o_mispredict_flush` and provides `o_redirect_pc`.
 
-### LSU Timing
+## LSU
 
-The LSU contains the DCache arrays, cache hit/miss logic, refill/writeback control, and uncached AXI paths. It is still a blocking in-order unit from the pipeline's point of view, but several high-frequency paths are shortened:
+The LSU contains the DCache arrays, cache hit/miss logic, refill/writeback control, and uncached AXI paths.
+
+### Current LSU behavior
 
 | Path | Current behavior |
 |------|------------------|
-| Load hit | Completes from `S_CHECK` with combinational `load_res` selection |
-| Store hit | Completes from `S_CHECK` while updating cache data, dirty state, and PLRU |
-| LSU request start | Uses a single registered previous-start bit to detect a new transaction without the older extra delay flop |
-| Refill | Uses conservative pulsed `RREADY`; continuous `RREADY` was tested and rejected because it can hang refill reception |
-| Uncached access | Remains a simple single-beat AXI path |
+| Load hit | completes in `S_IDLE` same cycle from `alu_res` tag lookup |
+| Store hit | completes in `S_IDLE` same cycle; updates cache data/dirty/PLRU |
+| Load/store miss | blocking FSM through refill / writeback paths |
+| Uncached access | single-beat AXI path |
+| Refill completion | conservative pulsed `RREADY` |
 
-The important design boundary is that fast cache-hit paths are allowed to reduce visible LSU latency, while refill burst timing stays conservative until the AXI RAM model and LSU response path are refactored together.
+This LSU work is the main reason CoreMark improved from `2.382` to `2.853 CoreMark/MHz`.
+
+### LSU performance status
+
+CoreMark ITER=100:
+
+| Metric | Value |
+|--------|-------|
+| LSU wait | `7,107` cycles |
+| LSU stall share | `0.2%` |
+| Load transactions | `209` |
+| Store transactions | `600` |
+
+LSU is no longer a first-order performance bottleneck.
+
+## Multiplier And Divider
+
+### Multiplier
+
+- ordinary `MUL` uses a low fast path
+- `MULH`, `MULHSU`, `MULHU` still use the multi-cycle multiplier
+
+### Divider
+
+- radix-2 non-restoring divider
+- `div_by_zero`, signed overflow, `div_by_one`, and `|divisor| > |dividend|` use fast paths
+
+CoreMark DIV cost is now `2,962` cycles across `114` divides.
 
 ## WBU
 
-The writeback unit commits EXU results into the register file or CSR file and generates architectural PC updates. Correctly predicted branches, JALs, and JALRs do not force redundant WBU redirects; unresolved or mispredicted control flow still redirects the front end.
+The WBU commits register/CSR writes and generates architectural PC updates.
+
+Correctly predicted branches/JAL/JALR do not force redundant redirects. Remaining WBU redirect events on CoreMark:
+
+- total `795,702`
+- branch `754,234` (94.8%)
+- JAL `4,966`
+- JALR `36,502`
 
 ## Register File
 
-The register file has 32 architectural registers, with `x0` hardwired to zero. It supports two read ports, one write port, and bypassing from EXU/WBU results.
-
-Forwarding excludes `rd == x0` so writes that architecturally disappear do not pollute dependent source reads.
+The scalar register file has 32 architectural registers, with `x0` hardwired to zero. It supports two read ports, one write port, and forwarding from EXU/WBU.
 
 ## Caches And Memory
 
 | Component | Configuration |
 |-----------|---------------|
-| ICache | 4 KB, line refill through AXI read channel |
+| ICache | 4 KB |
 | DCache | 4 KB, write-back/write-allocate |
 | Cacheable range | `0x30000000` to `0x40000000` |
 | Main memory | 64 MB DPI-C model at `0x30000000` |
 
-The IFU uses read-only AXI channels. The LSU uses AXI read, write, and response channels. The Xbar arbitrates access to RAM and MMIO.
+The Xbar arbitrates RAM and MMIO access.
 
-## CSRs
-
-Implemented CSR support includes machine-level CSRs used by the test environment and CoreMark timing path, including `mcycle`.
-
-## Branch Prediction Summary
-
-The predictor is integrated into IFU and verified in EXU:
+## Branch Prediction
 
 | Component | Role |
 |-----------|------|
-| BTB | Conditional branch direction and target prediction |
-| RAS | Return target prediction for `jalr x0, ra, 0` |
-| Static JAL | JAL target computation in IFU |
+| BTB | branch direction and target |
+| RAS | return target prediction |
+| Static JAL | JAL target generation in IFU |
 
-Detailed predictor behavior is documented in `branch-predictor-design.md`.
-
-## Performance Counters
-
-Performance counter hooks are emitted from `vsrc/cpu/top/hcpu.v` through DPI-C calls. They report instruction mix, stalls, cache activity, AXI transactions, branch prediction statistics, and commit PC hotspots.
-
-The current stall counters distinguish `Frontend/empty`, `IFU held valid`, `LSU wait`, `MUL/DIV wait`, `COP wait`, `Control recovery`, and `Other backend`. LSU wait is further split into hit, refill, refill AR wait, refill R data, uncached, and writeback classes. MUL/DIV wait is also split into MUL and DIV sub-classes, including the IFU-held-valid view.
-
-Current CoreMark `ITER=100` reference after the LSU fast-path work:
+Current CoreMark predictor status:
 
 | Metric | Value |
 |--------|-------|
-| CoreMark/MHz | `2.381` |
-| Simulator cycles | `42000681` |
-| IPC | `0.729` |
-| Stall rate | `25.2%` |
-| LSU wait | `6980532` cycles (`65.9%` of stalls) |
-| MUL/DIV wait | `3762` cycles, all from DIV after the low `MUL` fast path |
+| BTB hits | `5,939,881` |
+| BTB misses | `1,025,583` |
+| BTB mispredicts | `780,786` |
+| Redirect cost | `3` avg cycles (`772,653` events) |
 
-This confirms that the remaining CoreMark bottleneck is not ICache capacity or AXI refill bandwidth. LSU hit/load-use coupling is still the largest issue; low `MUL` backpressure has been removed from the CoreMark bottleneck list.
+Redirect-related frontend refill is now the dominant bottleneck.
+
+## COP / Vector Backend
+
+COP/custom instructions are routed to `vsrc/vector/cop` and committed through the shared WBU path.
+
+Current CPU-side COP interface remains stable:
+
+- issue
+- response
+- kill / flush
+
+Future vector memory access and RVV migration will require CPU-side decode, LSU interface, and CSR expansion, but the current scalar microarchitecture remains independent.
+
+## Performance Counter View
+
+Current CoreMark ITER=100 stall picture:
+
+| Source | Cycles | % of stalls | Owner |
+|--------|--------|-------------|-------|
+| Frontend/empty | `2,005,006` | 55.0% | B |
+| Other backend | `837,926` | 23.0% | A |
+| Control recovery | `795,702` | 21.8% | B |
+| LSU wait | `7,107` | 0.2% | A done |
+| DIV wait | `2,962` | 0.1% | A done |
+
+This means HelloCPU is no longer limited by LSU/cache-hit latency. The current bottleneck is frontend redirect recovery, followed by an unclassified backend bubble source under A analysis.
