@@ -86,6 +86,18 @@ This gives a clean migration path:
 
 ## Mapping To Current CPU
 
+### Current code attachment points
+
+The current CPU-side attachment points are:
+
+- `vsrc/cpu/exu/lsu.v`: current scalar memory execution and completion core
+- `vsrc/cpu/top/hcpu.v`: top-level ownership, stall accounting, and future service boundary shaping
+- `vsrc/cpu/wbu/*`: architectural writeback / commit-side observation point
+- `vsrc/vector/cop/*`: current COP issue/response path that will later need memory-client hookup
+- `docs/interface/vector-coprocessor-interface.md`: current landed COP issue/response/kill contract
+
+This means the first service-model evolution should happen at the CPU top-level boundary, not by immediately rewriting all LSU internals.
+
 ### Scalar LSU today
 
 Scalar LSU already contains all the internal logic needed for:
