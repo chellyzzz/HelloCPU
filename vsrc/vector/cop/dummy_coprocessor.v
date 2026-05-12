@@ -15,18 +15,26 @@ reg [31:0]  latched_res;
 
 assign o_res = latched_res;
 
-wire [2:0]  cop_funct3 = i_ins[14:12];
-wire [31:0] lane_add8 = {
-    i_src1[31:24] + i_src2[31:24],
-    i_src1[23:16] + i_src2[23:16],
-    i_src1[15:8]  + i_src2[15:8],
-    i_src1[7:0]   + i_src2[7:0]
-};
-wire [31:0] lane_xor8 = i_src1 ^ i_src2;
-wire [31:0] lane_and8 = i_src1 & i_src2;
-wire [31:0] cop_result = (cop_funct3 == 3'b001) ? lane_add8 :
-                          (cop_funct3 == 3'b010) ? lane_xor8 :
-                          (cop_funct3 == 3'b011) ? lane_and8 :
+wire [2:0]  cop_funct3;
+wire [3:0]  scalar_lane_op;
+wire [31:0] scalar_lane_result;
+
+hcpu_vector_cop_decode u_cop_decode(
+    .i_ins(i_ins),
+    .o_funct3(cop_funct3),
+    .o_scalar_lane_op(scalar_lane_op)
+);
+
+hcpu_vector_lane_alu u_scalar_lane_alu(
+    .i_lhs(i_src1),
+    .i_rhs(i_src2),
+    .i_op(scalar_lane_op),
+    .o_res(scalar_lane_result)
+);
+
+wire [31:0] cop_result = (cop_funct3 == 3'b001) ? scalar_lane_result :
+                          (cop_funct3 == 3'b010) ? scalar_lane_result :
+                          (cop_funct3 == 3'b011) ? scalar_lane_result :
                           (i_src1 + i_src2);
 
 always @(posedge clock or posedge reset) begin

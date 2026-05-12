@@ -154,22 +154,6 @@ wire                                    exu_lsu_dbg_wait_refill_ar;
 wire                                    exu_lsu_dbg_wait_refill_r ;
 wire                                    exu_lsu_dbg_wait_uncached ;
 wire                                    exu_lsu_dbg_wait_wb       ;
-wire                                    scalar_mem_req_valid      ;
-wire                                    scalar_mem_req_store      ;
-wire                   [  31:0]         scalar_mem_req_addr       ;
-wire                   [  31:0]         scalar_mem_req_wdata      ;
-wire                   [   2:0]         scalar_mem_req_size       ;
-wire                                    scalar_mem_resp_valid     ;
-wire                   [  31:0]         scalar_mem_resp_rdata     ;
-wire                                    mem_owner_scalar_active   ;
-wire                                    mem_owner_cop_active      ;
-wire                                    mem_owner_req_valid       ;
-wire                                    mem_owner_req_store       ;
-wire                   [  31:0]         mem_owner_req_addr        ;
-wire                   [  31:0]         mem_owner_req_wdata       ;
-wire                   [   2:0]         mem_owner_req_size        ;
-wire                                    mem_owner_resp_valid      ;
-wire                   [  31:0]         mem_owner_resp_rdata      ;
 wire                                    scalar_exu2wbu_valid       ;
 wire                                    scalar_exu2idu_ready       ;
 wire                                    cop_exu2wbu_valid          ;
@@ -526,15 +510,6 @@ assign cop_issue_valid = cop_decode_active && !cop_inflight && !cop_backend_busy
 assign cop_issue_active = cop_decode_active;
 assign cop_commit_active = cop_inflight;
 assign cop_pipeline_active = cop_commit_active || cop_issue_active;
-assign mem_owner_scalar_active = scalar_mem_req_valid;
-assign mem_owner_cop_active = 1'b0;
-assign mem_owner_req_valid = mem_owner_scalar_active;
-assign mem_owner_req_store = scalar_mem_req_store;
-assign mem_owner_req_addr = scalar_mem_req_addr;
-assign mem_owner_req_wdata = scalar_mem_req_wdata;
-assign mem_owner_req_size = scalar_mem_req_size;
-assign mem_owner_resp_valid = scalar_mem_resp_valid;
-assign mem_owner_resp_rdata = scalar_mem_resp_rdata;
 assign scalar_issue = idu2exu_valid && !idu2exu_is_cop_insn && !cop_pipeline_active;
 assign cop_refetch_flush = cop_resp_fire;
 assign cop_active_pc = cop_commit_active ? cop_inflight_pc : idu2exu_pc;
@@ -666,13 +641,6 @@ hcpu_EXU exu1(
     .o_lsu_dbg_wait_refill_r           (exu_lsu_dbg_wait_refill_r ),
     .o_lsu_dbg_wait_uncached           (exu_lsu_dbg_wait_uncached ),
     .o_lsu_dbg_wait_wb                 (exu_lsu_dbg_wait_wb       ),
-    .o_mem_req_valid                   (scalar_mem_req_valid      ),
-    .o_mem_req_store                   (scalar_mem_req_store      ),
-    .o_mem_req_addr                    (scalar_mem_req_addr       ),
-    .o_mem_req_wdata                   (scalar_mem_req_wdata      ),
-    .o_mem_req_size                    (scalar_mem_req_size       ),
-    .o_mem_resp_valid                  (scalar_mem_resp_valid     ),
-    .o_mem_resp_rdata                  (scalar_mem_resp_rdata     ),
   //exu -> wbu handshake
     .i_pre_valid                       (scalar_issue              ),
     .i_post_ready                      (wbu2exu_ready             ),
@@ -1060,14 +1028,6 @@ import "DPI-C" function void stall_div_dpic  ();
 import "DPI-C" function void stall_cop_dpic  ();
 import "DPI-C" function void stall_ctrl_dpic ();
 import "DPI-C" function void stall_other_dpic();
-import "DPI-C" function void stall_other_blocked_dpic();
-import "DPI-C" function void stall_other_pipe_dpic();
-import "DPI-C" function void stall_other_pipe_alu_dpic();
-import "DPI-C" function void stall_other_pipe_brch_dpic();
-import "DPI-C" function void stall_other_pipe_jal_dpic();
-import "DPI-C" function void stall_other_pipe_jalr_dpic();
-import "DPI-C" function void stall_other_pipe_sys_dpic();
-import "DPI-C" function void backend_pipe_occ_dpic();
 import "DPI-C" function void btb_hit_dpic    ();
 import "DPI-C" function void btb_miss_dpic   ();
 import "DPI-C" function void btb_misp_dpic   ();
@@ -1128,6 +1088,7 @@ end
 `ifdef PERF_STALL
 always @(posedge clock) begin
   if (!reset && !exu2wbu_valid) begin
+    stall_cnt_dpic();
     if (ifu2idu_valid && !idu2ifu_ready) begin
       stall_ifu_held_dpic();
       if (exu_mispredict_flush_r || pc_update_en) begin
@@ -1155,10 +1116,8 @@ always @(posedge clock) begin
 
   if (!reset && !exu2wbu_valid) begin
     if (exu_mispredict_flush_r || pc_update_en) begin
-      stall_cnt_dpic();
       stall_ctrl_dpic();
     end else if (idu2exu_valid && !exu2idu_ready) begin
-      stall_cnt_dpic();
       if (idu2exu_load || idu2exu_store) begin
         stall_lsu_dpic();
         if (exu_lsu_dbg_wait_start) begin
@@ -1193,25 +1152,11 @@ always @(posedge clock) begin
         stall_cop_dpic();
       end else begin
         stall_other_dpic();
-        stall_other_blocked_dpic();
       end
     end else if (!idu2exu_valid) begin
-      stall_cnt_dpic();
       stall_front_dpic();
     end else begin
-      backend_pipe_occ_dpic();
-      stall_other_pipe_dpic();
-      if (idu2exu_brch) begin
-        stall_other_pipe_brch_dpic();
-      end else if (idu2exu_jal) begin
-        stall_other_pipe_jal_dpic();
-      end else if (idu2exu_jalr) begin
-        stall_other_pipe_jalr_dpic();
-      end else if (idu2exu_csr_wen || idu2exu_ecall || idu2exu_mret || idu2exu_fence_i || idu2exu_ebreak) begin
-        stall_other_pipe_sys_dpic();
-      end else begin
-        stall_other_pipe_alu_dpic();
-      end
+      stall_other_dpic();
     end
   end
 end
