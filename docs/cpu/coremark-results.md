@@ -160,14 +160,14 @@ Store xacts          : 600 / done: 599
 
 The same-cycle LSU hit optimizations have fundamentally changed the bottleneck profile. Total stalls dropped from `51.5%` (pre-LSU-fast-path) to `10.4%` on ITER=100. LSU wait is now negligible (`7,107` cycles, `0.2%` of stalls).
 
-| Area | Evidence | Impact |
-|------|----------|--------|
-| Frontend/empty | `2,005,006` cycles, `54.9%` of all stalls | **New #1 bottleneck.** Likely dominated by branch recovery pipeline bubble (772K redirects × 3 cycles ≈ 2.3M) |
-| Branch recovery | `795,702` redirects, `3` avg cycles, `21.8%` of stalls; `754,234` branch (`94.8%`), `4,962` JAL (`0.6%`), `36,502` JALR (`4.6%`) | Now second-largest stall class; most recovery cost is branch-driven |
-| DIV stalls | `2,962` cycles, `0.1%` of stalls — 114 divides, fast path for div-by-1 and trivial-zero saves 800 cycles | Minimal for CoreMark; useful for general workloads |
-| LSU wait | `7,107` cycles, `0.2%` of stalls — only cache miss refill and uncacheable | **Solved.** Same-cycle load+store hit eliminated 99.9% of LSU stall |
-| ICache misses | `124,452` misses, `99.6%` hit rate | Not the primary bottleneck |
-| DCache/AXI traffic | Load transactions `209`; store transactions `600` | External memory bandwidth is not saturated |
+| Area | Evidence | Impact | Owner |
+|------|----------|--------|-------|
+| Frontend/empty | `2,005,006` cycles, `54.9%` of all stalls | **#1 bottleneck.** 96% = redirect recovery bubble (772K redirects × ~2.5 frontend/empty cycles). Root cause: BTB miss → mispredict → redirect. | B |
+| Control recovery | `795,702` cycles, `21.8%` of stalls; `754,234` branch (`94.8%`), `4,962` JAL, `36,502` JALR | #3 bottleneck. Redirect cost 3 avg cycles. Combined with frontend/empty bubble = 2.73M total redirect cost (74.8% of stalls). | B |
+| Other backend | `837,926` cycles, `23.0%` of stalls | **#2 bottleneck. Unanalyzed.** `idu2exu_valid && exu2idu_ready && !exu2wbu_valid` — EXU accepted instruction but result not yet at WBU. Likely MUL 2-cycle latency (940K multiplies). | A |
+| DIV stalls | `2,962` cycles, `0.1%` — 114 divides; fast path (by-1, trivial-zero) saves 800 cycles | Solved. Minimal for CoreMark. | A |
+| LSU wait | `7,107` cycles, `0.2%` — only cache miss refill and uncacheable | **Solved.** Same-cycle load+store hit eliminated 99.9% of LSU stall. | A |
+| ICache misses | `124,452` misses, `99.6%` hit rate | Not the primary bottleneck. | — |
 
 ### Same-Cycle LSU Hit Results
 
@@ -183,10 +183,13 @@ Implementation: `lsu.v` only, +86 lines total. Adds combinational tag lookup fro
 
 ### Remaining Optimization Opportunities
 
-1. **Frontend bubble reduction** (highest yield, +5-6% CoreMark/MHz): 2M frontend/empty cycles. Root cause analysis needed — likely branch recovery pipeline bubble. B-line Task-4 assigned.
-2. **Branch recovery -1 cycle** (medium yield, +2% CoreMark/MHz): Reducing 3→2 avg cycles saves ~772K cycles. Requires redirect/flush timing redesign.
-3. **DIV optimization** (low yield for CoreMark, useful for general workloads): DIV fast path (by-1, trivial-zero) saves 800 cycles for CoreMark. Radix-4 or early termination would save more but adds complexity.
-4. **AXI-level optimizations** (negligible for CoreMark): Combinational RREADY abandoned; AXI RAM model incompatible.
+| # | Optimization | Yield | Owner | Status |
+|---|---|---|---|---|
+| 1 | **BTB miss rate reduction** (780K mispredicts × 3 cycles = 2.3M) | +5-8% | B | B-Task-7 assigned |
+| 2 | **Other backend analysis** (838K cycles, likely MUL latency) | +2-3% | A | Next A task |
+| 3 | **Redirect recovery -1 cycle** (772K × 1 cycle saved) | +2% | B | B-Task-8, previous attempt failed |
+| 4 | DIV fast path (by-1, trivial-zero) | +0% for CoreMark | A | Done (`8f48295`) |
+| 5 | AXI-level (combinational RREADY) | ~0% | — | Abandoned, AXI RAM incompatible |
 
 ### LSU AXI Optimization Results
 
@@ -198,7 +201,6 @@ Two approaches were tested:
 | Combinational RREADY (no registered handshake) | Simulation hang | Reverted; AXI RAM model requires 2-phase RVALID/RREADY |
 
 The fast_done paths are kept because they improve uncache-path latency (relevant for MMIO workloads) and are correct. Combinational RREADY was abandoned because the simulation AXI RAM model uses a 2-phase FSM for R channel and cannot handle immediate RREADY assertion.
-4. Revisit register-file bypass and interlock timing once pipeline valid/ready boundaries are cleaner.
 
 ## Historical Baselines
 
@@ -216,6 +218,7 @@ The fast_done paths are kept because they improve uncache-path latency (relevant
 | 128-entry BTB, ITER=100 | 2.381 | Small cycle reduction from `42000681` to `41986504`; rounded CoreMark/MHz unchanged |
 | Same-cycle load hit, ITER=100 | 2.737 | +14.9% over baseline; LSU wait -78.4% |
 | Same-cycle load+store hit, ITER=100 | 2.853 | +19.8% over baseline; LSU wait -99.9% |
+| Same-cycle hit + DIV fast path, ITER=100 | 2.853 | DIV wait 3762→2962 (-21%); CoreMark unchanged |
 
 ## Correctness Notes
 
