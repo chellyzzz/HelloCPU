@@ -24,74 +24,53 @@ reg [31:0]  vrf [0:3];
 
 assign o_res = latched_res;
 
-wire [2:0]  cop_funct3 = i_ins[14:12];
-wire [6:0]  cop_funct7 = i_ins[31:25];
+wire [2:0]  cop_funct3;
+wire [6:0]  cop_funct7;
+wire [3:0]  scalar_lane_op;
+wire [3:0]  vrf_lane_op;
+wire        is_vrf_op;
+wire        is_vrf_lane;
+wire        scratch_write;
+wire        vlen_write;
+
+hcpu_vector_cop_decode u_cop_decode(
+    .i_ins(i_ins),
+    .o_funct3(cop_funct3),
+    .o_funct7(cop_funct7),
+    .o_scalar_lane_op(scalar_lane_op),
+    .o_vrf_lane_op(vrf_lane_op),
+    .o_is_vrf_op(is_vrf_op),
+    .o_is_vrf_lane(is_vrf_lane),
+    .o_is_mem_load(),
+    .o_is_mem_store(),
+    .o_scratch_write(scratch_write),
+    .o_vlen_write(vlen_write)
+);
+
 wire [31:0] scalar_op  = (cop_funct7 == 7'd1) ? (i_src1 - i_src2) :
                           (cop_funct7 == 7'd2) ? (i_src1 * i_src2) :
                           (i_src1 + i_src2);
-wire [31:0] lane_add8 = {
-    i_src1[31:24] + i_src2[31:24],
-    i_src1[23:16] + i_src2[23:16],
-    i_src1[15:8]  + i_src2[15:8],
-    i_src1[7:0]   + i_src2[7:0]
-};
-wire [31:0] lane_xor8 = i_src1 ^ i_src2;
-wire [31:0] lane_and8 = i_src1 & i_src2;
 wire [1:0]  vrf_idx   = i_src2[1:0];
-wire [31:0] vrf_lane_add8 = {
-    vrf[0][31:24] + vrf[1][31:24],
-    vrf[0][23:16] + vrf[1][23:16],
-    vrf[0][15:8]  + vrf[1][15:8],
-    vrf[0][7:0]   + vrf[1][7:0]
-};
-wire [31:0] vrf_lane_sub8 = {
-    vrf[0][31:24] - vrf[1][31:24],
-    vrf[0][23:16] - vrf[1][23:16],
-    vrf[0][15:8]  - vrf[1][15:8],
-    vrf[0][7:0]   - vrf[1][7:0]
-};
-wire [31:0] vrf_lane_xor8 = vrf[0] ^ vrf[1];
-wire [31:0] vrf_lane_and8 = vrf[0] & vrf[1];
-wire [31:0] vrf_lane_mul8 = {
-    vrf[0][31:24] * vrf[1][31:24],
-    vrf[0][23:16] * vrf[1][23:16],
-    vrf[0][15:8]  * vrf[1][15:8],
-    vrf[0][7:0]   * vrf[1][7:0]
-};
-wire [31:0] vrf_lane_sll8 = {
-    vrf[0][31:24] << vrf[1][26:24],
-    vrf[0][23:16] << vrf[1][18:16],
-    vrf[0][15:8]  << vrf[1][10:8],
-    vrf[0][7:0]   << vrf[1][2:0]
-};
-wire [31:0] vrf_lane_srl8 = {
-    vrf[0][31:24] >> vrf[1][26:24],
-    vrf[0][23:16] >> vrf[1][18:16],
-    vrf[0][15:8]  >> vrf[1][10:8],
-    vrf[0][7:0]   >> vrf[1][2:0]
-};
-wire [31:0] vrf_lane_sra8 = {
-    $signed(vrf[0][31:24]) >>> vrf[1][26:24],
-    $signed(vrf[0][23:16]) >>> vrf[1][18:16],
-    $signed(vrf[0][15:8])  >>> vrf[1][10:8],
-    $signed(vrf[0][7:0])   >>> vrf[1][2:0]
-};
-wire [31:0] vrf_lane_or8 = vrf[0] | vrf[1];
-wire [31:0] vrf_op_result = (cop_funct7 == 7'd5) ? vrf_lane_add8 :
-                            (cop_funct7 == 7'd6) ? vrf_lane_xor8 :
-                            (cop_funct7 == 7'd7) ? vrf_lane_and8 :
-                            (cop_funct7 == 7'd8) ? vrf_lane_sub8 :
-                            (cop_funct7 == 7'd9) ? vrf_lane_mul8 :
-                            (cop_funct7 == 7'd10) ? vrf_lane_sll8 :
-                            (cop_funct7 == 7'd11) ? vrf_lane_srl8 :
-                            (cop_funct7 == 7'd12) ? vrf_lane_sra8 :
-                            (cop_funct7 == 7'd13) ? vrf_lane_or8 :
-                            vrf_lane_add8;
-wire        is_vrf_op  = (cop_funct3 == 3'b000) && (cop_funct7 >= 7'd3) && (cop_funct7 <= 7'd13);
-wire        is_vrf_lane = (cop_funct3 == 3'b000) && (cop_funct7 >= 7'd5) && (cop_funct7 <= 7'd13);
-wire [31:0] cop_result = (cop_funct3 == 3'b001) ? lane_add8 :
-                          (cop_funct3 == 3'b010) ? lane_xor8 :
-                          (cop_funct3 == 3'b011) ? lane_and8 :
+wire [31:0] scalar_lane_result;
+wire [31:0] vrf_op_result;
+
+hcpu_vector_lane_alu u_scalar_lane_alu(
+    .i_lhs(i_src1),
+    .i_rhs(i_src2),
+    .i_op(scalar_lane_op),
+    .o_res(scalar_lane_result)
+);
+
+hcpu_vector_lane_alu u_vrf_lane_alu(
+    .i_lhs(vrf[0]),
+    .i_rhs(vrf[1]),
+    .i_op(vrf_lane_op),
+    .o_res(vrf_op_result)
+);
+
+wire [31:0] cop_result = (cop_funct3 == 3'b001) ? scalar_lane_result :
+                          (cop_funct3 == 3'b010) ? scalar_lane_result :
+                          (cop_funct3 == 3'b011) ? scalar_lane_result :
                           (cop_funct3 == 3'b100) ? scratch :
                           (cop_funct3 == 3'b101) ? vlen :
                           (cop_funct3 == 3'b110) ? vlen :
@@ -99,8 +78,6 @@ wire [31:0] cop_result = (cop_funct3 == 3'b001) ? lane_add8 :
                           is_vrf_lane ? vrf_op_result :
                           is_vrf_op  ? vrf[vrf_idx] :
                           scalar_op;
-wire        scratch_write = (cop_funct3 == 3'b100);
-wire        vlen_write    = (cop_funct3 == 3'b101);
 wire        vrf_write     = is_vrf_op && (cop_funct7 != 7'd4);
 wire [1:0]  vrf_write_idx = is_vrf_lane ? 2'd0 : vrf_idx;
 wire [31:0] vrf_write_value = is_vrf_lane ? vrf_op_result : i_src1;
