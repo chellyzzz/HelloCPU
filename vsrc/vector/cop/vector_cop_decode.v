@@ -9,7 +9,9 @@ module hcpu_vector_cop_decode(
     output            o_is_mem_load,
     output            o_is_mem_store,
     output            o_scratch_write,
-    output            o_vlen_write
+    output            o_vlen_write,
+    output            o_vtype_write,
+    output            o_vtype_read
 );
 
 localparam LANE_OP_ADD8 = 4'd0;
@@ -45,5 +47,7 @@ assign o_is_mem_load  = (o_funct3 == 3'b000) && (o_funct7 == 7'd14);
 assign o_is_mem_store = (o_funct3 == 3'b000) && (o_funct7 == 7'd15);
 assign o_scratch_write = (o_funct3 == 3'b100);
 assign o_vlen_write    = (o_funct3 == 3'b101);
+assign o_vtype_write   = (o_funct3 == 3'b000) && (o_funct7 == 7'd16);
+assign o_vtype_read    = (o_funct3 == 3'b000) && (o_funct7 == 7'd17);
 
 endmodule

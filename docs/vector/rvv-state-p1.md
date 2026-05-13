@@ -144,7 +144,7 @@ P1B RTL 合入前至少需要以下 directed software tests：
 | `cop-vtype` | supported `vtype` 写入/读回 |
 | `cop-vtype-illegal` | unsupported `SEW/LMUL` 置 `vill=1` |
 | `cop-vtype-cross` | `vl` 与 `vtype` 状态互不污染 |
-| `cop-vtype-kill` | killed `vtype` 写入不提交 |
+| `cop_vtype_kill` | backend flush 取消 pending `vtype` 写入，后续 `vtype` 写入恢复 |
 
 回归要求：
 
