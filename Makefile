@@ -35,7 +35,7 @@ VECTOR_TESTS := $(basename $(notdir $(wildcard $(SW_DIR)/tests/vector-tests/*.c)
 
 # === Targets ===
 
-.PHONY: all sim sw clean run_% run_all bench bench_only branch_trace predictor_sim ifu_idu_backpressure exu_wbu_flush exu_result_visibility cop_backend_flush idu_cop_regs commit_visible_ctrl ifu_fetch_queue decode_pair_policy top_fetch_queue_flush top_pc_update_flush top_slot1_observability cop_mem_pending_kill cop_mem_store_directed cop_mem_store_kill scalar_mem_pending_kill backend_contract_checks embench-build embench-run embench-run-one
+.PHONY: all sim sw clean run_% run_all bench bench_only branch_trace predictor_sim ifu_idu_backpressure exu_wbu_flush exu_result_visibility cop_backend_flush idu_cop_regs commit_visible_ctrl ifu_fetch_queue decode_pair_policy top_fetch_queue_flush top_pc_update_flush top_slot1_observability cop_mem_pending_kill cop_mem_store_directed cop_mem_store_kill scalar_mem_pending_kill cop_vtype_kill backend_contract_checks embench-build embench-run embench-run-one
 
 all: sim sw
 
@@ -251,7 +251,16 @@ scalar_mem_pending_kill: sw
 		-o $(abspath $(BUILD_DIR)/Vscalar_mem_pending_kill_tb)
 	@$(BUILD_DIR)/Vscalar_mem_pending_kill_tb $(SW_DIR)/build/scalar/load-repeat.bin
 
-backend_contract_checks: exu_wbu_flush exu_result_visibility cop_backend_flush idu_cop_regs commit_visible_ctrl ifu_idu_backpressure scalar_mem_pending_kill cop_mem_pending_kill cop_mem_store_directed cop_mem_store_kill
+cop_vtype_kill:
+	$(VERILATOR) --top-module hcpu_cop_backend --cc --exe --build -Wno-fatal -Wno-style \
+		$(EXTRA_VERILATOR_FLAGS) \
+		vsrc/vector/cop/cop_backend.v vsrc/vector/cop/dummy_coprocessor.v vsrc/vector/cop/vector_cop_decode.v vsrc/vector/cop/vector_lane_alu.v \
+		$(abspath $(SIM_DIR)/cop_backend_vtype_flush_tb.cpp) \
+		--Mdir $(BUILD_DIR)/cop_backend_vtype_flush_tb \
+		-o $(abspath $(BUILD_DIR)/Vcop_backend_vtype_flush_tb)
+	@$(BUILD_DIR)/Vcop_backend_vtype_flush_tb
+
+backend_contract_checks: exu_wbu_flush exu_result_visibility cop_backend_flush idu_cop_regs commit_visible_ctrl ifu_idu_backpressure scalar_mem_pending_kill cop_mem_pending_kill cop_mem_store_directed cop_mem_store_kill cop_vtype_kill
 
 # Wave for debugging
 wave:

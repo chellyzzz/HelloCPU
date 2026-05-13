@@ -41,6 +41,8 @@
 | 0 | 13 | vrf lane or | v0 \| v1 | VRF | cop-vrf-sra-or |
 | 0 | 14 | vload_mem | 内存 4 字节 → v0，返回 v0 | VRF + memory | cop-vload-mem, cop-vload-store-mem, cop-vload-repeat-mem |
 | 0 | 15 | vstore_mem | v0 低 4 字节 → 内存，返回 v0 | memory | cop-vstore-mem, cop-vload-store-mem |
+| 0 | 16 | vtype_write | 写入 P1 prototype vtype，返回旧值 | vtype | cop-vtype, cop-vtype-illegal, cop-vtype-cross |
+| 0 | 17 | vtype_read | 读取 P1 prototype vtype | 无（只读） | cop-vtype, cop-vtype-cross |
 | 1 | * | vadd8 | 4x8-bit lane add | 无 | cop-vadd8, cop-vadd8-chain |
 | 2 | * | vxor8 | rs1 ^ rs2 | 无 | cop-vxor8 |
 | 3 | * | vand8 | rs1 & rs2 | 无 | cop-vand8, cop-mixed-lanes |
@@ -96,6 +98,15 @@ opcode = 0x0b (custom-0)
 - 通过 funct3=7 只读
 - flush 不影响计数（只计已完成操作）
 - 语义：调试/性能观测计数器
+
+### 4.4 vtype（32-bit，P1 prototype）
+
+- reset 后为 `0x80000000`，表示 `vill=1`
+- 通过 `funct3=0, funct7=16` 写入，写入延迟到完成拍
+- 通过 `funct3=0, funct7=17` 只读
+- 仅接受 `SEW=8/32` 且 `LMUL=m1` 的 prototype 编码
+- unsupported `SEW/LMUL` 写入 `0x80000000`
+- flush 取消未提交的 vtype 写入，但不清零已提交的 vtype
 
 ---
 
@@ -176,3 +187,7 @@ opcode = 0x0b (custom-0)
 | cop_mem_pending_kill | vload_mem + test-only kill | COP load response 晚到后被 kill 吸收 |
 | cop_mem_store_directed | vstore_mem + test-only monitor | COP store AW/W/B owner path 和 B 后 response |
 | cop_mem_store_kill | vstore_mem + test-only kill | AW/W 接受前 killed store 无 bus side effect，后续 store 恢复 |
+| cop-vtype | vtype write/read | supported `vtype` 写入/读回 |
+| cop-vtype-illegal | vtype write/read | unsupported `SEW/LMUL` 置 `vill=1` |
+| cop-vtype-cross | vlen + vtype | `vl` 与 `vtype` 状态互不污染 |
+| cop_vtype_kill | backend vtype write/read + flush | pending `vtype` 写入被 flush 取消，后续写入恢复 |

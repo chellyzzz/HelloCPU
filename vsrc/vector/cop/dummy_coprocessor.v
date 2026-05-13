@@ -26,6 +26,9 @@ reg [31:0]  pending_scratch_value;
 reg [31:0]  vlen;
 reg         pending_vlen_write;
 reg [31:0]  pending_vlen_value;
+reg [31:0]  vtype;
+reg         pending_vtype_write;
+reg [31:0]  pending_vtype_value;
 reg [31:0]  op_count;
 reg [31:0]  vrf [0:3];
 reg         mem_active;
@@ -47,8 +50,12 @@ wire        is_mem_load;
 wire        is_mem_store;
 wire        scratch_write;
 wire        vlen_write;
+wire        vtype_write;
+wire        vtype_read;
 wire [31:0] scalar_lane_result;
 wire [31:0] vrf_op_result;
+wire [31:0] vlen_next_value;
+wire [31:0] vtype_next_value;
 
 hcpu_vector_cop_decode u_cop_decode(
     .i_ins(i_ins),
@@ -61,7 +68,9 @@ hcpu_vector_cop_decode u_cop_decode(
     .o_is_mem_load(is_mem_load),
     .o_is_mem_store(is_mem_store),
     .o_scratch_write(scratch_write),
-    .o_vlen_write(vlen_write)
+    .o_vlen_write(vlen_write),
+    .o_vtype_write(vtype_write),
+    .o_vtype_read(vtype_read)
 );
 
 hcpu_vector_lane_alu u_scalar_lane_alu(
@@ -81,6 +90,10 @@ hcpu_vector_lane_alu u_vrf_lane_alu(
 wire [31:0] scalar_op  = (cop_funct7 == 7'd1) ? (i_src1 - i_src2) :
                           (cop_funct7 == 7'd2) ? (i_src1 * i_src2) :
                           (i_src1 + i_src2);
+assign vlen_next_value = (i_src1 > 32'd4) ? 32'd4 : i_src1;
+assign vtype_next_value = ((i_src1[2:0] == 3'd0) || (i_src1[2:0] == 3'd2)) && (i_src1[5:3] == 3'd0) ?
+                          {29'b0, i_src1[2:0]} :
+                          32'h80000000;
 wire [1:0]  vrf_idx   = i_src2[1:0];
 wire        is_mem_op = is_mem_load || is_mem_store;
 wire [31:0] cop_result = (cop_funct3 == 3'b001) ? scalar_lane_result :
@@ -90,6 +103,8 @@ wire [31:0] cop_result = (cop_funct3 == 3'b001) ? scalar_lane_result :
                           (cop_funct3 == 3'b101) ? vlen :
                           (cop_funct3 == 3'b110) ? vlen :
                           (cop_funct3 == 3'b111) ? op_count :
+                          vtype_write ? vtype :
+                          vtype_read ? vtype :
                           is_vrf_lane ? vrf_op_result :
                           is_vrf_op  ? vrf[vrf_idx] :
                           scalar_op;
@@ -108,6 +123,9 @@ always @(posedge clock or posedge reset) begin
         vlen        <= 32'b0;
         pending_vlen_write    <= 1'b0;
         pending_vlen_value    <= 32'b0;
+        vtype       <= 32'h80000000;
+        pending_vtype_write   <= 1'b0;
+        pending_vtype_value   <= 32'b0;
         op_count    <= 32'b0;
         vrf[0]      <= 32'b0;
         vrf[1]      <= 32'b0;
@@ -131,6 +149,8 @@ always @(posedge clock or posedge reset) begin
         pending_scratch_value <= 32'b0;
         pending_vlen_write    <= 1'b0;
         pending_vlen_value    <= 32'b0;
+        pending_vtype_write   <= 1'b0;
+        pending_vtype_value   <= 32'b0;
         mem_active  <= 1'b0;
         mem_is_store <= 1'b0;
         mem_lane    <= 2'b0;
@@ -150,7 +170,9 @@ always @(posedge clock or posedge reset) begin
             pending_scratch_write <= scratch_write;
             pending_scratch_value <= i_src1;
             pending_vlen_write    <= vlen_write;
-            pending_vlen_value    <= i_src1;
+            pending_vlen_value    <= vlen_next_value;
+            pending_vtype_write   <= vtype_write;
+            pending_vtype_value   <= vtype_next_value;
             if (is_mem_op) begin
                 countdown    <= 2'b0;
                 mem_active   <= 1'b1;
@@ -188,6 +210,7 @@ always @(posedge clock or posedge reset) begin
                     op_count              <= op_count + 32'd1;
                     pending_scratch_write <= 1'b0;
                     pending_vlen_write    <= 1'b0;
+                    pending_vtype_write   <= 1'b0;
                     if (mem_is_store) begin
                         latched_res <= vrf[0];
                     end else begin
@@ -213,11 +236,15 @@ always @(posedge clock or posedge reset) begin
                 op_count              <= op_count + 32'd1;
                 pending_scratch_write <= 1'b0;
                 pending_vlen_write    <= 1'b0;
+                pending_vtype_write   <= 1'b0;
                 if (pending_scratch_write) begin
                     scratch <= pending_scratch_value;
                 end
                 if (pending_vlen_write) begin
                     vlen <= pending_vlen_value;
+                end
+                if (pending_vtype_write) begin
+                    vtype <= pending_vtype_value;
                 end
             end else begin
                 countdown <= countdown - 2'd1;

@@ -31,8 +31,8 @@
 
 | 项目 | 当前状态 | 第一批 RVV 目标 | 备注 |
 |------|----------|-----------------|------|
-| `vl` | prototype | planned | 当前 `vlen` 是 COP 原型状态，不是标准 `vl` |
-| `vtype` | specified | planned | P1A 已冻结最小状态契约，P1B 做 custom COP prototype |
+| `vl` | prototype | planned | 当前 custom COP `vlen` 已按 `VLMAX=4` 饱和，仍不是标准 `vl` |
+| `vtype` | prototype | planned | P1B custom COP prototype 已覆盖 supported/illegal/kill |
 | `vstart` | unsupported | unsupported | 第一批固定视为 0，不支持中途重启 |
 | `vxrm` | unsupported | deferred | 饱和/舍入类指令前不需要 |
 | `vxsat` | unsupported | deferred | 饱和类指令前不需要 |
@@ -47,7 +47,7 @@
 | `ELEN=16` | unsupported | deferred | 第一批不做 |
 | `ELEN=32` | prototype | planned | 当前 GPR/VRF 32-bit 原型可复用 |
 | `ELEN=64` | unsupported | deferred | RV32 基线下暂不做 |
-| `LMUL=m1` | unsupported | planned | 第一批只做 `m1` |
+| `LMUL=m1` | prototype | planned | P1B `vtype` prototype 只接受 `m1` |
 | fractional LMUL | unsupported | unsupported | 第一批明确不支持 |
 | `LMUL>m1` | unsupported | deferred | 需要 VRF banking/alias 设计 |
 
@@ -55,8 +55,8 @@
 
 | 指令 | 当前状态 | 第一批 RVV 目标 | 备注 |
 |------|----------|-----------------|------|
-| `vsetvli` | unsupported | planned | 第一条 RVV path 候选 |
-| `vsetivli` | unsupported | planned | 可作为更简单 immediate path |
+| `vsetvli` | unsupported | planned | P1B 尚未接标准 decode |
+| `vsetivli` | unsupported | planned | P1B 尚未接标准 decode |
 | `vsetvl` | unsupported | deferred | 可等 `vsetvli` 稳定后做 |
 
 ## 六、整数 ALU 指令
@@ -118,7 +118,7 @@
 | 项目 | 当前状态 | 第一批 RVV 目标 | 备注 |
 |------|----------|-----------------|------|
 | unsupported RVV opcode | unsupported | planned | 必须明确 illegal/unsupported，不 silent execute |
-| illegal `vtype` | unsupported | planned | 先对不支持 SEW/LMUL 明确失败 |
+| illegal `vtype` | prototype | planned | P1B unsupported `SEW/LMUL` 置 `vill=1` |
 | misaligned vector memory | unsupported | unsupported | 第一批可要求测试使用支持的地址 |
 | vector memory fault | unsupported | deferred | 需要 CPU exception/tval review |
 | precise vector exception | unsupported | deferred | 需要 `vstart` 语义 |
@@ -132,6 +132,7 @@
 | custom COP memory | supported by prototype tests | 保留回归 |
 | pending-kill load | supported by directed test | RVV memory path 也需要覆盖 |
 | RVV decode illegal | unsupported | planned |
+| custom COP `vtype` prototype | supported by prototype tests | 保留到标准 `vset*` path 稳定 |
 | RVV `vset*` | unsupported | planned |
 | RVV ALU directed | unsupported | planned |
 | RVV load/store directed | unsupported | planned |
