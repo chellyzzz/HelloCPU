@@ -159,6 +159,13 @@ Next B-line contract target:
 - Limit predecode fields to instruction-local decode outputs only.
 - Keep operand reads, CSR data selection, and issue/arbitration state out of the first predecode contract.
 
+Current pairing/hazard draft direction:
+
+- Near-term real slice stays `2-wide fetch/predecode` with single issue preserved.
+- First issue-capable prototype rejects `RAW`, `WAW`, and shared exclusive-backend pairs by default.
+- Until writeback bandwidth changes, treat two normal writers in one cycle as out of scope.
+- The only future pairing candidate worth studying first is `simple ALU + branch`.
+
 ### B-Task-1: IFU/IDU pass-through protocol specification document
 
 **Priority**: High

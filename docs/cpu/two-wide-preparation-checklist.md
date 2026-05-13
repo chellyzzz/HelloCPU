@@ -89,6 +89,21 @@ Done when:
 - Define whether same-cycle dual issue may target one or two writeback slots
 - Define the smallest acceptable scoreboard scope
 
+Current draft:
+
+- Stage 0 remains `2-wide fetch/predecode` with single issue preserved, so no execution-side pairing is required yet.
+- The first issue-capable prototype must reject any same-cycle pair with slot-to-slot `RAW` dependence.
+- The first issue-capable prototype must reject any same-cycle pair with `WAW` to the same architectural `rd`.
+- The first issue-capable prototype must reject any pair that needs the same exclusive backend owner in the same cycle: `LSU`, `MUL/DIV`, `COP`, or redirect/control owner.
+- Until writeback bandwidth is widened explicitly, default policy is to reject pairs where both instructions would require normal architectural writeback.
+- The only pairing candidate worth evaluating first is `simple ALU + branch`, and even that stays draft-only until backend/control-path review is complete.
+
+Smallest acceptable scoreboard scope:
+
+- slot-local `RAW/WAW` check between the two visible instructions
+- one busy view for long-latency exclusive backends
+- one rule that control/redirect-generating instructions are pairing-hostile by default
+
 Done when:
 
 - the first `2-wide` pairing matrix is written down and reviewable
@@ -145,6 +160,27 @@ Done when:
 5. Write first pairing / scoreboard matrix
 6. Expand benchmark matrix
 7. Define the first narrow `2-wide` RTL slice
+
+## First Pairing Matrix Draft
+
+This is a conservative draft for review, not a claim that the current backend can already support these pairs.
+
+| Pair class | Draft status | Reason |
+|-----------|--------------|--------|
+| `ALU + ALU` | Reject for v1 | current single writeback path makes two normal writers unsafe by default |
+| `ALU + branch` | Candidate | one potential writer plus one control op is the least disruptive future pairing to study |
+| `ALU + load/store` | Reject for v1 | LSU is a single exclusive backend owner today |
+| `ALU + MUL/DIV` | Reject for v1 | mul/div is exclusive and long-latency |
+| `ALU + COP` | Reject for v1 | COP path already has dedicated inflight / commit serialization |
+| `branch + branch` | Reject for v1 | redirect ownership should remain single and unambiguous |
+| `branch + load/store` | Reject for v1 | mixes control recovery with LSU ownership too early |
+| any pair with `JAL/JALR` | Reject for v1 | link writeback plus redirect semantics should stay single-issue initially |
+| any pair with `fence.i` / `ECALL` / `MRET` / `EBREAK` | Reject for v1 | architectural control side effects are intentionally pairing-hostile |
+
+The practical implication is simple:
+
+- before backend/writeback expansion, the project should treat `2-wide fetch/predecode` as the real near-term slice
+- a real issue-pairing attempt should start from one narrow candidate, not a broad dual-issue matrix
 
 ## Non-Goals
 
