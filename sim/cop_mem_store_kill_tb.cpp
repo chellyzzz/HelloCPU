@@ -166,7 +166,7 @@ static int fail(const char *message) {
 
 int main(int argc, char **argv) {
   Verilated::commandArgs(argc, argv);
-  const char *image = argc > 1 ? argv[1] : "sw/build/vector/cop-vload-repeat-mem.bin";
+  const char *image = argc > 1 ? argv[1] : "sw/build/vector/cop-vstore-repeat-mem.bin";
   if (!load_image(image)) {
     return fail("failed to load test image");
   }
@@ -175,79 +175,67 @@ int main(int argc, char **argv) {
   top->reset = 1;
   top->tb_cop_kill = 0;
   top->tb_hold_read_resp = 0;
-  top->tb_hold_write_req = 0;
+  top->tb_hold_write_req = 1;
   for (int i = 0; i < 4; i++) tick(top);
   top->reset = 0;
 
-  bool killed_first_cop_read = false;
-  bool observed_killed_drain = false;
-  bool observed_stale_r_fire = false;
-  bool observed_second_cop_response = false;
-  bool armed_second_response = false;
-  int ar_fire_count = 0;
-  int cop_ar_fire_count = 0;
-  int cop_r_fire_count = 0;
-  int cop_active_count = 0;
+  bool killed_blocked_store = false;
+  bool released_after_idle = false;
+  bool observed_later_store = false;
+  bool observed_later_response = false;
+  int aw_fire_count = 0;
+  int w_fire_count = 0;
+  int b_fire_count = 0;
 
-  for (int cycle = 0; cycle < 20000 && !finished; cycle++) {
+  for (int cycle = 0; cycle < 30000 && !finished; cycle++) {
     tick(top);
-    if (top->tb_ar_fire) ar_fire_count++;
-    if (top->tb_cop_mem_ar_fire) cop_ar_fire_count++;
-    if (top->tb_cop_mem_r_fire) cop_r_fire_count++;
-    if (top->tb_cop_mem_bus_active) cop_active_count++;
 
-    if (!killed_first_cop_read && top->tb_cop_mem_ar_fire) {
-      if (top->tb_araddr != top->tb_cop_mem_addr) {
-        return fail("COP AR fire did not match master AR address");
+    if (top->tb_cop_mem_aw_fire) aw_fire_count++;
+    if (top->tb_cop_mem_w_fire) w_fire_count++;
+    if (top->tb_cop_mem_b_fire) b_fire_count++;
+
+    if (!killed_blocked_store && top->tb_cop_mem_bus_active && top->tb_cop_mem_store) {
+      if (aw_fire_count != 0 || w_fire_count != 0 || b_fire_count != 0) {
+        return fail("COP store reached bus before pre-accept kill");
       }
-      killed_first_cop_read = true;
-      top->tb_hold_read_resp = 1;
+      killed_blocked_store = true;
       top->tb_cop_kill = 1;
       tick(top);
       top->tb_cop_kill = 0;
     }
 
-    if (killed_first_cop_read && top->tb_cop_mem_killed && top->tb_cop_mem_state == 2) {
-      observed_killed_drain = true;
-      if (top->tb_cop_mem_resp_valid) {
-        return fail("killed COP memory exposed response while draining");
+    if (killed_blocked_store && !released_after_idle && !top->tb_cop_mem_bus_active) {
+      if (aw_fire_count != 0 || w_fire_count != 0 || b_fire_count != 0) {
+        return fail("pre-accept killed COP store produced bus side effect");
       }
-      for (int i = 0; i < 4; i++) tick(top);
-      top->tb_hold_read_resp = 0;
+      released_after_idle = true;
+      top->tb_hold_write_req = 0;
     }
 
-    if (observed_killed_drain && !observed_stale_r_fire && top->tb_cop_mem_r_fire) {
-      observed_stale_r_fire = true;
-      if (top->tb_cop_mem_resp_valid) {
-        return fail("stale completion reached COP response");
-      }
+    if (released_after_idle && top->tb_cop_mem_b_fire) {
+      observed_later_store = true;
     }
 
-    if (observed_stale_r_fire && top->tb_cop_mem_ar_fire) {
-      armed_second_response = true;
-    }
-
-    if (armed_second_response && top->tb_cop_mem_resp_valid) {
-      observed_second_cop_response = true;
+    if (observed_later_store && top->tb_cop_mem_resp_valid) {
+      observed_later_response = true;
     }
   }
 
   int result = 0;
-  if (!killed_first_cop_read) result |= fail("did not observe first COP read request");
-  if (!observed_killed_drain) result |= fail("did not observe killed COP drain state");
-  if (!observed_stale_r_fire) result |= fail("did not observe stale read completion");
-  if (!observed_second_cop_response) result |= fail("did not observe later COP response");
-  if (!finished) result |= fail("program did not finish after pending-kill scenario");
-  if (finished && exit_code != 0) result |= fail("program failed after pending-kill scenario");
+  if (!killed_blocked_store) result |= fail("did not observe blocked COP store");
+  if (!released_after_idle) result |= fail("did not release after killed store drained");
+  if (!observed_later_store) result |= fail("did not observe later COP store completion");
+  if (!observed_later_response) result |= fail("did not observe later COP store response");
+  if (!finished) result |= fail("program did not finish after store kill scenario");
+  if (finished && exit_code != 0) result |= fail("program failed after store kill scenario");
   if (result) {
     std::fprintf(stderr,
-                 "debug: ar_fire_count=%d cop_ar_fire_count=%d cop_r_fire_count=%d cop_active_count=%d exit_code=%d\n",
-                 ar_fire_count, cop_ar_fire_count, cop_r_fire_count,
-                 cop_active_count, exit_code);
+                 "debug: aw_fire_count=%d w_fire_count=%d b_fire_count=%d exit_code=%d\n",
+                 aw_fire_count, w_fire_count, b_fire_count, exit_code);
   }
 
   delete top;
   if (result) return 1;
-  std::printf("PASS: COP pending memory kill drains stale completion and recovers\n");
+  std::printf("PASS: pre-accept killed COP store has no bus side effect and later store recovers\n");
   return 0;
 }

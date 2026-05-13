@@ -175,6 +175,7 @@ int main(int argc, char **argv) {
   top->reset = 1;
   top->tb_cop_kill = 0;
   top->tb_hold_read_resp = 0;
+  top->tb_hold_write_req = 0;
   for (int i = 0; i < 4; i++) tick(top);
   top->reset = 0;
 

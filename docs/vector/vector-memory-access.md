@@ -183,10 +183,12 @@ DONE: 合并结果，写入 VRF，o_done 置 1
 | cop-vstore-mem | vstore_mem | 从 VRF 存储到内存 |
 | cop-vload-store-mem | vload_mem + vstore_mem | 加载-存储往返 |
 | cop-vload-repeat-mem | vload_mem x2 | 重复地址加载，供 directed pending-kill 使用 |
+| cop-vstore-repeat-mem | vstore_mem x2 | 重复 store，供 directed pre-accept store-kill 使用 |
 | cop_mem_pending_kill | vload_mem + test-only kill | stale completion 吸收和后续恢复 |
 | cop_mem_store_directed | vstore_mem + test-only monitor | COP store 走 AW/W/B owner path，且 B 后才暴露 response |
+| cop_mem_store_kill | vstore_mem + test-only kill | AW/W 接受前 kill 不产生 store bus side effect，后续 store 恢复 |
 
-`COP_MEM_PENDING_KILL_TB` 构建还导出 COP-specific debug pulses：`tb_cop_mem_ar_fire`、`tb_cop_mem_r_fire`、`tb_cop_mem_aw_fire`、`tb_cop_mem_w_fire`、`tb_cop_mem_b_fire`、`tb_cop_mem_store` 和 `tb_cop_mem_addr`。这些信号只用于 directed sim，不属于普通 RTL 接口。
+`COP_MEM_PENDING_KILL_TB` 构建还导出 COP-specific debug pulses：`tb_cop_mem_ar_fire`、`tb_cop_mem_r_fire`、`tb_cop_mem_aw_fire`、`tb_cop_mem_w_fire`、`tb_cop_mem_b_fire`、`tb_cop_mem_store` 和 `tb_cop_mem_addr`。directed top 还提供 `tb_hold_read_resp` 和 `tb_hold_write_req` 来制造 pending load/store 场景。这些信号只用于 directed sim，不属于普通 RTL 接口。
 
 ### 4.2 后续边界测试
 

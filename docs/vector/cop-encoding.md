@@ -172,5 +172,7 @@ opcode = 0x0b (custom-0)
 | cop-vstore-mem | vstore_mem | 将 v0 低 4 字节写回内存 |
 | cop-vload-store-mem | vload_mem + vstore_mem | COP load/store 往返 |
 | cop-vload-repeat-mem | vload_mem x2 | 重复地址 COP load 和 pending-kill directed image |
+| cop-vstore-repeat-mem | vstore_mem x2 | 重复 COP store 和 pre-accept store-kill directed image |
 | cop_mem_pending_kill | vload_mem + test-only kill | COP load response 晚到后被 kill 吸收 |
 | cop_mem_store_directed | vstore_mem + test-only monitor | COP store AW/W/B owner path 和 B 后 response |
+| cop_mem_store_kill | vstore_mem + test-only kill | AW/W 接受前 killed store 无 bus side effect，后续 store 恢复 |

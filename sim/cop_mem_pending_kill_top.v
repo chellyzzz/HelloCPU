@@ -3,6 +3,7 @@ module cop_mem_pending_kill_top(
     input         reset,
     input         tb_cop_kill,
     input         tb_hold_read_resp,
+    input         tb_hold_write_req,
     output        tb_cop_mem_bus_active,
     output        tb_cop_mem_done,
     output        tb_cop_mem_killed,
@@ -22,12 +23,14 @@ module cop_mem_pending_kill_top(
 );
 
     wire        m_awready, m_awvalid;
+    wire        ram_awready, ram_awvalid;
     wire [31:0] m_awaddr;
     wire [ 3:0] m_awid;
     wire [ 7:0] m_awlen;
     wire [ 2:0] m_awsize;
     wire [ 1:0] m_awburst;
     wire        m_wready, m_wvalid;
+    wire        ram_wready, ram_wvalid;
     wire [31:0] m_wdata;
     wire [ 3:0] m_wstrb;
     wire        m_wlast;
@@ -128,6 +131,11 @@ module cop_mem_pending_kill_top(
         .tb_cop_mem_addr    (tb_cop_mem_addr)
     );
 
+    assign m_awready = tb_hold_write_req ? 1'b0 : ram_awready;
+    assign ram_awvalid = tb_hold_write_req ? 1'b0 : m_awvalid;
+    assign m_wready = tb_hold_write_req ? 1'b0 : ram_wready;
+    assign ram_wvalid = tb_hold_write_req ? 1'b0 : m_wvalid;
+
     assign m_rvalid = tb_hold_read_resp ? 1'b0 : ram_rvalid;
     assign m_rresp = ram_rresp;
     assign m_rdata = ram_rdata;
@@ -153,15 +161,15 @@ module cop_mem_pending_kill_top(
     axi_ram ram (
         .clock   (clock),
         .resetn  (~reset),
-        .awready (m_awready),
-        .awvalid (m_awvalid),
+        .awready (ram_awready),
+        .awvalid (ram_awvalid),
         .awaddr  (m_awaddr),
         .awid    (m_awid),
         .awlen   (m_awlen),
         .awsize  (m_awsize),
         .awburst (m_awburst),
-        .wready  (m_wready),
-        .wvalid  (m_wvalid),
+        .wready  (ram_wready),
+        .wvalid  (ram_wvalid),
         .wdata   (m_wdata),
         .wstrb   (m_wstrb),
         .wlast   (m_wlast),

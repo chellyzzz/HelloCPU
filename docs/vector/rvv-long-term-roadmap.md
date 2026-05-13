@@ -246,6 +246,7 @@
 - 当前 custom COP 文档和测试一致。
 - COP memory owner routing 和 pending-kill coverage 合入主线。
 - 所有新增行为都有 directed test。
+- COP store 的 owner path 和 pre-accept killed-store side effect 有 directed coverage。
 
 ### M1：RVV 状态可配置
 
