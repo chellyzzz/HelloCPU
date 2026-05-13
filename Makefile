@@ -35,7 +35,7 @@ VECTOR_TESTS := $(basename $(notdir $(wildcard $(SW_DIR)/tests/vector-tests/*.c)
 
 # === Targets ===
 
-.PHONY: all sim sw clean run_% run_all bench bench_only branch_trace predictor_sim
+.PHONY: all sim sw clean run_% run_all bench bench_only branch_trace predictor_sim ifu_idu_backpressure
 
 all: sim sw
 
@@ -108,6 +108,13 @@ branch_trace: sim
 
 predictor_sim:
 	python3 tools/predictor_sim/predictor_sim.py --trace $(TRACE) --policy $(POLICY) $(ARGS)
+
+ifu_idu_backpressure:
+	$(VERILATOR) --top-module hcpu_ifu_idu_regs --cc --exe --build -Wno-fatal -Wno-style \
+		vsrc/cpu/ifu/ifu_idu_regs.v $(abspath $(SIM_DIR)/ifu_idu_regs_backpressure_tb.cpp) \
+		--Mdir $(BUILD_DIR)/ifu_idu_regs_tb \
+		-o $(abspath $(BUILD_DIR)/Vifu_idu_regs_tb)
+	@$(BUILD_DIR)/Vifu_idu_regs_tb
 
 # Wave for debugging
 wave:

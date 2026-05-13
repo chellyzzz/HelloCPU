@@ -82,7 +82,7 @@ module hcpu_idu_exu_regs (
 reg                                     post_valid                 ;
 
 assign o_post_valid = post_valid;
-assign o_pre_ready  = i_post_ready; 
+assign o_pre_ready  = i_post_ready;
 always @(posedge clock or posedge reset) begin
     if(reset) begin
         post_valid <= 1'b0;   
