@@ -106,8 +106,8 @@ wire ifu_ram_finish;
 wire lsu_ram_finish;
 assign ifu_req = IFU_ARVALID;
 assign lsu_req = LSU_AWVALID || LSU_ARVALID;
-assign ifu_ram_finish = (SRAM_RLAST && IFU_RREADY);
-assign lsu_ram_finish = (SRAM_BVALID && LSU_BREADY) || (SRAM_RLAST && LSU_RREADY);
+assign ifu_ram_finish = (SRAM_RVALID && SRAM_RLAST && IFU_RREADY);
+assign lsu_ram_finish = (SRAM_BVALID && LSU_BREADY) || (SRAM_RVALID && SRAM_RLAST && LSU_RREADY);
 
 reg [2:0] state;
 localparam IDLE         = 3'b000;
@@ -121,11 +121,11 @@ localparam LSU_RAM      = 3'b100;
         end else begin
             case (state)
                 IDLE: begin
-                    if (ifu_req) begin
-                        state <= IFU_RAM;
-                    end
-                    else if(lsu_req) begin
+                    if(lsu_req) begin
                         state <= LSU_ARADDR[31:31-7] == 8'h02 ? LSU_CLINT : LSU_RAM;
+                    end
+                    else if (ifu_req) begin
+                        state <= IFU_RAM;
                     end
                     else state <= IDLE;
                 end
@@ -196,4 +196,3 @@ assign CLINT_ARSIZE  = (state[0]) ? LSU_ARSIZE      : 0;
 assign CLINT_ARBURST = (state[0]) ? LSU_ARBURST     : 0;
 
 endmodule
-

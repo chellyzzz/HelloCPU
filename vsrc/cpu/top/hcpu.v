@@ -202,6 +202,44 @@ wire                   [   1:0]         LSU_SRAM_AXI_BRESP         ;
 wire                                    LSU_SRAM_AXI_BVALID        ;
 wire                                    LSU_SRAM_AXI_BREADY        ;
 wire                   [   3:0]         LSU_SRAM_AXI_BID           ;
+wire                                    COP_MEM_REQ_VALID          ;
+wire                                    COP_MEM_REQ_STORE          ;
+wire                   [  31:0]         COP_MEM_ADDR               ;
+wire                   [  31:0]         COP_MEM_WDATA              ;
+wire                   [   2:0]         COP_MEM_SIZE               ;
+wire                                    COP_MEM_RESP_VALID         ;
+wire                   [  31:0]         COP_MEM_RDATA              ;
+wire                                    LSU_ARB_AXI_AWVALID        ;
+wire                   [  31:0]         LSU_ARB_AXI_AWADDR         ;
+wire                   [   3:0]         LSU_ARB_AXI_AWID           ;
+wire                   [   7:0]         LSU_ARB_AXI_AWLEN          ;
+wire                   [   2:0]         LSU_ARB_AXI_AWSIZE         ;
+wire                   [   1:0]         LSU_ARB_AXI_AWBURST        ;
+wire                                    LSU_ARB_AXI_WVALID         ;
+wire                   [  31:0]         LSU_ARB_AXI_WDATA          ;
+wire                   [   3:0]         LSU_ARB_AXI_WSTRB          ;
+wire                                    LSU_ARB_AXI_WLAST          ;
+wire                                    LSU_ARB_AXI_BREADY         ;
+wire                                    LSU_ARB_AXI_ARVALID        ;
+wire                   [  31:0]         LSU_ARB_AXI_ARADDR         ;
+wire                   [   3:0]         LSU_ARB_AXI_ARID           ;
+wire                   [   7:0]         LSU_ARB_AXI_ARLEN          ;
+wire                   [   2:0]         LSU_ARB_AXI_ARSIZE         ;
+wire                   [   1:0]         LSU_ARB_AXI_ARBURST        ;
+wire                                    LSU_ARB_AXI_RREADY         ;
+reg                    [   1:0]         cop_mem_state              ;
+reg                                     cop_mem_wen_r              ;
+reg                                     cop_mem_aw_done            ;
+reg                                     cop_mem_w_done             ;
+reg                                     cop_mem_done_r             ;
+reg                    [  31:0]         cop_mem_rdata_r            ;
+reg                    [  31:0]         cop_mem_addr_r             ;
+reg                    [  31:0]         cop_mem_wdata_r            ;
+reg                    [   2:0]         cop_mem_size_r             ;
+wire                                    cop_mem_new_req            ;
+wire                                    mem_owner_cop_active       ;
+wire                                    mem_owner_scalar_active    ;
+wire                                    scalar_mem_req_active      ;
 
 //read data channel
 wire                   [  31:0]         CLINT_AXI_RDATA            ;
@@ -531,7 +569,7 @@ assign exu_ras_pop_en = scalar_exu_ras_pop_en;
 assign exu2wbu_valid = cop_commit_active ? cop_exu2wbu_valid :
                        idu2exu_is_cop_insn ? 1'b0 : scalar_exu2wbu_valid;
 assign exu2idu_ready = cop_pipeline_active ? 1'b0 : scalar_exu2idu_ready;
-assign cop_kill = pc_update_en || idu2exu_fence_i || exu_mispredict_flush_r;
+assign cop_kill = idu2exu_fence_i || exu_mispredict_flush_r;
 assign cop_resp_fire = cop_exu2wbu_valid && wbu2exu_ready;
 assign cop_queue_dequeue = cop_resp_fire;
 
@@ -658,18 +696,107 @@ hcpu_cop_backend cop_backend1(
     .i_src1                            (cop_active_src1           ),
     .i_src2                            (cop_active_src2           ),
     .i_ins                             (cop_active_ins            ),
-    .o_cop_mem_req_valid               (                          ),
-    .o_cop_mem_req_store               (                          ),
-    .o_cop_mem_req_addr                (                          ),
-    .o_cop_mem_req_wdata               (                          ),
-    .o_cop_mem_req_size                (                          ),
-    .i_cop_mem_resp_valid              (1'b0                      ),
-    .i_cop_mem_resp_rdata              (32'b0                     ),
+    .o_cop_mem_req_valid               (COP_MEM_REQ_VALID         ),
+    .o_cop_mem_req_store               (COP_MEM_REQ_STORE         ),
+    .o_cop_mem_req_addr                (COP_MEM_ADDR              ),
+    .o_cop_mem_req_wdata               (COP_MEM_WDATA             ),
+    .o_cop_mem_req_size                (COP_MEM_SIZE              ),
+    .i_cop_mem_resp_valid              (COP_MEM_RESP_VALID        ),
+    .i_cop_mem_resp_rdata              (COP_MEM_RDATA             ),
     .o_pre_ready                       (cop_exu2idu_ready         ),
     .o_post_valid                      (cop_exu2wbu_valid         ),
     .o_busy                            (cop_backend_busy          ),
     .o_res                             (cop_exu_res               )
 );
+
+assign scalar_mem_req_active = LSU_SRAM_AXI_AWVALID || LSU_SRAM_AXI_WVALID ||
+                               LSU_SRAM_AXI_ARVALID || LSU_SRAM_AXI_BREADY ||
+                               LSU_SRAM_AXI_RREADY;
+assign mem_owner_cop_active = (cop_mem_state != 2'd0);
+assign mem_owner_scalar_active = !mem_owner_cop_active && scalar_mem_req_active;
+
+assign LSU_ARB_AXI_AWADDR  = mem_owner_cop_active ? cop_mem_addr_r : LSU_SRAM_AXI_AWADDR;
+assign LSU_ARB_AXI_AWVALID = (cop_mem_state == 2'd1) ? (cop_mem_wen_r && !cop_mem_aw_done) : LSU_SRAM_AXI_AWVALID;
+assign LSU_ARB_AXI_AWID    = mem_owner_cop_active ? 4'b0 : LSU_SRAM_AXI_AWID;
+assign LSU_ARB_AXI_AWLEN   = mem_owner_cop_active ? 8'b0 : LSU_SRAM_AXI_AWLEN;
+assign LSU_ARB_AXI_AWSIZE  = mem_owner_cop_active ? cop_mem_size_r : LSU_SRAM_AXI_AWSIZE;
+assign LSU_ARB_AXI_AWBURST = mem_owner_cop_active ? 2'b00 : LSU_SRAM_AXI_AWBURST;
+assign LSU_ARB_AXI_WDATA   = mem_owner_cop_active ? cop_mem_wdata_r : LSU_SRAM_AXI_WDATA;
+assign LSU_ARB_AXI_WSTRB   = mem_owner_cop_active ? 4'b0001 : LSU_SRAM_AXI_WSTRB;
+assign LSU_ARB_AXI_WVALID  = (cop_mem_state == 2'd1) ? (cop_mem_wen_r && !cop_mem_w_done) : LSU_SRAM_AXI_WVALID;
+assign LSU_ARB_AXI_WLAST   = mem_owner_cop_active ? 1'b1 : LSU_SRAM_AXI_WLAST;
+assign LSU_ARB_AXI_BREADY  = (cop_mem_state == 2'd2 || cop_mem_state == 2'd3) ? cop_mem_wen_r : LSU_SRAM_AXI_BREADY;
+assign LSU_ARB_AXI_ARADDR  = mem_owner_cop_active ? cop_mem_addr_r : LSU_SRAM_AXI_ARADDR;
+assign LSU_ARB_AXI_ARVALID = (cop_mem_state == 2'd1) ? !cop_mem_wen_r : LSU_SRAM_AXI_ARVALID;
+assign LSU_ARB_AXI_ARID    = mem_owner_cop_active ? 4'b0 : LSU_SRAM_AXI_ARID;
+assign LSU_ARB_AXI_ARLEN   = mem_owner_cop_active ? 8'b0 : LSU_SRAM_AXI_ARLEN;
+assign LSU_ARB_AXI_ARSIZE  = mem_owner_cop_active ? cop_mem_size_r : LSU_SRAM_AXI_ARSIZE;
+assign LSU_ARB_AXI_ARBURST = mem_owner_cop_active ? 2'b00 : LSU_SRAM_AXI_ARBURST;
+assign LSU_ARB_AXI_RREADY  = (cop_mem_state == 2'd2 || cop_mem_state == 2'd3) ? !cop_mem_wen_r : LSU_SRAM_AXI_RREADY;
+assign COP_MEM_RESP_VALID  = cop_mem_done_r;
+assign COP_MEM_RDATA       = cop_mem_rdata_r;
+assign cop_mem_new_req     = COP_MEM_REQ_VALID && (cop_mem_state == 2'd0) && !mem_owner_scalar_active &&
+                             ((COP_MEM_ADDR != cop_mem_addr_r) ||
+                              (COP_MEM_WDATA != cop_mem_wdata_r) ||
+                              (COP_MEM_SIZE != cop_mem_size_r) ||
+                              (COP_MEM_REQ_STORE != cop_mem_wen_r));
+
+always @(posedge clock or posedge reset) begin
+    if (reset || cop_kill) begin
+        cop_mem_state   <= 2'd0;
+        cop_mem_wen_r   <= 1'b0;
+        cop_mem_aw_done <= 1'b0;
+        cop_mem_w_done  <= 1'b0;
+        cop_mem_done_r  <= 1'b0;
+        cop_mem_rdata_r <= 32'b0;
+        cop_mem_addr_r  <= 32'b0;
+        cop_mem_wdata_r <= 32'b0;
+        cop_mem_size_r  <= 3'b0;
+    end else begin
+        cop_mem_done_r <= 1'b0;
+        case (cop_mem_state)
+            2'd0: begin
+                if (cop_mem_new_req) begin
+                    cop_mem_state   <= 2'd1;
+                    cop_mem_wen_r   <= COP_MEM_REQ_STORE;
+                    cop_mem_aw_done <= 1'b0;
+                    cop_mem_w_done  <= 1'b0;
+                    cop_mem_addr_r  <= COP_MEM_ADDR;
+                    cop_mem_wdata_r <= COP_MEM_WDATA;
+                    cop_mem_size_r  <= COP_MEM_SIZE;
+                end
+            end
+            2'd1: begin
+                if (cop_mem_wen_r) begin
+                    if (!cop_mem_aw_done && LSU_SRAM_AXI_AWREADY) begin
+                        cop_mem_aw_done <= 1'b1;
+                    end
+                    if (!cop_mem_w_done && LSU_SRAM_AXI_WREADY) begin
+                        cop_mem_w_done <= 1'b1;
+                    end
+                    if ((cop_mem_aw_done || LSU_SRAM_AXI_AWREADY) && (cop_mem_w_done || LSU_SRAM_AXI_WREADY)) begin
+                        cop_mem_state <= 2'd2;
+                    end
+                end else if (LSU_SRAM_AXI_ARREADY) begin
+                    cop_mem_state <= 2'd2;
+                end
+            end
+            2'd2: begin
+                if (cop_mem_wen_r ? LSU_SRAM_AXI_BVALID : LSU_SRAM_AXI_RVALID) begin
+                    cop_mem_state   <= 2'd3;
+                    cop_mem_rdata_r <= LSU_SRAM_AXI_RDATA;
+                end
+            end
+            2'd3: begin
+                cop_mem_state  <= 2'd0;
+                cop_mem_done_r <= 1'b1;
+            end
+            default: begin
+                cop_mem_state <= 2'd0;
+            end
+        endcase
+    end
+end
 
 // Latch mispredict signals for one full cycle
 reg mispredict_latched;
@@ -856,34 +983,34 @@ hcpu_Xbar xbar
     .IFU_ARBURST                       (IFU_SRAM_AXI_ARBURST      ),
 
   // LSU AXI-FULL Interface
-    .LSU_AWADDR                        (LSU_SRAM_AXI_AWADDR       ),
-    .LSU_AWVALID                       (LSU_SRAM_AXI_AWVALID      ),
+    .LSU_AWADDR                        (LSU_ARB_AXI_AWADDR        ),
+    .LSU_AWVALID                       (LSU_ARB_AXI_AWVALID       ),
     .LSU_AWREADY                       (LSU_SRAM_AXI_AWREADY      ),
-    .LSU_AWLEN                         (LSU_SRAM_AXI_AWLEN        ),
-    .LSU_AWSIZE                        (LSU_SRAM_AXI_AWSIZE       ),
-    .LSU_AWBURST                       (LSU_SRAM_AXI_AWBURST      ),
-    .LSU_AWID                          (LSU_SRAM_AXI_AWID         ),
-    .LSU_WVALID                        (LSU_SRAM_AXI_WVALID       ),
+    .LSU_AWLEN                         (LSU_ARB_AXI_AWLEN         ),
+    .LSU_AWSIZE                        (LSU_ARB_AXI_AWSIZE        ),
+    .LSU_AWBURST                       (LSU_ARB_AXI_AWBURST       ),
+    .LSU_AWID                          (LSU_ARB_AXI_AWID          ),
+    .LSU_WVALID                        (LSU_ARB_AXI_WVALID        ),
     .LSU_WREADY                        (LSU_SRAM_AXI_WREADY       ),
-    .LSU_WDATA                         (LSU_SRAM_AXI_WDATA        ),
-    .LSU_WSTRB                         (LSU_SRAM_AXI_WSTRB        ),
-    .LSU_WLAST                         (LSU_SRAM_AXI_WLAST        ),
+    .LSU_WDATA                         (LSU_ARB_AXI_WDATA         ),
+    .LSU_WSTRB                         (LSU_ARB_AXI_WSTRB         ),
+    .LSU_WLAST                         (LSU_ARB_AXI_WLAST         ),
     .LSU_RDATA                         (LSU_SRAM_AXI_RDATA        ),
     .LSU_RRESP                         (LSU_SRAM_AXI_RRESP        ),
     .LSU_RVALID                        (LSU_SRAM_AXI_RVALID       ),
-    .LSU_RREADY                        (LSU_SRAM_AXI_RREADY       ),
+    .LSU_RREADY                        (LSU_ARB_AXI_RREADY        ),
     .LSU_RID                           (LSU_SRAM_AXI_RID          ),
     .LSU_RLAST                         (LSU_SRAM_AXI_RLAST        ),
-    .LSU_ARADDR                        (LSU_SRAM_AXI_ARADDR       ),
-    .LSU_ARVALID                       (LSU_SRAM_AXI_ARVALID      ),
+    .LSU_ARADDR                        (LSU_ARB_AXI_ARADDR        ),
+    .LSU_ARVALID                       (LSU_ARB_AXI_ARVALID       ),
     .LSU_ARREADY                       (LSU_SRAM_AXI_ARREADY      ),
-    .LSU_ARID                          (LSU_SRAM_AXI_ARID         ),
-    .LSU_ARLEN                         (LSU_SRAM_AXI_ARLEN        ),
-    .LSU_ARSIZE                        (LSU_SRAM_AXI_ARSIZE       ),
-    .LSU_ARBURST                       (LSU_SRAM_AXI_ARBURST      ),
+    .LSU_ARID                          (LSU_ARB_AXI_ARID          ),
+    .LSU_ARLEN                         (LSU_ARB_AXI_ARLEN         ),
+    .LSU_ARSIZE                        (LSU_ARB_AXI_ARSIZE        ),
+    .LSU_ARBURST                       (LSU_ARB_AXI_ARBURST       ),
     .LSU_BRESP                         (LSU_SRAM_AXI_BRESP        ),
     .LSU_BVALID                        (LSU_SRAM_AXI_BVALID       ),
-    .LSU_BREADY                        (LSU_SRAM_AXI_BREADY       ),
+    .LSU_BREADY                        (LSU_ARB_AXI_BREADY        ),
     .LSU_BID                           (LSU_SRAM_AXI_BID          ),
 
     .CLINT_ARADDR                      (CLINT_AXI_ARADDR          ),
