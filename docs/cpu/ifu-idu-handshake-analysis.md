@@ -395,10 +395,116 @@ Validated checks:
 
 This means the current fetch queue is no longer just a structural insertion point; it is a verified frontend flush boundary candidate for future wider-issue preparation.
 
+### First Decode/Predecode Bundle Contract
+
+Current structural fact:
+
+1. `hcpu_IDU` is still pure combinational decode over `ifu2idu_ins`
+2. no standalone predecode storage exists in current RTL
+3. `idu_exu_regs` still captures the post-register-read execution bundle, not a predecode-only bundle
+
+For future wider frontend work, the first predecode contract should therefore stay deliberately small.
+
+#### Canonical Source Of Truth
+
+The canonical frontend instruction identity remains the fetch tuple:
+
+1. `pc`
+2. `ins`
+3. `predict_taken`
+4. `predict_target`
+5. `predict_btb_hit`
+
+If predecode bits are later stored, they are a cached interpretation of that tuple, not an independent truth source.
+
+Invariant:
+
+1. raw `ins` remains authoritative
+2. predecode bits must match what `hcpu_IDU` would decode from that same `ins`
+3. a mismatch between stored predecode bits and raw `ins` is a contract bug, not a tie-break case
+
+#### Minimum Predecode Bundle
+
+The first queue-safe predecode bundle may include only instruction-local fields:
+
+1. `imm`
+2. `rd`
+3. `rs1_addr`
+4. `rs2_addr`
+5. `csr_addr`
+6. `exu_opt`
+7. `alu_opt`
+8. `src_sel1`
+9. `src_sel2`
+10. `wen`
+11. `csr_wen`
+12. `mret`
+13. `ecall`
+14. `load`
+15. `store`
+16. `brch`
+17. `jal`
+18. `jalr`
+19. `ebreak`
+20. `fence_i`
+21. `muldiv`
+22. `is_cop_insn`
+
+These are allowed because they are functions of `ins` only and do not require register-file or CSR read side effects.
+
+#### Fields Explicitly Not In Predecode
+
+The first predecode contract must not store or virtualize operand-read results:
+
+1. `src1`
+2. `src2`
+3. `csr_rs2`
+4. `mepc`
+5. `mtvec`
+6. scoreboard state
+7. execution-ready / issue-grant state
+
+Reasoning:
+
+1. these values depend on architectural state outside the fetched instruction bits
+2. letting them leak into a queue/predecode contract would mix frontend structure work with issue/operand-consistency work
+3. that would make the first `2-wide` slice much harder to reason about
+
+#### Bundle Lifetime Rule
+
+If predecode storage is introduced later, the predecode bundle lives and dies with the same fetch identity:
+
+1. it is created from one accepted fetch / queue entry
+2. it may not be partially overwritten while that entry remains valid
+3. it must stall as one bundle under decode backpressure
+4. it must flush as one bundle with its source fetch entry
+
+This is the decode-side equivalent of the already-defined fetch-tuple indivisibility rule.
+
+#### First Recommended Placement
+
+Current recommendation:
+
+1. keep the existing fetch queue as the only real queue before wider decode work
+2. allow optional predecode bits to be attached to each fetch entry later
+3. keep register reads and `idu_exu_regs` capture after dequeue
+4. do not add a decode queue before the first pairing / hazard matrix is written down
+
+This means the first wider frontend slice stays closer to `2-wide fetch/predecode` than to `2-wide decode/dispatch`.
+
+#### First Recommended Invariants
+
+When predecode storage becomes real RTL, the first assertion set should check only these rules:
+
+1. stored predecode bits match raw `ins`
+2. dequeue stall keeps the full predecode bundle stable
+3. flush removes both fetch identity and attached predecode bits together
+4. no younger entry's predecode bits may bypass an older valid entry in the first implementation
+
 ## Immediate Follow-Up
 
 The next useful follow-up items are:
 
-1. add assertion-oriented wording for each invariant in this document
-2. mark which current invariants become queue-entry invariants rather than single-entry invariants
-3. define the first fetch-queue-specific assertion set
+1. define the first pairing / hazard matrix before adding any decode queue
+2. decide whether predecode bits live inside the fetch queue entry or in a tiny post-dequeue sidecar stage
+3. add assertion-oriented wording only when predecode storage becomes real RTL

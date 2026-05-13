@@ -71,6 +71,12 @@ Done when:
 - Define queue flush semantics
 - Define predictor metadata storage and kill behavior inside queues
 
+Current recommendation:
+
+- fetch queue: yes, already the preferred first decoupling point
+- decode queue: no, not before the first pairing / hazard matrix exists
+- predecode storage: allowed only for instruction-local fields and must remain attached to the same fetch identity
+
 Done when:
 
 - queue placement is explicit and no longer a hand-wavy "maybe later" idea
@@ -119,6 +125,12 @@ Done when:
 - `2-wide decode + single-issue fallback`, or
 - limited pairing such as `ALU + branch`
 - Define what is explicitly out of scope for v1
+
+Current preferred first slice:
+
+- `2-wide fetch/predecode` only
+- single dequeue into the existing decode/register-read path
+- no decode queue, no dual dispatch, no dual writeback in v1
 
 Done when:
 

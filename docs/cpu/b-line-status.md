@@ -152,6 +152,13 @@ Checkpoint verdict:
 - This is the current recommended mainline candidate checkpoint for `2-wide` preparation.
 - It improves verification confidence rather than throughput: no new performance uplift is claimed beyond the already landed `2-cycle` redirect recovery.
 
+Next B-line contract target:
+
+- Define the first decode/predecode bundle before any real dual-decode RTL starts.
+- Keep `ins` as the canonical truth source.
+- Limit predecode fields to instruction-local decode outputs only.
+- Keep operand reads, CSR data selection, and issue/arbitration state out of the first predecode contract.
+
 ### B-Task-1: IFU/IDU pass-through protocol specification document
 
 **Priority**: High
