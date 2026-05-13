@@ -35,7 +35,7 @@ VECTOR_TESTS := $(basename $(notdir $(wildcard $(SW_DIR)/tests/vector-tests/*.c)
 
 # === Targets ===
 
-.PHONY: all sim sw clean run_% run_all bench bench_only branch_trace predictor_sim ifu_idu_backpressure cop_mem_pending_kill
+.PHONY: all sim sw clean run_% run_all bench bench_only branch_trace predictor_sim ifu_idu_backpressure cop_mem_pending_kill cop_mem_store_directed
 
 all: sim sw
 
@@ -126,6 +126,17 @@ cop_mem_pending_kill: sw
 		--Mdir $(BUILD_DIR)/cop_mem_pending_kill_tb \
 		-o $(abspath $(BUILD_DIR)/Vcop_mem_pending_kill_tb)
 	@$(BUILD_DIR)/Vcop_mem_pending_kill_tb $(SW_DIR)/build/vector/cop-vload-repeat-mem.bin
+
+cop_mem_store_directed: sw
+	$(VERILATOR) --top-module cop_mem_pending_kill_top +incdir+vsrc/cpu/include --cc --exe --build -Wno-fatal -Wno-style \
+		--timescale "1ns/1ns" --no-timing \
+		"+define+COP_MEM_PENDING_KILL_TB" \
+		$(EXTRA_VERILATOR_FLAGS) \
+		$(SIM_DIR)/cop_mem_pending_kill_top.v $(SIM_DIR)/axi_ram.v $(shell find -L vsrc -name "*.v" -o -name "*.sv" 2>/dev/null) \
+		$(abspath $(SIM_DIR)/cop_mem_store_tb.cpp) \
+		--Mdir $(BUILD_DIR)/cop_mem_store_tb \
+		-o $(abspath $(BUILD_DIR)/Vcop_mem_store_tb)
+	@$(BUILD_DIR)/Vcop_mem_store_tb $(SW_DIR)/build/vector/cop-vstore-mem.bin
 
 # Wave for debugging
 wave:

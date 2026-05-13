@@ -10,10 +10,10 @@
 
 1. 单发射。
 2. 同时最多一个 COP 请求在飞。
-3. 向量/COP 后端不直接修改 GPR、CSR、PC 或内存。
-4. 写回仍由 CPU/WBU 统一提交。
-5. kill 采用粗粒度全杀。
-6. 暂无独立向量访存、向量 CSR、向量寄存器文件或多 lane 流水。
+3. COP 结果写回仍由 CPU/WBU 统一提交。
+4. kill 采用粗粒度全杀，killed COP work 不得产生 GPR/VRF 写回。
+5. 已有原型 VRF 和最小 COP memory 访问，但不是 RVV 架构状态。
+6. 暂无标准 RVV decode、向量 CSR、mask/tail policy 或多 lane 流水。
 
 ## RTL 划分
 
@@ -22,7 +22,7 @@
 1. `vsrc/cpu/`：CPU 主流水、标量 EXU/LSU、IFU/IDU/WBU、CSR/RegisterFile、片上互联和 include 文件。
 2. `vsrc/vector/cop/idu_cop_regs.v`：CPU 到 COP 的 depth-1 queue entry，保存 `pc/instr/src1/src2/rd/wen`，并提供 `valid/ready/fire` 边界。
 3. `vsrc/vector/cop/cop_backend.v`：COP 后端 wrapper，管理 busy、response valid 和结果保持。
-4. `vsrc/vector/cop/dummy_coprocessor.v`：当前执行切片，固定延迟返回结果。
+4. `vsrc/vector/cop/dummy_coprocessor.v`：当前执行切片，包含 scalar/lane/VRF/state/memory 原型操作。
 
 模块名暂时保持原名，避免引入大规模重命名风险。
 
@@ -30,12 +30,13 @@
 
 当前仍使用 `custom-0` opcode，即 `7'b0001011`，以 R-type 形式承载 `rd/rs1/rs2`。
 
-已实现的 bring-up 子操作：
+主要 bring-up 子操作记录在 `cop-encoding.md`。当前大类包括：
 
-1. `funct3=0`：标量 dummy add，返回 `src1 + src2`。
-2. `funct3=1`：4x8-bit lane add，按字节分别计算 `src1[i] + src2[i]`，每个 byte 自然截断。
-3. `funct3=2`：4x8-bit lane xor，按字节分别计算 `src1[i] ^ src2[i]`。
-4. `funct3=3`：4x8-bit lane and，按字节分别计算 `src1[i] & src2[i]`。
+1. 标量扩展操作：add/sub/mul。
+2. 直接 GPR lane 操作：4x8-bit add/xor/and。
+3. VRF 操作：vload/vstore、VRF lane add/xor/and/sub/mul/shift/or。
+4. 状态操作：scratch、vlen、opcount。
+5. COP memory 操作：`vload_mem` / `vstore_mem`，通过 CPU memory owner 边界访问内存。
 
 软件生成示例：
 
@@ -47,31 +48,27 @@ asm volatile (".insn r 0x0b, 1, 0, %0, %1, %2"
 
 ## 当前验证
 
-向量端 `d8d578d` 最近验证通过：
+P0 基线应至少覆盖以下 test groups：
 
-1. `make run`：`48 passed, 0 failed`。
-2. `cop-vadd8`
-3. `cop-vadd8-chain`
-4. `cop-vadd8-after-add`
-5. `cop-vxor8`
-6. `cop-vand8`
-7. `cop-mixed-lanes`
-8. `cop-smoke`
-9. `cop-chain`
-10. `sum`
-11. `load-store`
+1. scalar smoke：`sum`、`load-store`。
+2. COP scalar/lane：`cop-smoke`、`cop-chain`、`cop-vadd8`、`cop-vxor8`、`cop-vand8`、`cop-mixed-lanes`。
+3. COP state/VRF：`cop-state*`、`cop-vlen*`、`cop-opcount*`、`cop-vrf-*`。
+4. COP memory：`cop-vload-mem`、`cop-vstore-mem`、`cop-vload-store-mem`、`cop-vload-repeat-mem`。
+5. directed pending-kill：`make cop_mem_pending_kill`。
 
-`cop-vadd8` 覆盖第一条最小真实向量算子。`cop-vxor8` 和 `cop-vand8` 覆盖后续 lane 逻辑算子。`cop-vadd8-chain`、`cop-vadd8-after-add` 和 `cop-mixed-lanes` 覆盖连续/混合 COP 提交时序。`cop-smoke` 和 `cop-chain` 覆盖旧 dummy add 行为和连续 COP 基线。
+`cop-vadd8` 覆盖第一条最小真实向量算子。`cop-vxor8` 和 `cop-vand8` 覆盖后续 lane 逻辑算子。`cop-vadd8-chain`、`cop-vadd8-after-add` 和 `cop-mixed-lanes` 覆盖连续/混合 COP 提交时序。COP memory tests 覆盖 VRF 与内存的最小交互，`cop_mem_pending_kill` 覆盖 COP load response 晚到后的 stale completion 吸收。
 
 ## 已知边界
 
-混合连续向量/COP 请求曾暴露 response fire 同拍新 issue 与 refetch/kill 竞争问题。当前 `d8d578d` 继承的保守策略是 COP 完成后先经 CPU/WBU 统一提交，再由 response fire 触发 refetch `PC+4`；同时禁止 custom 指令走 stale scalar EXU valid 提交路径。
+混合连续向量/COP 请求曾暴露 response fire 同拍新 issue 与 refetch/kill 竞争问题。当前保守策略是 COP 完成后先经 CPU/WBU 统一提交，再由 response fire 触发 refetch `PC+4`；同时禁止 custom 指令走 stale scalar EXU valid 提交路径。
+
+当前 COP memory 仍是 V1 owner-boundary bring-up，不是完整 vector memory subsystem。后续 RVV store、异常、misalign、多请求在飞和 cache 一致性都需要单独设计。
 
 ## 下一步
 
 推荐按以下顺序推进：
 
-1. 把当前 `dummy_coprocessor` 拆名为更明确的 vector execution slice。
-2. 为 `funct3=1` 增加更多功能覆盖。
+1. 先完成 P0 文档、测试矩阵和 smoke 列表收敛。
+2. 保持 `custom-0` COP 原型作为 RVV 迁移前的回归平台。
 3. 后续若要提高连续 COP 吞吐，单独设计多请求/scoreboard/精确 flush 语义。
-4. 最后再考虑向量状态、CSR、访存和更完整的 lane 结构。
+4. 进入 RVV 前先定义最小 `vl/vtype` 状态和 unsupported 行为。

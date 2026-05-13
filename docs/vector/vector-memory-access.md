@@ -1,8 +1,8 @@
-# 最小向量访存设计草案
+# 最小向量访存当前基线
 
 ## 一、目标
 
-在现有 COP 框架上引入最小向量 load/store，让 VRF 能与内存交互，为后续 RVV 向量访存打下基础。
+记录当前 COP 原型里的最小向量 load/store 基线，让 VRF 能与内存交互，并为后续 RVV unit-stride load/store 迁移保留清晰边界。
 
 ### 最终目标（RVV 兼容）
 
@@ -14,7 +14,7 @@
 
 ### 当前阶段目标（V1 最小实现）
 
-- 通过 CPU 侧已有 LSU 路径访问内存（共享路径，低风险）
+- 通过 CPU 侧 memory owner 边界访问内存，COP 访存期间复用统一外部 AXI master。
 - 仅支持 unit-stride（连续地址）
 - 仅支持 8-bit 元素宽度
 - 固定 4 元素向量长度
@@ -22,33 +22,30 @@
 
 ---
 
-## 二、设计方案
+## 二、当前设计
 
-### 2.1 方案选择：COP 直连 AXI（绕过 DCache）
+### 2.1 CPU memory owner 边界
 
-**选项 A：COP 直连 AXI（推荐，V1 采用）**
-- COP 访存时绕过 LSU DCache，直接发起 AXI single-beat 请求
-- 在 `hcpu.v` 加一个 AXI mux（标量 LSU vs COP）
-- 优点：不动 LSU FSM，干净，V1 阶段 DCache 对 4 字节访存收益不大
-- 缺点：COP 访存不经过 DCache（V1 可接受，阶段 D 再优化）
+当前实现不是独立的长期 vector memory subsystem，而是 V1 COP memory bring-up：
 
-**选项 B：COP 通过 LSU FSM**
-- LSU FSM 新增 `S_COP_LOAD` / `S_COP_STORE` 状态
-- 优点：COP 自动获得 DCache 加速
-- 缺点：修改 LSU FSM，风险较高
+- `dummy_coprocessor.v` 发出 COP-local memory request。
+- `cop_backend.v` 透传 `o_cop_mem_req_*` / `i_cop_mem_resp_*`。
+- `hcpu.v` 在 CPU memory owner 边界选择 scalar 或 COP owner。
+- COP owner active 时驱动共享 AXI master 的 single-beat byte request。
+- completion 只在未被 kill 时返回 COP backend。
 
-**选择理由**：V1 阶段优先正确性，选择方案 A。后续阶段可升级到方案 B。
+这个边界的目标是保持 scalar LSU 与 COP memory 的 owner 语义一致，避免为 COP 继续增加 ad-hoc top-level special case。
 
-### 2.2 仲裁策略：COP busy 自然串行化
+### 2.2 仲裁策略：V1 串行 owner
 
-**不需要显式仲裁逻辑**。原因：
-- COP 访存时 `o_busy=1`，CPU 流水线 stall（`exu2idu_ready=0`）
-- 标量 LSU 不会同时发起请求（CPU 流水线被阻塞）
-- COP busy 自然串行化了标量访存和 COP 访存
+当前 V1 仍依赖单发射和最多一个 COP 请求在飞：
 
-**确认**：COP 访存期间，COP 的 `o_busy=1`，CPU 流水线 stall，标量 LSU 不会同时发起事务。
+- COP 访存期间 `o_busy=1`，CPU 流水线被 backpressure。
+- memory owner 边界只有 scalar 或 COP 一个 active owner。
+- COP request 只在 owner idle 且没有 stale completion bubble 时被接受。
+- 后续若支持多个 vector memory request in flight，需要重新设计 owner/scoreboard/commit 语义。
 
-### 2.2 编码方案
+### 2.3 编码方案
 
 使用 `funct3=0` 的 `funct7` 扩展空间，新增向量 load/store 操作：
 
@@ -71,7 +68,7 @@
 - 地址 `base+2` 存储 `v0[23:16]`
 - 地址 `base+3` 存储 `v0[31:24]`
 
-### 2.3 时序设计
+### 2.4 时序设计
 
 **向量 load（vload_mem）**：
 ```
@@ -92,14 +89,14 @@ Cycle N+1: o_done 置 1
 - 或者串行发出（更简单，V1 先用串行）
 - flush 时取消未完成的内存请求
 
-### 2.4 flush 语义
+### 2.5 kill/flush 语义
 
-- flush 时取消所有未完成的内存请求
-- 已完成的内存写入不可撤销（内存是架构状态）
-- 已完成的内存读取结果丢弃（不写入 VRF）
-- 与现有 COP flush 语义一致
+- kill/flush 会标记当前 COP memory transaction 为 killed。
+- killed load 的晚到响应被 CPU owner 边界吸收，不返回 COP backend，也不写入 VRF。
+- killed store 不应在 kill 后新发起写入；已经被外部总线接受的写入是架构可见风险点，后续 RVV store 必须进一步对齐 commit 边界。
+- directed target `cop_mem_pending_kill` 覆盖 pending load response 晚到后的吸收与恢复。
 
-### 2.5 异常处理
+### 2.6 异常处理
 
 - V1 阶段不支持异常上报（`o_exception` 端口暂不需要）
 - 当前所有访存地址是软件构造的，TLB/misalign 异常处理是 V2 的事
@@ -124,30 +121,31 @@ dummy_coprocessor.v
     └── mem_state（idle, req0, req1, req2, req3, wait）
 ```
 
-### 3.2 COP 接口扩展
+### 3.2 COP memory 接口
 
-需要新增内存请求/响应端口（A 线确认的接口）：
+当前 COP-local memory 请求/响应端口：
 
 ```verilog
-// COP → AXI（请求）
-output        o_mem_req,       // =1 表示 COP 要访存
-output [31:0] o_mem_addr,      // 访存地址
-output [31:0] o_mem_wdata,     // 写数据（store 时有效）
-output        o_mem_wen,       // =1 store, =0 load
+// COP -> CPU memory owner boundary
+output        o_cop_mem_req_valid,
+output        o_cop_mem_req_store,
+output [31:0] o_cop_mem_req_addr,
+output [31:0] o_cop_mem_req_wdata,
+output [2:0]  o_cop_mem_req_size,
 
-// AXI → COP（响应）
-input         i_mem_done,      // =1 访存完成
-input  [31:0] i_mem_rdata,     // 读数据（load 时有效）
+// CPU memory owner boundary -> COP
+input         i_cop_mem_resp_valid,
+input  [31:0] i_cop_mem_resp_rdata,
 ```
 
 **接口说明**：
-- 不需要 `_valid`/`_ready` 握手 — COP 访存时 LSU 被独占，COP 等 `i_mem_done` 即可
-- COP 访存期间 `o_busy=1`，CPU 流水线 stall，标量 LSU 不会同时发起事务
-- 不需要仲裁逻辑，COP busy 自然串行化
+- 当前没有 request ready；V1 依赖 COP busy 和 CPU owner idle 串行化。
+- `o_cop_mem_req_size` 当前固定为 byte。
+- `i_cop_mem_resp_valid` 已经过 kill qualification，killed completion 不返回 COP backend。
 
 **连接方式**：
 - `cop_backend.v`：透传内存端口
-- `hcpu.v`：AXI mux（标量 LSU vs COP），COP 直连 AXI 绕过 DCache
+- `hcpu.v`：通过 memory owner 边界选择 scalar 或 COP owner，并驱动共享 AXI master
 
 ### 3.3 状态机设计
 
@@ -184,14 +182,19 @@ DONE: 合并结果，写入 VRF，o_done 置 1
 | cop-vload-mem | vload_mem | 从内存加载到 VRF |
 | cop-vstore-mem | vstore_mem | 从 VRF 存储到内存 |
 | cop-vload-store-mem | vload_mem + vstore_mem | 加载-存储往返 |
+| cop-vload-repeat-mem | vload_mem x2 | 重复地址加载，供 directed pending-kill 使用 |
+| cop_mem_pending_kill | vload_mem + test-only kill | stale completion 吸收和后续恢复 |
+| cop_mem_store_directed | vstore_mem + test-only monitor | COP store 走 AW/W/B owner path，且 B 后才暴露 response |
 
-### 4.2 边界测试
+`COP_MEM_PENDING_KILL_TB` 构建还导出 COP-specific debug pulses：`tb_cop_mem_ar_fire`、`tb_cop_mem_r_fire`、`tb_cop_mem_aw_fire`、`tb_cop_mem_w_fire`、`tb_cop_mem_b_fire`、`tb_cop_mem_store` 和 `tb_cop_mem_addr`。这些信号只用于 directed sim，不属于普通 RTL 接口。
+
+### 4.2 后续边界测试
 
 | 测试名 | 覆盖操作 | 验证重点 |
 |--------|----------|----------|
-| cop-vload-mem-align | vload_mem | 对齐地址 |
-| cop-vload-mem-misalign | vload_mem | 未对齐地址（如果支持） |
-| cop-vload-mem-zero | vload_mem | 零地址（异常） |
+| cop-vload-mem-align | vload_mem | 对齐地址，当前可由基础测试覆盖 |
+| cop-vload-mem-misalign | vload_mem | 未对齐地址，后续需定义支持或 illegal |
+| cop-vstore-kill | vstore_mem | killed store 不产生错误 side effect |
 
 ### 4.3 混合测试
 
@@ -204,36 +207,20 @@ DONE: 合并结果，写入 VRF，o_done 置 1
 
 ## 五、开发步骤
 
-### Phase 1：设计评审（当前）
+### Phase 1：当前已完成基线
 
-1. 评审本设计草案
-2. 确认编码方案、时序设计、flush 语义
-3. 确认是否需要修改 CPU 侧接口
+1. `dummy_coprocessor.v` 实现 `vload_mem` / `vstore_mem`。
+2. `cop_backend.v` 透传 COP memory request/response。
+3. `hcpu.v` 接入 CPU memory owner 边界。
+4. 已有 `cop-vload-mem`、`cop-vstore-mem`、`cop-vload-store-mem`、`cop-vload-repeat-mem`。
+5. 已有 `cop_mem_pending_kill` directed coverage。
 
-### Phase 2：COP 接口扩展（1-2 天）
+### Phase 2：P0 收敛项
 
-1. 在 `dummy_coprocessor.v` 中新增内存请求/响应端口（6 个信号）
-2. 在 `cop_backend.v` 中透传内存端口
-3. 在 `hcpu.v` 中添加 AXI mux（标量 LSU vs COP），COP 直连 AXI 绕过 DCache
-
-### Phase 3：向量 load 实现（2-3 天）
-
-1. 实现 `vload_mem`（funct7=14）状态机
-2. 实现串行内存请求逻辑
-3. 实现内存响应合并逻辑
-4. 添加测试：`cop-vload-mem`
-
-### Phase 4：向量 store 实现（1-2 天）
-
-1. 实现 `vstore_mem`（funct7=15）状态机
-2. 实现串行内存写逻辑
-3. 添加测试：`cop-vstore-mem`
-
-### Phase 5：集成验证（1 天）
-
-1. 混合测试：向量 load/store + lane ops + state ops
-2. 全量回归：确保不破坏现有 62 个测试
-3. 更新文档
+1. 保持文档、编码表和测试矩阵与 RTL 同步。
+2. 固化 smoke 列表，避免后续 RVV 迁移回退 custom COP 基线。
+3. 补 killed store 或 store side effect 的 directed coverage 设计。
+4. 明确 misalign、异常和 unsupported 行为仍是后续阶段。
 
 ---
 
@@ -241,10 +228,11 @@ DONE: 合并结果，写入 VRF，o_done 置 1
 
 | 风险 | 影响 | 缓解措施 |
 |------|------|----------|
-| 内存请求与标量访存冲突 | 性能下降 | COP busy 自然串行化，不需要仲裁 |
+| 内存请求与标量访存冲突 | owner 混乱或错误响应 | 通过 memory owner 边界串行化 scalar/COP |
 | flush 时内存请求未完成 | 状态不一致 | flush 时取消所有未完成请求 |
-| AXI mux 复杂度 | CPU 侧改动 | 仅修改 hcpu.v，不动 LSU FSM |
+| AXI mux 复杂度 | CPU 侧改动 | V1 只在 owner 边界选择 scalar/COP，不改 LSU FSM |
 | COP 访存不经过 DCache | 性能 | V1 可接受，阶段 D 再优化 |
+| killed store side effect | 内存错误提交 | 后续 RVV store 前必须补 commit/kill 语义设计和 directed test |
 
 ---
 
@@ -262,14 +250,14 @@ DONE: 合并结果，写入 VRF，o_done 置 1
 
 ## 八、总结
 
-本草案设计了最小向量访存方案，通过共享 CPU 侧 LSU 路径实现 VRF 与内存的交互。V1 实现仅支持 unit-stride 8-bit 访存，后续可逐步扩展到 RVV 标准。
+当前基线通过 CPU memory owner 边界实现 VRF 与内存的交互。V1 实现仅支持 unit-stride 8-bit 访存，后续可逐步扩展到 RVV 标准。
 
 关键设计决策：
-1. **COP 直连 AXI**：绕过 DCache，不动 LSU FSM，低风险
-2. **COP busy 串行化**：不需要仲裁逻辑，COP busy 自然阻塞标量 LSU
+1. **CPU memory owner 边界**：scalar 和 COP 请求使用统一 owner 语义
+2. **COP busy 串行化**：V1 不支持多个 COP memory 请求在飞
 3. **串行 4 次请求**：每次 COP 操作约 20-40 cycles，V1 可接受
 4. **固定 4 元素**：与现有 VRF 一致
 5. **不支持异常**：V1 暂不需要，减少接口复杂度
-6. **6 个信号接口**：`o_mem_req`/`o_mem_addr`/`o_mem_wdata`/`o_mem_wen`/`i_mem_done`/`i_mem_rdata`
+6. **COP-local memory 接口**：`o_cop_mem_req_*` / `i_cop_mem_resp_*`
 
-下一步：A 线确认接口设计后，C 线开始实现。A 在下一个集成点接收。
+下一步：继续 P0 收敛，补齐文档、smoke 列表和 killed store 风险项；进入 RVV 前不扩大 memory 接口语义。

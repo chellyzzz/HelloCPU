@@ -8,9 +8,14 @@ module cop_mem_pending_kill_top(
     output        tb_cop_mem_killed,
     output        tb_cop_mem_resp_valid,
     output [1:0]  tb_cop_mem_state,
+    output        tb_cop_mem_store,
+    output        tb_cop_mem_aw_fire,
+    output        tb_cop_mem_w_fire,
+    output        tb_cop_mem_b_fire,
     output        tb_cop_mem_ar_fire,
     output        tb_cop_mem_r_fire,
     output [31:0] tb_cop_mem_addr,
+    output [31:0] tb_awaddr,
     output reg    tb_ar_fire,
     output reg    tb_r_fire,
     output [31:0] tb_araddr
@@ -114,6 +119,10 @@ module cop_mem_pending_kill_top(
         .tb_cop_mem_killed  (tb_cop_mem_killed),
         .tb_cop_mem_resp_valid(tb_cop_mem_resp_valid),
         .tb_cop_mem_state   (tb_cop_mem_state),
+        .tb_cop_mem_store   (tb_cop_mem_store),
+        .tb_cop_mem_aw_fire (tb_cop_mem_aw_fire),
+        .tb_cop_mem_w_fire  (tb_cop_mem_w_fire),
+        .tb_cop_mem_b_fire  (tb_cop_mem_b_fire),
         .tb_cop_mem_ar_fire (tb_cop_mem_ar_fire),
         .tb_cop_mem_r_fire  (tb_cop_mem_r_fire),
         .tb_cop_mem_addr    (tb_cop_mem_addr)
@@ -128,6 +137,7 @@ module cop_mem_pending_kill_top(
 
     wire ar_fire = m_arvalid && m_arready;
     wire r_fire = m_rvalid && m_rready && m_rlast;
+    assign tb_awaddr = m_awaddr;
     assign tb_araddr = m_araddr;
 
     always @(posedge clock or posedge reset) begin

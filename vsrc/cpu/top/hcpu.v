@@ -72,6 +72,10 @@ module hcpu
     output                              tb_cop_mem_killed          ,
     output                              tb_cop_mem_resp_valid      ,
     output             [   1:0]         tb_cop_mem_state           ,
+    output                              tb_cop_mem_store           ,
+    output                              tb_cop_mem_aw_fire         ,
+    output                              tb_cop_mem_w_fire          ,
+    output                              tb_cop_mem_b_fire          ,
     output                              tb_cop_mem_ar_fire         ,
     output                              tb_cop_mem_r_fire          ,
     output             [  31:0]         tb_cop_mem_addr
@@ -810,8 +814,12 @@ assign tb_cop_mem_done = cop_mem_done_r;
 assign tb_cop_mem_killed = cop_mem_killed_r;
 assign tb_cop_mem_resp_valid = COP_MEM_RESP_VALID;
 assign tb_cop_mem_state = cop_mem_state;
-assign tb_cop_mem_ar_fire = cop_mem_ar_fire;
-assign tb_cop_mem_r_fire = cop_mem_r_fire;
+assign tb_cop_mem_store = cop_mem_wen_r;
+assign tb_cop_mem_aw_fire = cop_mem_bus_active && cop_mem_aw_fire;
+assign tb_cop_mem_w_fire = cop_mem_bus_active && cop_mem_w_fire;
+assign tb_cop_mem_b_fire = cop_mem_bus_active && cop_mem_b_fire;
+assign tb_cop_mem_ar_fire = cop_mem_bus_active && cop_mem_ar_fire;
+assign tb_cop_mem_r_fire = cop_mem_bus_active && cop_mem_r_fire;
 assign tb_cop_mem_addr = cop_mem_addr_r;
 `endif
 
