@@ -5,7 +5,11 @@ module hcpu_vector_cop_decode(
     output     [3:0]  o_scalar_lane_op,
     output     [3:0]  o_vrf_lane_op,
     output            o_is_vrf_op,
-    output            o_is_vrf_lane
+    output            o_is_vrf_lane,
+    output            o_is_mem_load,
+    output            o_is_mem_store,
+    output            o_scratch_write,
+    output            o_vlen_write
 );
 
 localparam LANE_OP_ADD8 = 4'd0;
@@ -37,5 +41,9 @@ assign o_vrf_lane_op = (o_funct7 == 7'd6) ? LANE_OP_XOR8 :
 
 assign o_is_vrf_op   = (o_funct3 == 3'b000) && (o_funct7 >= 7'd3) && (o_funct7 <= 7'd13);
 assign o_is_vrf_lane = (o_funct3 == 3'b000) && (o_funct7 >= 7'd5) && (o_funct7 <= 7'd13);
+assign o_is_mem_load  = (o_funct3 == 3'b000) && (o_funct7 == 7'd14);
+assign o_is_mem_store = (o_funct3 == 3'b000) && (o_funct7 == 7'd15);
+assign o_scratch_write = (o_funct3 == 3'b100);
+assign o_vlen_write    = (o_funct3 == 3'b101);
 
 endmodule
