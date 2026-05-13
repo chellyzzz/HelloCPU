@@ -1,8 +1,25 @@
 # B-Line Status
 
-Branch: `cpu-frontend-interface-lab`
-Baseline: `d9e7702 refactor: sync vector coprocessor layout`
-Current mode: **Maintenance**
+Branch: `cpu-mainline-branch`
+Baseline: `8837032 docs: consolidate CPU planning into evolution roadmap and add ROI guardrails for redirect work`
+Current mode: **Active frontend performance ownership**
+
+## Current Mission
+
+B 线当前主责：
+
+1. IFU / IDU / IFU-IDU / IDU-EXU pipeline 边界
+2. BTB / RAS / predictor 策略
+3. redirect recovery 路径
+4. frontend stall 根因对应的 behavioral RTL 改进
+
+当前交付标准：
+
+- behavioral RTL patch
+- B-line gate 全过
+- `CoreMark ITER=100` 数据
+- 中间指标下降证明
+- 不破坏 future dual-issue / COP memory / vector memory 边界
 
 ## V1 Architecture Decision
 
@@ -15,14 +32,60 @@ Pass-through is the correct V1 frontend architecture.
 | Registered-valid (IFU/IDU `post_valid` hold) | `sum` misses commits at `0x30000000` and `0x30000b00`; instruction skipped after redirect | Rejected |
 | Skid buffer | Not directly tested; inferred incompatible with current single-entry pipeline semantics | Rejected per analysis |
 
-### Current baseline
+### Current validated baseline
 
-- `0001` behavior-equivalent IFU `fetch_fire` naming is in mainline at `d9e7702`.
-- `0002` IFU/IDU handshake analysis document is at `docs/cpu/ifu-idu-handshake-analysis.md`, patch at `patches/0002-docs-ifu-idu-handshake-analysis.patch`.
-- Low-risk instrumentation patches `0003`~`0005` are pending; no behavior changes.
-- COP interface is clean; debug/assert instrumentation in place.
+- Current mainline baseline metrics:
+  - `CoreMark/MHz = 2.853`
+  - `IPC = 0.874`
+  - `Frontend/empty = 2,005,006`
+  - `Control recovery = 795,702`
+  - `BTB mispredicts = 780,786`
+- Redirect proof result on baseline:
+  - branch `target bad = 0`
+  - dominant problem is branch **direction**, not branch target coverage.
+
+### Current winning B-Task-7 candidate
+
+Status: **validated and worth keeping**
+
+Implementation summary:
+
+- Keep tagged BTB target cache for hit cases.
+- Add independent BHT direction fallback only when BTB lookup misses.
+- Do not change IFU/IDU/IDU-EXU boundary semantics.
+
+Measured result vs baseline:
+
+- `CoreMark/MHz: 2.853 -> 2.861`
+- `IPC: 0.874 -> 0.876`
+- `Frontend/empty: 2,005,006 -> 1,971,153`
+- `Control recovery: 795,702 -> 775,077`
+- `BTB mispredicts: 780,786 -> 760,013`
+
+ROI verdict:
+
+- **Pass**. This work satisfied the new ROI rule because it first proved the dominant loss was direction miss, then reduced the relevant intermediate metrics, while preserving future structural boundaries.
 
 ## Assigned Tasks
+
+### B-Task-7: BTB miss / mispredict reduction
+
+Current status: **first profitable candidate found**
+
+Next work under the same ROI rule:
+
+1. Keep measuring branch miss subtype counts before larger predictor changes.
+2. Prefer direction-side improvements before BTB capacity or associativity expansion.
+3. Only continue if mispredict / control recovery / frontend bubble keep moving down together.
+
+### B-Task-8: redirect recovery 3 -> 2 cycles
+
+Current status: **not started after ROI reset**
+
+Constraint:
+
+- `skip_pre_valid` is a failed path and should not be revived.
+- Any new attempt must solve valid/payload timing alignment directly, not by masking control only.
 
 ### B-Task-1: IFU/IDU pass-through protocol specification document
 
@@ -99,7 +162,6 @@ Any patch touching redirect/refetch/flush must also record either commit-trace e
 
 ## Coordination
 
-- B enters maintenance mode after completing B-Task-1 through B-Task-3.
-- B will resume active work when A needs frontend/interface support for same-cycle LSU hit or other pipeline restructuring.
-- B carries no behavior-changing RTL diff on the current baseline.
-- B owns `vsrc/cpu/ifu/*`, `vsrc/cpu/idu/*`, `vsrc/vector/cop/*`, `docs/interface/*`, and analysis docs.
+- B is in active frontend performance mode, not maintenance.
+- B currently carries a behavior-changing candidate for `B-Task-7`.
+- B owns `vsrc/cpu/ifu/*`, `vsrc/cpu/idu/*`, `vsrc/vector/cop/*`, and related frontend analysis/status docs.

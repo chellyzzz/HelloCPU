@@ -96,6 +96,36 @@
 2. 但同时并行推进 backend / memory / interface 清晰化；
 3. 避免把所有工程精力都押在一个可能难以进一步压缩的热点上。
 
+### 当前已验证的 redirect ROI 样例
+
+在 `8837032` 之后，B 线按“先证明，再投入”的方式完成了一轮 frontend 验证：
+
+1. 先给 branch mispredict 增加了更细分的归因计数：
+   - `pred NT -> actual taken`
+   - `pred taken -> actual NT`
+   - `target bad`
+2. CoreMark `ITER=100` 基线结果表明：
+   - `BTB mispredicts = 780,786`
+   - `target bad = 0`
+   - 说明当前 branch redirect 的主问题是 **direction**，不是 branch target 计算错误。
+3. 基于这个证明，B 没有继续扩大 BTB 或修改前后端边界，而是采用更小结构代价的方案：
+   - 保留现有 tagged BTB target cache；
+   - 仅在 BTB miss 时，引入独立 BHT 作为 direction fallback。
+
+该实验的结果：
+
+- CoreMark/MHz `2.853 -> 2.861`
+- IPC `0.874 -> 0.876`
+- `Frontend/empty 2,005,006 -> 1,971,153`
+- `Control recovery 795,702 -> 775,077`
+- `BTB mispredicts 780,786 -> 760,013`
+
+这轮实验之所以符合 ROI 原则，不是因为“frontend 最大”，而是因为它同时满足：
+
+- **可压缩性明确**：先证明当前问题属于 direction，而不是 target/统计口径；
+- **中间指标真实下降**：mispredict、control recovery、frontend bubble 都下降；
+- **结构边界未被破坏**：未改 IFU/IDU/IDU-EXU 协议，也未破坏 future dual-issue / COP memory / vector memory 的接口清晰度。
+
 ## 四、长期整体优化主线
 
 如果跳出单点优化，HelloCPU 后续的长期性能提升应当沿着三条主线推进。
@@ -259,6 +289,8 @@
 
 ## 六、A/B 分工
 
+当 A/B/C 三线并行导致接口同步和整体验进方向成为瓶颈时，引入 D 线负责 architecture / integration control。D 线职责见 `docs/cpu/d-line-architecture-integration.md`。
+
 ## A 线：Backend Performance And Integration
 
 A 线负责：
@@ -312,6 +344,12 @@ B 线负责：
 - behavioral RTL patch
 - B-line gate PASS
 - CoreMark 数据
+
+当前已验证的有效方向：
+
+- 不必先扩大 BTB 容量；
+- 应优先针对 **branch direction miss** 做更小结构代价的增强；
+- 当前首个通过 ROI 检验的版本是：`BTB miss -> BHT fallback`。
 
 #### B-2：redirect recovery -1 cycle
 

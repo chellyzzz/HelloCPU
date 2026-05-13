@@ -140,6 +140,12 @@ wire                   [  31:0]         cop_res                    ;
 wire                                    cop_done                   ;
 wire                                    if_cop                     ;
 
+`ifdef PERF_BRANCH_PRED
+import "DPI-C" function void br_misp_pred_nt_dpic();
+import "DPI-C" function void br_misp_pred_taken_nt_dpic();
+import "DPI-C" function void br_misp_target_bad_dpic();
+`endif
+
 assign if_mul  = i_muldiv & ~exu_opt[2]; // func3[2]==0: MUL/MULH/MULHSU/MULHU
 assign if_div  = i_muldiv &  exu_opt[2]; // func3[2]==1: DIV/DIVU/REM/REMU
 assign if_mul_low = if_mul & (exu_opt[1:0] == 2'b00);
@@ -158,7 +164,6 @@ assign o_post_valid =  if_lsu   ?  lsu_done    :
                        if_cop   ?  cop_done    :
                        i_muldiv ?  muldiv_done :
                        post_valid;
-
 assign o_pre_ready  =  if_lsu   ?  lsu_done    :
                        if_cop   ?  cop_done    :
                        i_muldiv ?  muldiv_done :
@@ -247,21 +252,13 @@ hcpu_divider exu_div(
 
 hcpu_dummy_coprocessor exu_cop(
     .clock                             (clock                     ),
-    .reset                             (reset                     ),
-    .i_flush                           (i_flush                   ),
+    .reset                             (reset || i_flush          ),
     .i_valid                           (i_pre_valid && if_cop     ),
     .i_src1                            (i_src1                    ),
     .i_src2                            (i_src2                    ),
     .i_ins                             (32'b0                     ),
     .o_res                             (cop_res                   ),
-    .o_done                            (cop_done                  ),
-    .o_cop_mem_req_valid               (                          ),
-    .o_cop_mem_req_store               (                          ),
-    .o_cop_mem_req_addr                (                          ),
-    .o_cop_mem_req_wdata               (                          ),
-    .o_cop_mem_req_size                (                          ),
-    .i_cop_mem_resp_valid              (1'b0                      ),
-    .i_cop_mem_resp_rdata              (32'b0                     )
+    .o_done                            (cop_done                  )
 );
 
 // ============================================================================
@@ -353,6 +350,10 @@ assign o_brch = i_brch && brch_res;
 wire actual_taken = (i_brch && brch_res) || i_jal || i_jalr;
 wire is_control   = i_brch || i_jal || i_jalr;
 wire [31:0] pred_target_full = {i_predict_target, 2'b00};
+wire branch_resolve_fire = i_pre_valid && !i_flush && i_brch;
+wire br_misp_pred_nt = branch_resolve_fire && brch_res && !i_predict_taken;
+wire br_misp_pred_taken_nt = branch_resolve_fire && !brch_res && i_predict_taken;
+wire br_misp_target_bad = branch_resolve_fire && brch_res && i_predict_taken && (pred_target_full != o_pc_next);
 
 wire mispredict = (is_control && (i_predict_taken != actual_taken)) ||
                   ((i_jal || i_jalr || i_brch) && i_predict_taken && (pred_target_full != o_pc_next));
@@ -362,6 +363,16 @@ assign o_redirect_pc     = actual_taken ? o_pc_next : (i_pc + 32'd4);
 
 wire predict_correct = !mispredict && is_control;
 assign o_predict_correct = predict_correct && i_pre_valid;
+
+`ifdef PERF_BRANCH_PRED
+always @(posedge clock) begin
+    if (!reset) begin
+        if (br_misp_pred_nt) br_misp_pred_nt_dpic();
+        if (br_misp_pred_taken_nt) br_misp_pred_taken_nt_dpic();
+        if (br_misp_target_bad) br_misp_target_bad_dpic();
+    end
+end
+`endif
 
 // ============================================================================
 // BTB update (all conditional branches)
