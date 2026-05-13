@@ -120,6 +120,7 @@ cop_mem_pending_kill: sw
 	$(VERILATOR) --top-module cop_mem_pending_kill_top +incdir+vsrc/cpu/include --cc --exe --build -Wno-fatal -Wno-style \
 		--timescale "1ns/1ns" --no-timing \
 		"+define+COP_MEM_PENDING_KILL_TB" \
+		$(EXTRA_VERILATOR_FLAGS) \
 		$(SIM_DIR)/cop_mem_pending_kill_top.v $(SIM_DIR)/axi_ram.v $(shell find -L vsrc -name "*.v" -o -name "*.sv" 2>/dev/null) \
 		$(abspath $(SIM_DIR)/cop_mem_pending_kill_tb.cpp) \
 		--Mdir $(BUILD_DIR)/cop_mem_pending_kill_tb \

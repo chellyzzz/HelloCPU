@@ -71,7 +71,10 @@ module hcpu
     output                              tb_cop_mem_done            ,
     output                              tb_cop_mem_killed          ,
     output                              tb_cop_mem_resp_valid      ,
-    output             [   1:0]         tb_cop_mem_state
+    output             [   1:0]         tb_cop_mem_state           ,
+    output                              tb_cop_mem_ar_fire         ,
+    output                              tb_cop_mem_r_fire          ,
+    output             [  31:0]         tb_cop_mem_addr
 `endif
 
 );
@@ -807,6 +810,9 @@ assign tb_cop_mem_done = cop_mem_done_r;
 assign tb_cop_mem_killed = cop_mem_killed_r;
 assign tb_cop_mem_resp_valid = COP_MEM_RESP_VALID;
 assign tb_cop_mem_state = cop_mem_state;
+assign tb_cop_mem_ar_fire = cop_mem_ar_fire;
+assign tb_cop_mem_r_fire = cop_mem_r_fire;
+assign tb_cop_mem_addr = cop_mem_addr_r;
 `endif
 
 always @(posedge clock or posedge reset) begin

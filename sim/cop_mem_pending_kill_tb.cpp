@@ -184,14 +184,21 @@ int main(int argc, char **argv) {
   bool observed_second_cop_response = false;
   bool armed_second_response = false;
   int ar_fire_count = 0;
+  int cop_ar_fire_count = 0;
+  int cop_r_fire_count = 0;
   int cop_active_count = 0;
 
   for (int cycle = 0; cycle < 20000 && !finished; cycle++) {
     tick(top);
     if (top->tb_ar_fire) ar_fire_count++;
+    if (top->tb_cop_mem_ar_fire) cop_ar_fire_count++;
+    if (top->tb_cop_mem_r_fire) cop_r_fire_count++;
     if (top->tb_cop_mem_bus_active) cop_active_count++;
 
-    if (!killed_first_cop_read && top->tb_cop_mem_bus_active && top->tb_ar_fire) {
+    if (!killed_first_cop_read && top->tb_cop_mem_ar_fire) {
+      if (top->tb_araddr != top->tb_cop_mem_addr) {
+        return fail("COP AR fire did not match master AR address");
+      }
       killed_first_cop_read = true;
       top->tb_hold_read_resp = 1;
       top->tb_cop_kill = 1;
@@ -208,14 +215,14 @@ int main(int argc, char **argv) {
       top->tb_hold_read_resp = 0;
     }
 
-    if (observed_killed_drain && !observed_stale_r_fire && top->tb_r_fire) {
+    if (observed_killed_drain && !observed_stale_r_fire && top->tb_cop_mem_r_fire) {
       observed_stale_r_fire = true;
       if (top->tb_cop_mem_resp_valid) {
         return fail("stale completion reached COP response");
       }
     }
 
-    if (observed_stale_r_fire && top->tb_cop_mem_bus_active && top->tb_ar_fire) {
+    if (observed_stale_r_fire && top->tb_cop_mem_ar_fire) {
       armed_second_response = true;
     }
 
@@ -232,8 +239,10 @@ int main(int argc, char **argv) {
   if (!finished) result |= fail("program did not finish after pending-kill scenario");
   if (finished && exit_code != 0) result |= fail("program failed after pending-kill scenario");
   if (result) {
-    std::fprintf(stderr, "debug: ar_fire_count=%d cop_active_count=%d exit_code=%d\n",
-                 ar_fire_count, cop_active_count, exit_code);
+    std::fprintf(stderr,
+                 "debug: ar_fire_count=%d cop_ar_fire_count=%d cop_r_fire_count=%d cop_active_count=%d exit_code=%d\n",
+                 ar_fire_count, cop_ar_fire_count, cop_r_fire_count,
+                 cop_active_count, exit_code);
   }
 
   delete top;
