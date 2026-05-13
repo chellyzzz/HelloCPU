@@ -264,12 +264,20 @@ hcpu_divider exu_div(
 hcpu_dummy_coprocessor exu_cop(
     .clock                             (clock                     ),
     .reset                             (reset || i_flush          ),
+    .i_flush                           (i_flush                   ),
     .i_valid                           (i_pre_valid && if_cop     ),
     .i_src1                            (i_src1                    ),
     .i_src2                            (i_src2                    ),
     .i_ins                             (32'b0                     ),
     .o_res                             (cop_res                   ),
-    .o_done                            (cop_done                  )
+    .o_done                            (cop_done                  ),
+    .o_cop_mem_req_valid               (                          ),
+    .o_cop_mem_req_store               (                          ),
+    .o_cop_mem_req_addr                (                          ),
+    .o_cop_mem_req_wdata               (                          ),
+    .o_cop_mem_req_size                (                          ),
+    .i_cop_mem_resp_valid              (1'b0                      ),
+    .i_cop_mem_resp_rdata              (32'b0                     )
 );
 
 // ============================================================================
