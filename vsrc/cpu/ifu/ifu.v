@@ -11,6 +11,7 @@ module hcpu_IFU
     // Branch predictor interface
     input                               btb_predict_taken          ,
     input              [  31:2]         btb_predict_target         ,
+    input                               btb_lookup_hit             ,
     input                               ras_predict_valid          ,
     input              [  31:2]         ras_predict_target         ,
 
@@ -21,6 +22,7 @@ module hcpu_IFU
     // Prediction outputs (to pipeline registers)
     output                              o_predict_taken            ,
     output             [  31:2]         o_predict_target           ,
+    output                              o_predict_btb_hit          ,
 
     // ICache interface
     output             [  31:0]         req_addr                   ,
@@ -45,17 +47,21 @@ wire pred_taken_btb = is_brch && btb_predict_taken;
 wire pred_taken_jal = is_jal;
 wire pred_taken_ras = is_ret && ras_predict_valid;
 
+wire [31:0] brch_imm = {{20{icache_ins[31]}}, icache_ins[7], icache_ins[30:25], icache_ins[11:8], 1'b0};
+wire [31:0] brch_target = pc_next + brch_imm;
 wire [31:0] jal_imm = {{12{icache_ins[31]}}, icache_ins[19:12], icache_ins[20], icache_ins[30:21], 1'b0};
 wire [31:0] jal_target = pc_next + jal_imm;
 
 wire [31:2] pred_target = is_jal          ? jal_target[31:2] :
                            pred_taken_ras ? ras_predict_target :
+                           (pred_taken_btb && !btb_lookup_hit) ? brch_target[31:2] :
                            btb_predict_target;
 
 wire pred_taken_comb = pred_taken_btb || pred_taken_jal || pred_taken_ras;
 
 assign o_predict_taken  = hit && pred_taken_comb;
 assign o_predict_target = pred_target;
+assign o_predict_btb_hit = hit && is_brch && btb_lookup_hit;
 
 wire [31:0] next_seq_pc = pc_next + 32'd4;
 wire [31:0] next_pred_pc = {pred_target, 2'b00};

@@ -40,6 +40,7 @@ module hcpu_idu_exu_regs (
     // branch prediction fields
     input                               i_predict_taken            ,
     input              [  31:2]         i_predict_target           ,
+    input                               i_predict_btb_hit          ,
 
     // register addresses for RAS
     input              [   4:0]         i_rs1_addr                 ,
@@ -73,6 +74,7 @@ module hcpu_idu_exu_regs (
     // branch prediction outputs
     output reg                          o_predict_taken            ,
     output reg         [  31:2]         o_predict_target           ,
+    output reg                          o_predict_btb_hit          ,
     output reg         [   4:0]         o_rs1_addr                  
 );
 
@@ -130,6 +132,7 @@ always @(posedge clock or posedge reset) begin
         o_csr_addr      <= 12'b0;
         o_predict_taken <= 1'b0;
         o_predict_target <= 30'b0;
+        o_predict_btb_hit <= 1'b0;
         o_rs1_addr      <= 5'b0;
 
     end
@@ -161,6 +164,7 @@ always @(posedge clock or posedge reset) begin
         o_csr_addr      <= i_csr_addr;
         o_predict_taken <= i_predict_taken;
         o_predict_target <= i_predict_target;
+        o_predict_btb_hit <= i_predict_btb_hit;
         o_rs1_addr      <= i_rs1_addr;
 
     end
@@ -191,6 +195,7 @@ always @(posedge clock or posedge reset) begin
         o_csr_addr      <= 12'b0;
         o_predict_taken <= 1'b0;
         o_predict_target <= 30'b0;
+        o_predict_btb_hit <= 1'b0;
         o_rs1_addr      <= 5'b0;
     end
 end

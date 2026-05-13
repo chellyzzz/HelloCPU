@@ -14,8 +14,10 @@ module hcpu_ifu_idu_regs (
     // branch prediction fields
     input                               i_predict_taken            ,
     input              [  31:2]         i_predict_target           ,
+    input                               i_predict_btb_hit          ,
     output reg                          o_predict_taken            ,
-    output reg         [  31:2]         o_predict_target           
+    output reg         [  31:2]         o_predict_target           ,
+    output reg                          o_predict_btb_hit          
 
 );
 
@@ -29,24 +31,28 @@ always @(posedge clock or posedge reset) begin
         o_ins           <= 32'h0;
         o_predict_taken <= 1'b0;
         o_predict_target <= 30'b0;
+        o_predict_btb_hit <= 1'b0;
     end
     else if(fetch_fire) begin
         o_pc            <= i_pc;
         o_ins           <= i_ins;
         o_predict_taken <= i_predict_taken;
         o_predict_target <= i_predict_target;
+        o_predict_btb_hit <= i_predict_btb_hit;
     end
     else if(~icache_hit && i_post_ready) begin
         o_pc            <= 32'h0;
         o_ins           <= 32'h0;
         o_predict_taken <= 1'b0;
         o_predict_target <= 30'b0;
+        o_predict_btb_hit <= 1'b0;
     end
     else if(icache_hit && ~i_post_ready) begin
         o_pc            <= o_pc;
         o_ins           <= o_ins;
         o_predict_taken <= o_predict_taken;
         o_predict_target <= o_predict_target;
+        o_predict_btb_hit <= o_predict_btb_hit;
     end
 end
 

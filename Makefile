@@ -35,7 +35,7 @@ VECTOR_TESTS := $(basename $(notdir $(wildcard $(SW_DIR)/tests/vector-tests/*.c)
 
 # === Targets ===
 
-.PHONY: all sim sw clean run_% run_all bench bench_only
+.PHONY: all sim sw clean run_% run_all bench bench_only branch_trace predictor_sim
 
 all: sim sw
 
@@ -98,6 +98,15 @@ bench_only: sim
 	$(MAKE) -C $(SW_DIR) benchmark ITER=$(ITER)
 	@echo "=== CoreMark (ITER=$(ITER)) ==="
 	@$(BUILD_DIR)/V$(TOPNAME) $(SW_DIR)/build/coremark.bin
+
+TRACE_BIN ?= $(SW_DIR)/build/coremark.bin
+TRACE_OUT ?= branch_trace.log
+
+branch_trace: sim
+	@$(BUILD_DIR)/V$(TOPNAME) $(TRACE_BIN) --branch-trace=$(TRACE_OUT)
+
+predictor_sim:
+	@python3 tools/predictor_sim/predictor_sim.py --trace $(TRACE_OUT) --policy current
 
 # Wave for debugging
 wave:

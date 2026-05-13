@@ -23,6 +23,9 @@ static const char *mem_trace_path = "mem_trace.log";
 static bool commit_trace_en = false;
 static FILE *commit_trace_fp = nullptr;
 static const char *commit_trace_path = "commit_trace.log";
+static bool branch_trace_en = false;
+static FILE *branch_trace_fp = nullptr;
+static const char *branch_trace_path = "branch_trace.log";
 
 // ---- performance counters ----
 static uint64_t cnt_inst = 0;
@@ -86,6 +89,10 @@ static uint64_t cnt_btb_mispredict = 0;
 static uint64_t cnt_br_misp_pred_nt = 0;
 static uint64_t cnt_br_misp_pred_taken_nt = 0;
 static uint64_t cnt_br_misp_target_bad = 0;
+static uint64_t cnt_br_misp_pred_nt_btb_hit = 0;
+static uint64_t cnt_br_misp_pred_nt_btb_miss = 0;
+static uint64_t cnt_br_misp_pred_taken_nt_btb_hit = 0;
+static uint64_t cnt_br_misp_pred_taken_nt_btb_miss = 0;
 static uint64_t cnt_ras_hit = 0;
 static uint64_t cnt_ras_miss = 0;
 static uint64_t cnt_jal_tgt_bad = 0;
@@ -308,9 +315,21 @@ static void print_perf_summary() {
       printf("│     ├─ pred NT,taken: %10lu (%5.1f%%)            │\n",
              cnt_br_misp_pred_nt,
              100.0 * cnt_br_misp_pred_nt / cnt_btb_mispredict);
+      printf("│     │  ├─ btb hit   : %10lu (%5.1f%%)            │\n",
+             cnt_br_misp_pred_nt_btb_hit,
+             100.0 * cnt_br_misp_pred_nt_btb_hit / (cnt_br_misp_pred_nt ? cnt_br_misp_pred_nt : 1));
+      printf("│     │  ├─ btb miss  : %10lu (%5.1f%%)            │\n",
+             cnt_br_misp_pred_nt_btb_miss,
+             100.0 * cnt_br_misp_pred_nt_btb_miss / (cnt_br_misp_pred_nt ? cnt_br_misp_pred_nt : 1));
       printf("│     ├─ pred T,NT    : %10lu (%5.1f%%)            │\n",
              cnt_br_misp_pred_taken_nt,
              100.0 * cnt_br_misp_pred_taken_nt / cnt_btb_mispredict);
+      printf("│     │  ├─ btb hit   : %10lu (%5.1f%%)            │\n",
+             cnt_br_misp_pred_taken_nt_btb_hit,
+             100.0 * cnt_br_misp_pred_taken_nt_btb_hit / (cnt_br_misp_pred_taken_nt ? cnt_br_misp_pred_taken_nt : 1));
+      printf("│     │  ├─ btb miss  : %10lu (%5.1f%%)            │\n",
+             cnt_br_misp_pred_taken_nt_btb_miss,
+             100.0 * cnt_br_misp_pred_taken_nt_btb_miss / (cnt_br_misp_pred_taken_nt ? cnt_br_misp_pred_taken_nt : 1));
       printf("│     ├─ target bad   : %10lu (%5.1f%%)            │\n",
              cnt_br_misp_target_bad,
              100.0 * cnt_br_misp_target_bad / cnt_btb_mispredict);
@@ -477,6 +496,10 @@ extern "C" void btb_misp_dpic() { cnt_btb_mispredict++; }
 extern "C" void br_misp_pred_nt_dpic() { cnt_br_misp_pred_nt++; }
 extern "C" void br_misp_pred_taken_nt_dpic() { cnt_br_misp_pred_taken_nt++; }
 extern "C" void br_misp_target_bad_dpic() { cnt_br_misp_target_bad++; }
+extern "C" void br_misp_pred_nt_btb_hit_dpic() { cnt_br_misp_pred_nt_btb_hit++; }
+extern "C" void br_misp_pred_nt_btb_miss_dpic() { cnt_br_misp_pred_nt_btb_miss++; }
+extern "C" void br_misp_pred_taken_nt_btb_hit_dpic() { cnt_br_misp_pred_taken_nt_btb_hit++; }
+extern "C" void br_misp_pred_taken_nt_btb_miss_dpic() { cnt_br_misp_pred_taken_nt_btb_miss++; }
 extern "C" void ras_hit_dpic() { cnt_ras_hit++; }
 extern "C" void ras_miss_dpic() { cnt_ras_miss++; }
 extern "C" void jal_tgt_mismatch() { cnt_jal_tgt_bad++; }
@@ -505,8 +528,18 @@ extern "C" void commit_trace_dpic(int pc, int rd, int wdata, int wen,
           "strb=%x br=%d bt=%d pred=%d pcorr=%d pcup=%d flush=%d\n",
           (uint32_t)pc, rd & 0x1f, wen & 1, (uint32_t)wdata, is_store & 1,
           (uint32_t)store_addr, (uint32_t)store_data, store_strb & 0xf,
-          is_brch & 1, brch_taken & 1, predict_taken & 1,
-          predict_correct & 1, pc_update & 1, flush & 1);
+           is_brch & 1, brch_taken & 1, predict_taken & 1,
+           predict_correct & 1, pc_update & 1, flush & 1);
+}
+extern "C" void branch_trace_dpic(int pc, int btb_hit, int pred_taken,
+                                   int pred_target, int actual_taken,
+                                   int branch_target) {
+  if (!branch_trace_en || !branch_trace_fp)
+    return;
+  fprintf(branch_trace_fp,
+          "pc=%08x btb_hit=%d pred=%d pred_target=%08x actual=%d target=%08x\n",
+          (uint32_t)pc, btb_hit & 1, pred_taken & 1, (uint32_t)pred_target,
+          actual_taken & 1, (uint32_t)branch_target);
 }
 extern "C" void mergesort_loop_dpic(int s4, int s1, int s0, int s3, int s2) {
   mergesort_loop_samples++;
@@ -566,6 +599,12 @@ int main(int argc, char **argv) {
       commit_trace_en = true;
       commit_trace_path = argv[i] + 15;
     }
+    if (strcmp(argv[i], "--branch-trace") == 0)
+      branch_trace_en = true;
+    if (strncmp(argv[i], "--branch-trace=", 15) == 0) {
+      branch_trace_en = true;
+      branch_trace_path = argv[i] + 15;
+    }
   }
   if (mem_trace_en) {
     mem_trace_fp = fopen(mem_trace_path, "w");
@@ -578,6 +617,13 @@ int main(int argc, char **argv) {
     commit_trace_fp = fopen(commit_trace_path, "w");
     if (!commit_trace_fp) {
       fprintf(stderr, "Error: cannot open %s\n", commit_trace_path);
+      return 1;
+    }
+  }
+  if (branch_trace_en) {
+    branch_trace_fp = fopen(branch_trace_path, "w");
+    if (!branch_trace_fp) {
+      fprintf(stderr, "Error: cannot open %s\n", branch_trace_path);
       return 1;
     }
   }
@@ -625,6 +671,10 @@ int main(int argc, char **argv) {
   if (commit_trace_fp) {
     fclose(commit_trace_fp);
     commit_trace_fp = nullptr;
+  }
+  if (branch_trace_fp) {
+    fclose(branch_trace_fp);
+    branch_trace_fp = nullptr;
   }
   delete top;
 

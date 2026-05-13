@@ -25,6 +25,7 @@ module hcpu_EXU(
     // branch prediction inputs
     input                               i_predict_taken            ,
     input              [  31:2]         i_predict_target           ,
+    input                               i_predict_btb_hit          ,
     // register addresses for RAS
     input              [   4:0]         i_rd_addr                  ,
     input              [   4:0]         i_rs1_addr                 ,
@@ -139,6 +140,22 @@ wire                   [  31:0]         muldiv_res                 ;
 wire                   [  31:0]         cop_res                    ;
 wire                                    cop_done                   ;
 wire                                    if_cop                     ;
+
+`ifdef PERF_BRANCH_PRED
+import "DPI-C" function void br_misp_pred_nt_dpic();
+import "DPI-C" function void br_misp_pred_taken_nt_dpic();
+import "DPI-C" function void br_misp_target_bad_dpic();
+import "DPI-C" function void br_misp_pred_nt_btb_hit_dpic();
+import "DPI-C" function void br_misp_pred_nt_btb_miss_dpic();
+import "DPI-C" function void br_misp_pred_taken_nt_btb_hit_dpic();
+import "DPI-C" function void br_misp_pred_taken_nt_btb_miss_dpic();
+import "DPI-C" function void branch_trace_dpic(input int pc,
+                                               input int btb_hit,
+                                               input int pred_taken,
+                                               input int pred_target,
+                                               input int actual_taken,
+                                               input int branch_target);
+`endif
 
 assign if_mul  = i_muldiv & ~exu_opt[2]; // func3[2]==0: MUL/MULH/MULHSU/MULHU
 assign if_div  = i_muldiv &  exu_opt[2]; // func3[2]==1: DIV/DIVU/REM/REMU
@@ -353,6 +370,14 @@ assign o_brch = i_brch && brch_res;
 wire actual_taken = (i_brch && brch_res) || i_jal || i_jalr;
 wire is_control   = i_brch || i_jal || i_jalr;
 wire [31:0] pred_target_full = {i_predict_target, 2'b00};
+wire branch_resolve_fire = i_pre_valid && !i_flush && i_brch;
+wire br_misp_pred_nt = branch_resolve_fire && brch_res && !i_predict_taken;
+wire br_misp_pred_taken_nt = branch_resolve_fire && !brch_res && i_predict_taken;
+wire br_misp_target_bad = branch_resolve_fire && brch_res && i_predict_taken && (pred_target_full != o_pc_next);
+wire br_misp_pred_nt_btb_hit = br_misp_pred_nt && i_predict_btb_hit;
+wire br_misp_pred_nt_btb_miss = br_misp_pred_nt && !i_predict_btb_hit;
+wire br_misp_pred_taken_nt_btb_hit = br_misp_pred_taken_nt && i_predict_btb_hit;
+wire br_misp_pred_taken_nt_btb_miss = br_misp_pred_taken_nt && !i_predict_btb_hit;
 
 wire mispredict = (is_control && (i_predict_taken != actual_taken)) ||
                   ((i_jal || i_jalr || i_brch) && i_predict_taken && (pred_target_full != o_pc_next));
@@ -362,6 +387,28 @@ assign o_redirect_pc     = actual_taken ? o_pc_next : (i_pc + 32'd4);
 
 wire predict_correct = !mispredict && is_control;
 assign o_predict_correct = predict_correct && i_pre_valid;
+
+`ifdef PERF_BRANCH_PRED
+always @(posedge clock) begin
+    if (!reset) begin
+        if (br_misp_pred_nt) br_misp_pred_nt_dpic();
+        if (br_misp_pred_taken_nt) br_misp_pred_taken_nt_dpic();
+        if (br_misp_target_bad) br_misp_target_bad_dpic();
+        if (br_misp_pred_nt_btb_hit) br_misp_pred_nt_btb_hit_dpic();
+        if (br_misp_pred_nt_btb_miss) br_misp_pred_nt_btb_miss_dpic();
+        if (br_misp_pred_taken_nt_btb_hit) br_misp_pred_taken_nt_btb_hit_dpic();
+        if (br_misp_pred_taken_nt_btb_miss) br_misp_pred_taken_nt_btb_miss_dpic();
+        if (branch_resolve_fire) begin
+            branch_trace_dpic(i_pc,
+                              {31'b0, i_predict_btb_hit},
+                              {31'b0, i_predict_taken},
+                              pred_target_full,
+                              {31'b0, brch_res},
+                              o_pc_next);
+        end
+    end
+end
+`endif
 
 // ============================================================================
 // BTB update (all conditional branches)
