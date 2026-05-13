@@ -43,6 +43,8 @@
 | 0 | 15 | vstore_mem | v0 低 4 字节 → 内存，返回 v0 | memory | cop-vstore-mem, cop-vload-store-mem |
 | 0 | 16 | vtype_write | 写入 P1 prototype vtype，返回旧值 | vtype | cop-vtype, cop-vtype-illegal, cop-vtype-cross |
 | 0 | 17 | vtype_read | 读取 P1 prototype vtype | 无（只读） | cop-vtype, cop-vtype-cross |
+| 0 | 18 | vstate_add | 按 prototype `vl/vtype` 执行加法 | 无 | cop-vstate-add, cop-vstate-add-sew32 |
+| 0 | 19 | vsetivli_p | 写入 prototype `vl/vtype`，返回新 `vl` | vlen + vtype | cop-vsetivli-proto |
 | 1 | * | vadd8 | 4x8-bit lane add | 无 | cop-vadd8, cop-vadd8-chain |
 | 2 | * | vxor8 | rs1 ^ rs2 | 无 | cop-vxor8 |
 | 3 | * | vand8 | rs1 & rs2 | 无 | cop-vand8, cop-mixed-lanes |
@@ -107,6 +109,15 @@ opcode = 0x0b (custom-0)
 - 仅接受 `SEW=8/32` 且 `LMUL=m1` 的 prototype 编码
 - unsupported `SEW/LMUL` 写入 `0x80000000`
 - flush 取消未提交的 vtype 写入，但不清零已提交的 vtype
+
+### 4.5 P1C/P2 prototype state consumer
+
+- `funct3=0, funct7=18` 是 `vstate_add`，只消费 prototype `vl/vtype`，不写 VRF
+- `vtype.vill=1` 时返回 `0x80000000`，不执行近似加法
+- `SEW=8` 时只计算 `0 <= element_index < vl` 的 byte lane，tail byte 当前返回 0
+- `SEW=32` 时 `vl>0` 返回 32-bit 加法，`vl=0` 返回 0
+- `funct3=0, funct7=19` 是 `vsetivli_p`，把 `rs1` 作为 AVL、`rs2` 作为 prototype vtype immediate，返回饱和后的新 `vl`
+- `vsetivli_p` 仍是 custom-0 prototype，不是标准 RVV `vsetivli`
 
 ---
 
@@ -191,3 +202,6 @@ opcode = 0x0b (custom-0)
 | cop-vtype-illegal | vtype write/read | unsupported `SEW/LMUL` 置 `vill=1` |
 | cop-vtype-cross | vlen + vtype | `vl` 与 `vtype` 状态互不污染 |
 | cop_vtype_kill | backend vtype write/read + flush | pending `vtype` 写入被 flush 取消，后续写入恢复 |
+| cop-vstate-add | vstate_add + vlen/vtype | `SEW=8` 下 `vl/vtype` gating 和 `vill` guard |
+| cop-vstate-add-sew32 | vstate_add + vlen/vtype | `SEW=32` 下 `vl=0/1` 和 illegal guard |
+| cop-vsetivli-proto | vsetivli_p + vstate_add | custom vset prototype 同时设置 `vl/vtype` |
