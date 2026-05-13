@@ -7,6 +7,7 @@
 状态定义：
 
 - `prototype`：当前仅通过 `custom-0` COP 原型覆盖，不是标准 RVV 支持。
+- `specified`：状态契约已冻结，但还没有 RTL prototype。
 - `planned`：计划在部分 RVV 子集中实现。
 - `supported`：已通过标准 RVV 编码和 directed test 验证。
 - `unsupported`：当前不实现，遇到时应走明确 illegal/unsupported 路径。
@@ -31,7 +32,7 @@
 | 项目 | 当前状态 | 第一批 RVV 目标 | 备注 |
 |------|----------|-----------------|------|
 | `vl` | prototype | planned | 当前 `vlen` 是 COP 原型状态，不是标准 `vl` |
-| `vtype` | unsupported | planned | 先支持受限 `SEW`、`LMUL=m1` |
+| `vtype` | specified | planned | P1A 已冻结最小状态契约，P1B 做 custom COP prototype |
 | `vstart` | unsupported | unsupported | 第一批固定视为 0，不支持中途重启 |
 | `vxrm` | unsupported | deferred | 饱和/舍入类指令前不需要 |
 | `vxsat` | unsupported | deferred | 饱和类指令前不需要 |

@@ -256,6 +256,8 @@
 - `vsetvli` 或 `vsetivli` 可配置受限向量状态。
 - unsupported 配置明确失败。
 
+P1A 状态契约见 `rvv-state-p1.md`。P1A 只冻结状态语义和验证范围；P1B 先做 COP-local prototype，不直接接标准 RVV decode。
+
 ### M2：RVV ALU 子集可运行
 
 - 标准 RVV 编码进入 backend。
