@@ -19,7 +19,7 @@ This document records CoreMark correctness and performance for HelloCPU.
 Command sequence:
 
 ```bash
-make bench_only ITER=100
+make bench_only ITER=100 EXTRA_VERILATOR_FLAGS='-j 1'
 ```
 
 Result:
@@ -101,28 +101,28 @@ The full predictor improved CoreMark ITER=1 by about 16.4% versus the no-predict
 ## Latest Performance Counters
 
 ```text
-Total cycles         : 32990370
-Total instructions   : 30617979 (IPC = 0.928)
-True stall cycles    : 2372392 (7.2%)
+Total cycles         : 32982676
+Total instructions   : 30617957 (IPC = 0.928)
+True stall cycles    : 2364720 (7.2%)
 Backend pipe occ     : 0 (0.0%)
 
-Frontend/empty       : 1841129 (77.6% of stalls)
-IFU held valid       : 9449 (0.4% of stalls)
-  LSU                : 6553 (69.4% of held-valid stalls)
-  MUL/DIV            : 2896 (30.6% of held-valid stalls)
+Frontend/empty       : 1833135 (77.5% of stalls)
+IFU held valid       : 9582 (0.4% of stalls)
+  LSU                : 6686 (69.8% of held-valid stalls)
+  MUL/DIV            : 2896 (30.2% of held-valid stalls)
     MUL              :    0 ( 0.0%)
     DIV              : 2896 (100.0%)
-LSU wait             : 6832 (0.3% of stalls)
+LSU wait             : 6913 (0.3% of stalls)
   start              : 741 (10.8% of LSU wait)
     load             : 64 (8.6% of start)
     store            : 677 (91.4% of start)
-  refill             : 3641 (53.3% of LSU wait)
-  uncached           : 2150
+  refill             : 3674 (53.1% of LSU wait)
+  uncached           : 2198
   writeback          : 300
 MUL/DIV wait         : 2896 (0.1% of stalls)
   MUL                :    0 ( 0.0%)
   DIV                : 2896 (100.0%)
-Control recovery     : 521535 (22.0% of stalls)
+Control recovery     : 521776 (22.1% of stalls)
 Other blocked bknd   : 0 (0.0% of stalls)
 
 ALU ops              : 15816238 (51.7%)
@@ -133,11 +133,11 @@ Stores               : 1505531 (4.9%)
 Multiplies           : 939697 (3.1%)
 Divides              : 112
 
-BTB hits             : 5575550 (86.0%)
-BTB misses           : 908065 (14.0%)
-BTB mispredicts      : 521535 (8.0%)
-RAS hits             : 188282 (100.0%)
-RAS misses           : 3
+BTB hits             : 5538883 (86.1%)
+BTB misses           : 897552 (13.9%)
+BTB mispredicts      : 521776 (8.1%)
+RAS hits             : 182589 (100.0%)
+RAS misses           : 4
 JAL target bad       : 0
 WBU pcupdate         : 0
   branch             : 0 (0.0% of WBU pcupdate)
@@ -146,28 +146,28 @@ WBU pcupdate         : 0
   ECALL              : 0
   MRET               : 0
 
-Redirect cost        : 2 avg cycles (514395 events)
-  branch             : 2 avg (482312 events)
-  JALR               : 2 avg (32083 events)
+Redirect cost        : 2 avg cycles (514636 events)
+  branch             : 2 avg (482313 events)
+  JALR               : 2 avg (32323 events)
 
-ICache hits          : 31660539 (99.6%)
-ICache misses        : 126273 (0.4%)
+ICache hits          : 31660676 (99.6%)
+ICache misses        : 125466 (0.4%)
 Load xacts           : 209 / done: 209
 Store xacts          : 600 / done: 599
 ```
 
 ## Bottleneck Analysis
 
-The same-cycle LSU hit optimizations fundamentally changed the bottleneck profile, and the frontend predictor/recovery work then removed another full redirect cycle. Total stalls dropped from `51.5%` (pre-LSU-fast-path) to `7.2%` on ITER=100. LSU wait remains negligible (`6,832` cycles, `0.3%` of stalls).
+The same-cycle LSU hit optimizations fundamentally changed the bottleneck profile, and the frontend predictor/recovery work then removed another full redirect cycle. Total stalls dropped from `51.5%` (pre-LSU-fast-path) to `7.2%` on ITER=100. LSU wait remains negligible (`6,913` cycles, `0.3%` of stalls).
 
 | Area | Evidence | Impact | Owner |
 |------|----------|--------|-------|
-| Frontend/empty | `1,841,129` cycles, `77.6%` of all stalls | **#1 bottleneck.** Redirect bubbles still dominate, but each redirect is now cheaper. | B |
-| Control recovery | `521,535` cycles, `22.0%` of stalls | Redirect cost is now `2 avg cycles`, matching the intended recovery target. | B |
+| Frontend/empty | `1,833,135` cycles, `77.5%` of all stalls | **#1 bottleneck.** Redirect bubbles still dominate, but each redirect is now cheaper. | B |
+| Control recovery | `521,776` cycles, `22.1%` of stalls | Redirect cost is now `2 avg cycles`, matching the intended recovery target. | B |
 | Other blocked backend | `0` cycles, `0.0%` of stalls | Counter cleanup separates true stall from normal backend occupancy. | A |
 | DIV stalls | `2,962` cycles, `0.1%` — 114 divides; fast path (by-1, trivial-zero) saves 800 cycles | Solved. Minimal for CoreMark. | A |
-| LSU wait | `6,832` cycles, `0.3%` — only cache miss refill and uncached | **Solved.** Same-cycle load+store hit eliminated the dominant LSU stall. | A |
-| ICache misses | `126,273` misses, `99.6%` hit rate | Not the primary bottleneck. | — |
+| LSU wait | `6,913` cycles, `0.3%` — only cache miss refill and uncached | **Solved.** Same-cycle load+store hit eliminated the dominant LSU stall. | A |
+| ICache misses | `125,466` misses, `99.6%` hit rate | Not the primary bottleneck. | — |
 
 ### Same-Cycle LSU Hit Results
 

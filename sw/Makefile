@@ -12,6 +12,10 @@ SCALAR_TEST_DIR  = tests/scalar-tests
 VECTOR_TEST_DIR  = tests/vector-tests
 SCALAR_BUILD_DIR = $(BUILD_DIR)/scalar
 VECTOR_BUILD_DIR = $(BUILD_DIR)/vector
+EMBENCH_DIR      = benchmark/embench-iot
+EMBENCH_BUILD_DIR = $(BUILD_DIR)/embench
+EMBENCH_CONFIG_DIR = $(EMBENCH_DIR)/examples/riscv32/ri5cyverilator
+EMBENCH_SUBSET   = crc32 matmult-int nettle-aes nettle-sha256 ud edn md5sum
 
 SCALAR_TESTS := $(basename $(notdir $(wildcard $(SCALAR_TEST_DIR)/*.c)))
 VECTOR_TESTS := $(basename $(notdir $(wildcard $(VECTOR_TEST_DIR)/*.c)))
@@ -37,6 +41,14 @@ CM_CFLAGS = $(CFLAGS) -I$(CM_DIR) -I$(CM_PORT) \
             -DPERFORMANCE_RUN=1 -DITERATIONS=$(ITER) \
             -DCOMPILER_FLAGS=\"rv32im_zicsr_-O2\"
 
+EMBENCH_CFLAGS = $(CFLAGS) -I$(EMBENCH_DIR)/support -I$(EMBENCH_CONFIG_DIR) \
+		 -DWARMUP_HEAT=1 -DGLOBAL_SCALE_FACTOR=1 -DHAVE_BOARDSUPPORT_H
+
+EMBENCH_COMMON_SRCS = start.S lib/klib.c \
+	$(EMBENCH_DIR)/support/main.c \
+	$(EMBENCH_DIR)/support/beebsc.c \
+	$(EMBENCH_CONFIG_DIR)/boardsupport.c
+
 benchmark: | $(BUILD_DIR)
 	$(CC) $(CM_CFLAGS) $(LDFLAGS) start.S lib/klib.c $(CM_SRCS) -o $(BUILD_DIR)/coremark.elf
 	$(OBJCOPY) -O binary $(BUILD_DIR)/coremark.elf $(BUILD_DIR)/coremark.bin
@@ -44,6 +56,24 @@ benchmark: | $(BUILD_DIR)
 
 $(BUILD_DIR) $(SCALAR_BUILD_DIR) $(VECTOR_BUILD_DIR):
 	mkdir -p $@
+
+$(EMBENCH_BUILD_DIR):
+	mkdir -p $@
+
+print-embench-subset:
+	@echo $(EMBENCH_SUBSET)
+
+embench-build: | $(EMBENCH_BUILD_DIR)
+	@set -e; \
+	benchmarks="$(if $(ALL),$(ALL),$(EMBENCH_SUBSET))"; \
+	for b in $$benchmarks; do \
+		echo "[embench-build] $$b"; \
+		srcs="$$(find $(EMBENCH_DIR)/src/$$b -maxdepth 1 -name '*.c' | sort)"; \
+		if [ -z "$$srcs" ]; then echo "Missing Embench sources for $$b"; exit 1; fi; \
+		$(CC) $(EMBENCH_CFLAGS) $(LDFLAGS) $(EMBENCH_COMMON_SRCS) $$srcs -o $(EMBENCH_BUILD_DIR)/$$b.elf; \
+		$(OBJCOPY) -O binary $(EMBENCH_BUILD_DIR)/$$b.elf $(EMBENCH_BUILD_DIR)/$$b.bin; \
+		$(OBJDUMP) -d $(EMBENCH_BUILD_DIR)/$$b.elf > $(EMBENCH_BUILD_DIR)/$$b.txt; \
+	done
 
 $(SCALAR_BUILD_DIR)/%.bin: $(SCALAR_TEST_DIR)/%.c start.S lib/klib.c link.ld | $(SCALAR_BUILD_DIR)
 	$(CC) $(CFLAGS) $(LDFLAGS) start.S lib/klib.c $< -o $(SCALAR_BUILD_DIR)/$*.elf
@@ -58,4 +88,4 @@ $(VECTOR_BUILD_DIR)/%.bin: $(VECTOR_TEST_DIR)/%.c start.S lib/klib.c link.ld | $
 clean:
 	rm -rf $(BUILD_DIR)
 
-.PHONY: all clean scalar-tests vector-tests benchmark
+.PHONY: all clean scalar-tests vector-tests benchmark embench-build print-embench-subset

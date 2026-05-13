@@ -35,7 +35,7 @@ VECTOR_TESTS := $(basename $(notdir $(wildcard $(SW_DIR)/tests/vector-tests/*.c)
 
 # === Targets ===
 
-.PHONY: all sim sw clean run_% run_all bench bench_only branch_trace predictor_sim ifu_idu_backpressure exu_wbu_flush exu_result_visibility cop_backend_flush idu_cop_regs commit_visible_ctrl ifu_fetch_queue top_fetch_queue_flush top_pc_update_flush cop_mem_pending_kill cop_mem_store_directed cop_mem_store_kill scalar_mem_pending_kill backend_contract_checks
+.PHONY: all sim sw clean run_% run_all bench bench_only branch_trace predictor_sim ifu_idu_backpressure exu_wbu_flush exu_result_visibility cop_backend_flush idu_cop_regs commit_visible_ctrl ifu_fetch_queue top_fetch_queue_flush top_pc_update_flush cop_mem_pending_kill cop_mem_store_directed cop_mem_store_kill scalar_mem_pending_kill backend_contract_checks embench-build embench-run embench-run-one
 
 all: sim sw
 
@@ -100,6 +100,24 @@ bench_only: sim
 	$(MAKE) -C $(SW_DIR) benchmark ITER=$(ITER)
 	@echo "=== CoreMark (ITER=$(ITER)) ==="
 	@$(BUILD_DIR)/V$(TOPNAME) $(SW_DIR)/build/coremark.bin
+
+embench-build: sim
+	$(MAKE) -C $(SW_DIR) embench-build ALL="$(ALL)"
+
+embench-run: embench-build
+	@mkdir -p $(BUILD_DIR)/embench
+	@for b in $(or $(ALL),$(shell $(MAKE) -s -C $(SW_DIR) print-embench-subset)); do \
+		echo "=== Embench: $$b ==="; \
+		$(BUILD_DIR)/V$(TOPNAME) $(SW_DIR)/build/embench/$$b.bin | tee $(BUILD_DIR)/embench/$$b.log; \
+		if [ $${PIPESTATUS[0]} -ne 0 ]; then exit $${PIPESTATUS[0]}; fi; \
+	done
+
+embench-run-one: sim
+	@if [ -z "$(ALL)" ]; then echo "Set ALL=<benchmark>"; exit 1; fi
+	$(MAKE) -C $(SW_DIR) embench-build ALL="$(ALL)"
+	@mkdir -p $(BUILD_DIR)/embench
+	@echo "=== Embench: $(ALL) ==="
+	@set -o pipefail; $(BUILD_DIR)/V$(TOPNAME) $(SW_DIR)/build/embench/$(ALL).bin | tee $(BUILD_DIR)/embench/$(ALL).log
 
 branch_trace: sim
 	$(MAKE) -C $(SW_DIR) benchmark ITER=$(ITER)

@@ -19,11 +19,7 @@ This document records the current HelloCPU `Embench` bring-up subset and uses it
 
 ## Commands
 
-Fetch source:
-
-```bash
-make embench-fetch
-```
+Prerequisite: keep a local `sw/benchmark/embench-iot/` checkout present in the workspace.
 
 Build subset:
 
@@ -61,19 +57,19 @@ This is intentionally not a full-suite score run. The goal is broader workload c
 
 | Benchmark | Result | Cycles | IPC | Stall rate | LSU wait | MUL/DIV wait | Control recovery | BTB mispredicts | Redirect cost |
 |-----------|--------|--------|-----|------------|----------|--------------|------------------|-----------------|---------------|
-| `crc32` | PASS | 4,031,588 | 1.000 | 0.0% | 1,114 | 0 | 20 | 10 | 3 avg |
-| `matmult-int` | PASS | 3,304,620 | 0.842 | 15.8% | 494,061 | 26,208 | 100 | 50 | 3 avg |
-| `nettle-aes` | PASS | 7,092,969 | 0.628 | 37.2% | 2,081,071 | 264,264 | 3,014 | 1,507 | 4 avg |
-| `nettle-sha256` | PASS | 29,307,335 | 0.168 | 83.2% | 1,261 | 0 | 2,332 | 1,166 | 9 avg |
-| `ud` | PASS | 3,336,091 | 0.789 | 21.1% | 713 | 494,722 | 103,758 | 51,879 | 3 avg |
-| `edn` | PASS | 3,391,974 | 0.997 | 0.3% | 4,603 | 0 | 486 | 243 | 3 avg |
-| `md5sum` | PASS | 3,090,145 | 0.989 | 1.1% | 3,635 | 0 | 13,636 | 6,818 | 3 avg |
+| `crc32` | PASS | 4,031,568 | 1.000 | 0.0% | 1,113 | 0 | 10 | 10 | 2 avg |
+| `matmult-int` | PASS | 3,304,515 | 0.842 | 15.8% | 494,075 | 26,208 | 50 | 50 | 2 avg |
+| `nettle-aes` | PASS | 7,087,834 | 0.628 | 37.2% | 2,085,184 | 264,264 | 1,507 | 1,507 | 4 avg |
+| `nettle-sha256` | PASS | 29,306,164 | 0.168 | 83.2% | 1,264 | 0 | 1,166 | 1,166 | 9 avg |
+| `ud` | PASS | 3,232,276 | 0.814 | 18.6% | 719 | 494,722 | 51,879 | 51,879 | 2 avg |
+| `edn` | PASS | 3,391,492 | 0.997 | 0.3% | 4,646 | 0 | 243 | 243 | 2 avg |
+| `md5sum` | PASS | 3,076,523 | 0.994 | 0.6% | 3,637 | 0 | 6,818 | 6,818 | 2 avg |
 
 Reference `CoreMark` snapshot from `docs/cpu/coremark-results.md`:
 
 | Benchmark | Result | Cycles | IPC | Stall rate | LSU wait | Control recovery | BTB mispredicts | Redirect cost |
 |-----------|--------|--------|-----|------------|----------|------------------|-----------------|---------------|
-| `CoreMark` | PASS | 34,010,300 | 0.900 | 10.0% | 6,826 | 1,043,090 | 521,545 | 3 avg |
+| `CoreMark` | PASS | 32,982,676 | 0.928 | 7.2% | 6,913 | 521,776 | 521,776 | 2 avg |
 
 ## Bottleneck Analysis
 
@@ -83,9 +79,9 @@ The current subset already shows that `CoreMark` is not a sufficient single benc
 
 | Benchmark | Evidence | Interpretation |
 |-----------|----------|----------------|
-| `crc32` | `IPC = 1.000`, `1,712` true stall cycles, `10` BTB mispredicts | Confirms the scalar pipeline is healthy when the workload is regular and branch behavior is predictable. |
+| `crc32` | `IPC = 1.000`, `1,692` true stall cycles, `10` BTB mispredicts | Confirms the scalar pipeline is healthy when the workload is regular and branch behavior is predictable. |
 | `edn` | `IPC = 0.997`, `0.3%` stalls, `243` BTB mispredicts | Another near-ideal kernel; minor losses are not structural bottlenecks. |
-| `md5sum` | `IPC = 0.989`, `1.1%` stalls, `13,636` control recovery cycles | Good throughput with some visible branch cost, but still close to the single-issue practical ceiling. |
+| `md5sum` | `IPC = 0.994`, `0.6%` stalls, `6,818` control recovery cycles | Good throughput with some visible branch cost, but still close to the single-issue practical ceiling. |
 
 These three runs matter because they show the machine is no longer broadly constrained by simple load-hit latency. On favorable kernels, most of the available single-issue throughput has already been recovered.
 
@@ -93,8 +89,8 @@ These three runs matter because they show the machine is no longer broadly const
 
 | Benchmark | Evidence | Interpretation |
 |-----------|----------|----------------|
-| `matmult-int` | `494,061` LSU wait cycles, `182,998` writeback cycles inside LSU wait | Dense arithmetic does not make this frontend-bound; memory service remains the dominant cost. |
-| `nettle-aes` | `2,081,071` LSU wait cycles, `264,264` divide wait cycles | This workload is clearly backend-dominated, with memory first and long-latency arithmetic second. |
+| `matmult-int` | `494,075` LSU wait cycles, `183,011` writeback cycles inside LSU wait | Dense arithmetic does not make this frontend-bound; memory service remains the dominant cost. |
+| `nettle-aes` | `2,085,184` LSU wait cycles, `264,264` divide wait cycles | This workload is clearly backend-dominated, with memory first and long-latency arithmetic second. |
 
 These runs show that frontend gains which helped `CoreMark` do not move every integer workload equally. The next gains here come more from memory-service behavior and backend latency than from predictor tuning alone.
 
@@ -103,7 +99,7 @@ These runs show that frontend gains which helped `CoreMark` do not move every in
 | Benchmark | Evidence | Interpretation |
 |-----------|----------|----------------|
 | `ud` | `103,758` control recovery cycles, `51,879` BTB mispredicts, `494,722` divide wait cycles | `ud` is split between redirect pressure and long-latency divide pressure; it is not well-described by `CoreMark` alone. |
-| `nettle-sha256` | `24,389,124` frontend/empty stall cycles, `29.2%` ICache miss rate, `9` average redirect cost | This run is overwhelmingly frontend-dominated and is the strongest warning that broader code footprints still expose instruction-side structural limits. |
+| `nettle-sha256` | `24,389,116` frontend/empty stall cycles, `29.2%` ICache miss rate, `9` average redirect cost | This run is overwhelmingly frontend-dominated and is the strongest warning that broader code footprints still expose instruction-side structural limits. |
 
 `nettle-sha256` is the standout counterexample to any claim that the current optimization story is mainly "done except for small cleanup." Its LSU wait is negligible, but it still collapses to `IPC = 0.168` because instruction-side delivery dominates the machine.
 
@@ -155,6 +151,6 @@ That is exactly the stage where cleaner boundaries and wider-issue preparation b
 
 | Benchmark | Result | Cycles | IPC | Stall rate | LSU wait | MUL wait | Control recovery | BTB mispredicts | Redirect cost |
 |-----------|--------|--------|-----|------------|----------|----------|------------------|-----------------|---------------|
-| `aha-mont64` | FAIL | 5,440,738 | 0.943 | 5.7% | 375 | 32,653 | 136,560 | 68,280 | 3 avg |
+| `aha-mont64` | FAIL | 5,304,205 | 0.967 | 3.3% | 375 | 32,653 | 68,280 | 68,280 | 2 avg |
 
 The failure does not look like a simple memory bottleneck. The counters show low LSU pressure but meaningful multiply wait and high redirect activity, so this benchmark remains a useful follow-up for correctness/debug rather than a default performance subset member.
