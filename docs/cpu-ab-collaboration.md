@@ -163,43 +163,41 @@ A-line EXU optimization is substantially complete. Remaining stall is dominated 
 
 **B is in active development mode, not maintenance.**
 
-The #1 performance bottleneck is now entirely in B's domain: frontend/empty (55%) + control recovery (22%) = **77% of all stalls**. Root cause: 772K redirects × 3 cycles each = 2.3M cycles, driven by 780K BTB mispredicts.
+The previous frontend priorities already delivered two real gains: predictor-side redirect reduction and validated `redirect recovery 3 -> 2`. From this point on, B's main effort shifts from chasing the last small CoreMark branch-prediction gains to **2-wide preparation**.
 
-### B-Task-7: BTB Miss Rate Reduction (HIGH PRIORITY)
+### B-Task-10: 2-Wide Frontend Preparation (HIGH PRIORITY)
 
-**Target:** Reduce BTB mispredict rate from 11.2% (780K events) to below 8%.
+**Target:** Prepare the frontend and issue boundary so HelloCPU can move toward minimal `2-wide in-order` without ambiguous valid/ready/flush semantics.
 
-**Why this task:** 780K mispredicts × 3 cycles = 2.3M cycles = 65% of total stalls. Even a 3% absolute reduction in BTB miss rate saves ~200K cycles.
+**Why this task:** After the current frontend branch reached `CoreMark/MHz = 3.031` and validated `2 avg cycles` redirect recovery, further predictor-only gains are likely small and increasingly benchmark-specific. The better use of engineering time is to reduce integration risk for wider issue.
 
 **Approaches to evaluate (B chooses and implements):**
-- BTB capacity increase (current 128 entries)
-- BTB associativity improvement (current direct-mapped within sets)
-- Better replacement policy
-- Static prediction heuristics (backward-taken was rejected for CoreMark but other heuristics may work)
-- Two-level prediction (local/global history)
+- Formalize `IFU/IDU/IDU-EXU` contract for wider issue preparation
+- Define fetch/decode queue insertion points and flush semantics
+- Define predictor metadata carriage rules under queued / wider issue frontend
+- Identify minimum frontend changes required before actual `2-wide` RTL begins
 
-**B has full authority over** `vsrc/cpu/ifu/btb.v` and `vsrc/cpu/ifu/ifu.v`. B may also modify `ifu_idu_regs.v` and `idu_exu_regs.v` if pipeline timing changes are needed.
+**B has full authority over** `vsrc/cpu/ifu/*`, `vsrc/cpu/idu/*`, and frontend-side coordination docs. Shared boundary changes still require A review.
 
 **Delivery:**
-- RTL diff with behavioral change
-- B-line gate: 10 tests PASS
-- CoreMark ITER=100 data
-- If no CoreMark improvement, document why and propose next approach
+- Boundary/design document updates
+- If RTL is touched, B-line gate PASS
+- A concise wider-issue preparation summary: what is already ready, what is still blocking
 
-### B-Task-8: Redirect Recovery Latency Reduction (MEDIUM PRIORITY)
+### B-Task-11: Predictor Refinement (SECONDARY)
 
-**Target:** Reduce redirect recovery from 3 cycles to 2 cycles.
+**Target:** Only pursue low-risk predictor refinements that are easy to validate and easy to abandon.
 
-**Why this task:** 772K redirects × 1 cycle saved = 772K cycles (~2% CoreMark/MHz).
+**Why this task:** Remaining gains are still possible, but they are no longer the main strategic focus.
 
-**Previous attempt (B-Task-6) failed:** `skip_pre_valid` approach had zero effect because `ifu_idu_regs.o_pc` is registered — the payload is stale on the cycle `accel_fire` captures it. The fundamental issue is that correct instruction data arrives 1 cycle after `icache_hit` asserts.
+**Constraint:** Do not let predictor micro-tuning delay wider-issue preparation work.
 
-**B must find a different approach.** Possible directions:
-- Combinational bypass of `o_pc`/`o_ins` from IFU inputs when register is in reset state
-- Earlier redirect signal (move flush from WBU to EXU)
-- Overlap redirect recovery with last cycle of previous instruction
+**Possible directions:**
+- Remaining `BTB-hit` direction errors
+- Low-risk alias reduction
+- Trace-driven hotspot analysis before any structural predictor change
 
-**Delivery:** Same standard as Task-7.
+**Delivery:** Same validation standard as before, but only when the change is small and clearly justified.
 
 ### B-Task-9: Pipeline Integration and Testing (ONGOING)
 

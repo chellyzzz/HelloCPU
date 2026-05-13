@@ -41,32 +41,33 @@
 
 ## 三、当前全局判断
 
-当前稳定点：`8f48295`
+当前稳定点：`codex/b-line-predictor-rtl` on top of `41b0734`
 
 当前 CoreMark `ITER=100`：
 
 | Metric | Value |
 |--------|-------|
-| CoreMark/MHz | 2.853 |
-| Total cycles | 35,047,662 |
-| IPC | 0.874 |
-| Stall rate | 10.4% |
+| CoreMark/MHz | 3.031 |
+| Total cycles | 32,990,370 |
+| IPC | 0.928 |
+| Stall rate | 7.2% |
 
 当前 stall 构成：
 
 | Source | Cycles | % of stalls | 说明 |
 |--------|--------|-------------|------|
-| Frontend/empty | 2,005,006 | 55.0% | 主要是 redirect recovery bubble |
-| Control recovery | 795,702 | 21.8% | redirect 本体开销 |
-| Other backend | 837,926 | 23.0% | 当前已确认不是“真 stall”热点，几乎全部是普通标量指令经过 EXU→WBU 的正常 pipe latency，需要继续从 stall 统计里剥离 |
-| LSU wait | 7,107 | 0.2% | 已基本解决 |
+| Frontend/empty | 1,841,129 | 77.6% | 仍主要是 redirect 之后的前端空泡 |
+| Control recovery | 521,535 | 22.0% | 单次 redirect 成本已降到 `2-cycle` |
+| Other blocked backend | 0 | 0.0% | 当前统计下已不是热点 |
+| LSU wait | 6,832 | 0.3% | 已基本解决 |
 | DIV wait | 2,962 | 0.1% | 已基本解决 |
 
 ### 当前最重要的全局结论
 
-1. **LSU 已不是主瓶颈。** same-cycle load/store hit 已经把 LSU 从 6.98M cycles 降到 7K。
-2. **真正的大头已经转到 redirect 链。** `Frontend/empty + Control recovery ≈ 2.8M cycles`，占当前 stall 的约 77%。
-3. **“Other backend” 目前不能直接当成性能热点。** 最新细分显示 `blocked = 0`、`pipe latency = 100%`，说明这里主要是正常 backend occupancy，而不是后端真正阻塞。
+1. **LSU 已不是主瓶颈。** same-cycle load/store hit 已经把 LSU 从 6.98M cycles 降到 6.8K。
+2. **redirect recovery 3 -> 2 已经兑现。** 当前 `Redirect cost = 2 avg cycles`，说明这条 recovery 主线已经从“待验证假设”变成了“已验证收益”。
+3. **剩余大头仍在 redirect 链，但更偏向“减少剩余方向错误次数”。** `Frontend/empty + Control recovery` 仍然占几乎全部 true stall。
+4. **“Other backend” 目前不能直接当成性能热点。** 当前统计已经给出 `Other blocked backend = 0`。
 4. 后续优化不应再继续以 LSU 局部 patch 为主，而应转向：
    - 前端预测与恢复；
    - backend 语义清晰化；
@@ -87,14 +88,14 @@
 这意味着：
 
 - frontend / redirect 仍然是当前最高优先级；
-- 但它也是**高收益、高风险、高不确定性**方向；
+- 但 `redirect recovery -1 cycle` 这件事已经完成，下一步不应继续在同一处反复打补丁；
 - 后续必须用“先证明，再投入”的方式推进，而不是因为它最大就持续猛砸。
 
 因此整体策略应该是：
 
-1. 继续探索 redirect 主线；
-2. 但同时并行推进 backend / memory / interface 清晰化；
-3. 避免把所有工程精力都押在一个可能难以进一步压缩的热点上。
+1. 继续探索 redirect 主线，但重点从“缩短单次恢复”切到“减少剩余方向错误次数”；
+2. 同时并行推进 backend / memory / interface 清晰化；
+3. 避免把所有工程精力都押在一个可能回报快速递减的热点上。
 
 ### 当前已验证的 redirect ROI 样例
 
@@ -145,7 +146,7 @@
 
 这条线本质上是**降低 redirect 单次成本**：
 
-- redirect recovery 3-cycle → 2-cycle；
+- redirect recovery 3-cycle → 2-cycle（已验证完成）；
 - flush / refill 边界更轻；
 - IFU/IDU/IDU-EXU 的恢复路径更短。
 
@@ -184,24 +185,24 @@
 
 这一阶段说明：HelloCPU 已经不再是“被 LSU 卡死的教学核”，而是一个前端恢复成本主导的顺序核。
 
-## 阶段 1：把当前单发射核做到接近上限（当前主阶段）
+## 阶段 1：把当前单发射核做到接近上限（接近收尾）
 
 ### 目标
 
-把当前单发射核的明显浪费尽可能清掉，让 IPC 从当前 `0.874` 继续向 `~1.0` 靠近。
+把当前单发射核的明显浪费尽可能清掉，让 IPC 从当前 `0.928` 继续向 `~1.0` 靠近。
 
 ### 主要任务
 
-1. 降低 BTB miss / mispredict
-2. 缩短 redirect recovery latency
-3. 精确区分 frontend bubble、control recovery、normal pipeline occupancy
+1. 降低剩余 BTB-hit direction miss / mispredict
+2. 精确区分 frontend bubble、control recovery、normal pipeline occupancy
+3. 维持 redirect / flush / valid 语义稳定，避免回归
 4. 分清 `Other backend` 中哪些是“真 stall”，哪些只是正常 EXU→WBU latency
 
 ### 预期收益
 
-这是当前唯一仍有 **5%~10% 级别潜力** 的方向，也是单发射核继续抬高 IPC 的最后高收益区间。
+这是当前仍可继续挖的小收益方向，但已经不再适合作为主战场。单发射核继续抬高 IPC 的空间还在，但回报曲线已经明显变陡。
 
-## 阶段 2：为更高 issue 宽度做结构准备
+## 阶段 2：为更高 issue 宽度做结构准备（当前主阶段）
 
 ### 目标
 
@@ -225,6 +226,21 @@
 ### 预期收益
 
 短期跑分不一定最大，但它决定后面能不能真的向 IPC 2 迈进，而不是被当前单发射结构卡死。
+
+### 阶段切换判断
+
+当前已经满足从“单发射局部优化”切向“2-wide 前置准备”的条件：
+
+1. LSU 和 redirect recovery 这类大颗粒收益已经兑现；
+2. 剩余前端收益主要是 `BTB-hit` 上的方向细修，属于 `1%~3%` 级别空间；
+3. 当前 `IPC = 0.928`，已经接近单发射顺序核的高位区间；
+4. 后续收益越来越像“为 CoreMark 局部热点定制”，不再像全局结构收益；
+5. 长期目标已经明确是 `IPC >= 2`，因此更应该优先把 issue / flush / commit / queue 边界准备好。
+
+因此，从现在开始：
+
+- 保留低风险、小步、可快速证伪的前端补充优化；
+- 但主精力切到 2-wide 前置准备，不再把 branch hit-rate 微调当成主线。
 
 ## 阶段 3：前后端解耦与局部并行
 
@@ -333,42 +349,58 @@ B 线负责：
 
 ### B 线当前阶段任务
 
-#### B-1：BTB miss rate reduction
+当前 B 线已经从“active frontend performance mode”切到“2-wide 前置准备 mode”。前端性能优化不停止，但降级为辅助线，而不是主战场。
 
-这是 B 当前最重要的任务。
+#### B-1：IFU/IDU/issue boundary formalization
 
-目标：降低 780K mispredicts。
+这是 B 当前第一优先级。
 
-交付标准：
+目标：把 frontend 关键边界整理成能支撑更宽 issue 的稳定 contract：
 
-- behavioral RTL patch
-- B-line gate PASS
-- CoreMark 数据
+- `IFU/IDU`
+- `IDU/EXU`
+- redirect / flush / kill
+- accepted payload / registered valid
+- future fetch/decode queue insertion points
 
-当前已验证的有效方向：
+#### B-2：frontend queue and decoupling preparation
 
-- 不必先扩大 BTB 容量；
-- 应优先针对 **branch direction miss** 做更小结构代价的增强；
-- 当前首个通过 ROI 检验的版本是：`BTB miss -> BHT fallback`。
+目标：在不立刻上 2-wide 的前提下，定义最小 frontend decoupling 方案：
 
-#### B-2：redirect recovery -1 cycle
+- fetch queue 是否需要、深度多少
+- decode queue 是否需要、深度多少
+- flush 时 queue 清空语义
+- predictor 与 queue 的 metadata 绑定方式
 
-前提：必须证明是真正缩短了恢复链，而不是只改变统计或引入无效 NOP。
+#### B-3：predictor refinement as secondary work
 
-之前 `skip_pre_valid` 方案无效，原因是 `ifu_idu_regs` 的 valid 与 payload 时序不对齐。后续新方案必须直接解决这个结构问题。
+目标：只在低风险且可快速证伪的前提下，继续观察剩余 `BTB-hit` direction miss 是否还有便宜收益。
 
-#### B-3：frontend counter cleanup
+当前约束：
 
-辅助 A 一起把 redirect bubble、icache miss、normal refill 这几类前端事件继续拆干净。
+- 不再把 hit-rate 微调作为当前主线；
+- 不允许 predictor 微调阻塞 2-wide 前置准备。
+
+#### B-4：benchmark matrix for wider-issue decision
+
+目标：补齐不止 CoreMark 的 benchmark 观察面，为后续是否正式进入 2-wide RTL 提供证据。
+
+至少区分：
+
+- branch heavy
+- load/store heavy
+- integer ALU heavy
+- mul/div heavy
+- cop/vector mixed
 
 ## 七、阶段化 A/B 任务映射
 
-### 阶段 1（当前）
+### 阶段 1（收尾）
 
-- A：清洗 `Other backend`，定义 normal occupancy vs true stall
-- B：BTB miss reduction + redirect recovery
+- A：收尾 true stall / normal occupancy 口径
+- B：保留小步 predictor 补充优化，避免回归
 
-### 阶段 2
+### 阶段 2（当前）
 
 - A：backend 接口统一、WBU/commit 语义清晰化
 - B：IFU/IDU/issue boundary 清晰化，准备更宽 issue
@@ -389,28 +421,29 @@ B 线负责：
 
 如果完全不考虑 A/B 分工，只从全局收益排序，当前最合理的顺序是：
 
-1. **修正 stall 统计口径**，把真 stall 和正常在飞分开
-2. **减少 redirect 次数**（BTB / predictor）
-3. **减少 redirect 单次成本**（recovery 3→2）
-4. **统一 backend / memory / flush 语义**
-5. **为 future vector memory / RVV 迁移留自然接口**
+1. **为 2-wide 做前后端边界准备**
+2. **统一 backend / memory / flush 语义**
+3. **构建更广 benchmark matrix**
+4. **保持 stall 统计口径稳定**，避免假回归 / 假优化
+5. **仅作为辅助线继续观察剩余 BTB-hit direction quality**
 
 也就是说：
 
-- 眼前最大的性能收益仍在前端
-- 真正决定长期上限的，是结构边界是否清晰
+- 单发射继续抠分还有空间，但已经不是主矛盾
+- 真正决定长期上限的，是结构边界是否清晰，以及是否能平滑过渡到更宽 issue
 
 ## 九、结论
 
-HelloCPU 的长期路线已经从“继续抠 LSU”转变成：
+HelloCPU 的长期路线已经从“继续抠 LSU”进一步转变成：
 
-1. 先解决 redirect 相关的大头
-2. 再把 backend 语义和统计口径理清
-3. 最后把 CPU 结构演进成能自然接 vector / RVV 的成熟顺序核
+1. 保留小步、低风险的前端补充优化
+2. 主精力切到 2-wide 前置准备
+3. 同时把 backend 语义和统计口径维持清晰
+4. 最后把 CPU 结构演进成能自然接 vector / RVV 的成熟顺序核
 
 当前主阶段不是“哪里都能提点分”，而是很明确：
 
-- **B 线主攻 frontend / predictor / redirect**
+- **B 线主攻 2-wide 前置准备、frontend boundary、queue / issue 准备**
 - **A 线主攻 backend 语义清理和 future interface**
 
 如果长期目标明确为 **IPC ≥ 2**，那么后续路线就必须承认：
