@@ -140,6 +140,13 @@ The current regression protection for that rule is a top-level directed check th
 
 This is intentional. The current step is to expose a clean boundary first, without rewriting LSU into a new protocol all at once.
 
+Current A-3 preparation in `vsrc/cpu/top/hcpu.v` now makes one more boundary explicit:
+
+- `scalar_mem_service_*`: scalar-side service-facing request/response view
+- `mem_service_*`: top-level single-owner memory service view after scalar/COP ownership selection
+
+This is still V1 single-owner behavior. The value is not more overlap yet; it is that later scalar LSU evolution can target a clearer service boundary without first untangling ownership naming.
+
 ### COP memory tomorrow
 
 For the first COP memory prototype, the safest rule is:

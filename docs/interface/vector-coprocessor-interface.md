@@ -38,6 +38,8 @@
 3. `cop_resp_fire`：`cop_exu2wbu_valid && wbu2exu_ready`。
 4. `cop_exu_res`：返回结果。
 
+在当前 CPU 顶层语义中，这一拍也可理解为 `cop_backend commit-visible fire`：结果已经可见并被共享 WBU 接收。
+
 CPU 在 response fire 后通过 WBU 统一写回，并让 queue entry 出队。
 
 ### Kill
