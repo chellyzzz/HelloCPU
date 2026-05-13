@@ -174,7 +174,7 @@ assign if_lsu = i_load || i_store;
 assign o_post_valid =  if_lsu   ?  lsu_done    :
                        if_cop   ?  cop_done    :
                        i_muldiv ?  muldiv_done :
-                       post_valid;
+                       i_pre_valid;
 assign o_pre_ready  =  if_lsu   ?  lsu_done    :
                        if_cop   ?  cop_done    :
                        i_muldiv ?  muldiv_done :

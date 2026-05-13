@@ -90,11 +90,8 @@ always @(posedge clock or posedge reset) begin
     else if(flush) begin
         post_valid <= 1'b0;
     end
-    else if(i_pre_valid) begin
-        post_valid <= 1'b1;
-    end
-    else if(~i_pre_valid && i_post_ready && o_post_valid)begin
-        post_valid <= 1'b0;
+    else if(i_post_ready) begin
+        post_valid <= i_pre_valid;
     end
 end
 
@@ -170,7 +167,7 @@ always @(posedge clock or posedge reset) begin
         o_predict_btb_hit <= 1'b0;
         o_rs1_addr      <= 5'b0;
     end
-    else if(i_post_ready && o_post_valid) begin
+    else if(i_post_ready && i_pre_valid) begin
         o_pc            <= i_pc;
         o_ins           <= i_ins;
         o_src1          <= sel_src1;
@@ -202,7 +199,7 @@ always @(posedge clock or posedge reset) begin
         o_rs1_addr      <= i_rs1_addr;
 
     end
-    else if(i_post_ready && ~o_post_valid) begin
+    else if(i_post_ready && ~i_pre_valid) begin
         o_pc            <= 32'b0;
         o_ins           <= 32'b0;
         o_src1          <= 32'b0;

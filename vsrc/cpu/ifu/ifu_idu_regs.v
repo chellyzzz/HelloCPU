@@ -22,15 +22,15 @@ module hcpu_ifu_idu_regs (
 
 );
 
-reg hold_valid;
+reg post_valid;
 
-assign o_post_valid = i_post_ready ? icache_hit : hold_valid;
+assign o_post_valid = post_valid;
 
 wire fetch_fire = icache_hit && i_post_ready;
 
 always @(posedge clock or posedge reset) begin
     if(reset) begin
-        hold_valid     <= 1'b0;
+        post_valid     <= 1'b0;
         o_pc            <= 32'h0;
         o_ins           <= 32'h0;
         o_predict_taken <= 1'b0;
@@ -38,7 +38,7 @@ always @(posedge clock or posedge reset) begin
         o_predict_btb_hit <= 1'b0;
     end
     else if(flush) begin
-        hold_valid     <= 1'b0;
+        post_valid     <= 1'b0;
         o_pc            <= 32'h0;
         o_ins           <= 32'h0;
         o_predict_taken <= 1'b0;
@@ -46,7 +46,7 @@ always @(posedge clock or posedge reset) begin
         o_predict_btb_hit <= 1'b0;
     end
     else if(fetch_fire) begin
-        hold_valid     <= 1'b1;
+        post_valid     <= 1'b1;
         o_pc            <= i_pc;
         o_ins           <= i_ins;
         o_predict_taken <= i_predict_taken;
@@ -54,15 +54,15 @@ always @(posedge clock or posedge reset) begin
         o_predict_btb_hit <= i_predict_btb_hit;
     end
     else if(i_post_ready) begin
-        hold_valid     <= 1'b0;
-        o_pc            <= 32'h0;
-        o_ins           <= 32'h0;
-        o_predict_taken <= 1'b0;
-        o_predict_target <= 30'b0;
-        o_predict_btb_hit <= 1'b0;
+        post_valid     <= 1'b0;
+        o_pc            <= o_pc;
+        o_ins           <= o_ins;
+        o_predict_taken <= o_predict_taken;
+        o_predict_target <= o_predict_target;
+        o_predict_btb_hit <= o_predict_btb_hit;
     end
     else begin
-        hold_valid     <= hold_valid;
+        post_valid     <= post_valid;
         o_pc            <= o_pc;
         o_ins           <= o_ins;
         o_predict_taken <= o_predict_taken;

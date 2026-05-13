@@ -55,6 +55,34 @@ int main(int argc, char **argv) {
   fail |= expect(top->o_predict_target == (0x30000040 >> 2), "predict_target captured");
   fail |= expect(top->o_predict_btb_hit == 1, "predict_btb_hit captured");
 
+  top->icache_hit = 0;
+  top->i_pc = 0x30000014;
+  top->i_ins = 0x00000013;
+  top->i_predict_taken = 0;
+  top->i_predict_target = 0;
+  top->i_predict_btb_hit = 0;
+  top->eval();
+
+  fail |= expect(top->o_post_valid == 1, "accepted fetch remains valid before consume when icache miss follows");
+  fail |= expect(top->o_pc == 0x30000010, "accepted pc remains visible before consume");
+  fail |= expect(top->o_ins == 0x11111113, "accepted instruction remains visible before consume");
+  fail |= expect(top->o_predict_taken == 1, "accepted predict_taken remains visible before consume");
+  fail |= expect(top->o_predict_target == (0x30000040 >> 2), "accepted predict_target remains visible before consume");
+  fail |= expect(top->o_predict_btb_hit == 1, "accepted predict_btb_hit remains visible before consume");
+
+  tick(top);
+
+  fail |= expect(top->o_post_valid == 0, "accepted fetch clears after consume without replacement");
+
+  top->icache_hit = 1;
+  top->i_post_ready = 1;
+  top->i_pc = 0x30000010;
+  top->i_ins = 0x11111113;
+  top->i_predict_taken = 1;
+  top->i_predict_target = 0x30000040 >> 2;
+  top->i_predict_btb_hit = 1;
+  tick(top);
+
   top->i_post_ready = 0;
   top->icache_hit = 0;
   top->i_pc = 0x30000020;
