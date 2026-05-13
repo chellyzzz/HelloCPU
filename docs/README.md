@@ -16,4 +16,13 @@ CPU 侧与当前性能演进直接相关的重点文档包括：
 - `cpu/post-merge-stabilization-freeze.md`
 - `cpu/lsu-optimization-analysis.md`
 
+向量/COP 侧与 RVV 长期演进直接相关的重点文档包括：
+
+- `vector/vector-coprocessor-stages.md`
+- `vector/vector-coprocessor-microarchitecture.md`
+- `vector/vector-memory-access.md`
+- `vector/cop-encoding.md`
+- `vector/rvv-long-term-roadmap.md`
+- `vector/rvv-supported-subset.md`
+
 当前代码也按同样边界整理：`vsrc/cpu/` 保存 CPU 主流水和公共片上结构，`vsrc/vector/` 保存向量/COP 后端相关 RTL。

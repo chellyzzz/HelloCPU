@@ -7,7 +7,7 @@
 - 指令格式：RISC-V custom-0（`opcode=0x0b`）
 - 源寄存器：`rs1`（i_src1）、`rs2`（i_src2）
 - 目的寄存器：`rd`（o_res）
-- 执行模型：单发射、2 周期延迟、flush 可取消在飞操作
+- 执行模型：单发射，非访存操作固定短延迟，访存操作按内存响应完成，flush 可取消在飞操作
 
 ### RVV 兼容性说明
 
@@ -39,6 +39,8 @@
 | 0 | 11 | vrf lane srl | v0 >> v1（4x8-bit，每字节低 3 位） | VRF | cop-vrf-mul-shift |
 | 0 | 12 | vrf lane sra | v0 >>> v1（4x8-bit，符号扩展） | VRF | cop-vrf-sra-or |
 | 0 | 13 | vrf lane or | v0 \| v1 | VRF | cop-vrf-sra-or |
+| 0 | 14 | vload_mem | 内存 4 字节 → v0，返回 v0 | VRF + memory | cop-vload-mem, cop-vload-store-mem, cop-vload-repeat-mem |
+| 0 | 15 | vstore_mem | v0 低 4 字节 → 内存，返回 v0 | memory | cop-vstore-mem, cop-vload-store-mem |
 | 1 | * | vadd8 | 4x8-bit lane add | 无 | cop-vadd8, cop-vadd8-chain |
 | 2 | * | vxor8 | rs1 ^ rs2 | 无 | cop-vxor8 |
 | 3 | * | vand8 | rs1 & rs2 | 无 | cop-vand8, cop-mixed-lanes |
@@ -107,6 +109,14 @@ opcode = 0x0b (custom-0)
 5. `o_done` 清零
 6. **不清零** `scratch`、`vlen`、`op_count`（已提交状态不受影响）
 
+访存操作额外遵守以下规则：
+
+1. killed load 的晚到响应必须被吸收，不写入 VRF 或 GPR。
+2. killed store 不应在被 kill 后新发起架构可见写入。
+3. COP memory completion 只在未被 kill 时返回给 COP backend。
+4. pending-kill 语义由 directed Verilator target `cop_mem_pending_kill` 覆盖。
+5. directed sim 的 COP-specific AR/R/AW/W/B debug pulses 只在 `COP_MEM_PENDING_KILL_TB` 构建导出。
+
 ---
 
 ## 六、COP 接口信号
@@ -123,6 +133,13 @@ opcode = 0x0b (custom-0)
 | o_pre_ready | out | 后端可接受新请求 |
 | o_post_valid | out | 响应有效 |
 | o_busy | out | 后端忙 |
+| o_cop_mem_req_valid | out | COP 访存请求有效 |
+| o_cop_mem_req_store | out | COP 访存请求为 store |
+| o_cop_mem_req_addr | out | COP 访存地址 |
+| o_cop_mem_req_wdata | out | COP store 写数据 |
+| o_cop_mem_req_size | out | COP 访存大小，当前为 byte |
+| i_cop_mem_resp_valid | in | COP 访存响应有效 |
+| i_cop_mem_resp_rdata | in | COP load 返回数据 |
 
 ---
 
@@ -151,3 +168,11 @@ opcode = 0x0b (custom-0)
 | cop-vrf-vadd8 | vrf lane add/xor/and/sub | VRF lane ops |
 | cop-vrf-mul-shift | vrf lane mul/sll/srl | VRF lane 乘法和移位 |
 | cop-vrf-sra-or | vrf lane sra/or | VRF lane 算术右移和按位或 |
+| cop-vload-mem | vload_mem | 从内存加载 4 字节到 v0 |
+| cop-vstore-mem | vstore_mem | 将 v0 低 4 字节写回内存 |
+| cop-vload-store-mem | vload_mem + vstore_mem | COP load/store 往返 |
+| cop-vload-repeat-mem | vload_mem x2 | 重复地址 COP load 和 pending-kill directed image |
+| cop-vstore-repeat-mem | vstore_mem x2 | 重复 COP store 和 pre-accept store-kill directed image |
+| cop_mem_pending_kill | vload_mem + test-only kill | COP load response 晚到后被 kill 吸收 |
+| cop_mem_store_directed | vstore_mem + test-only monitor | COP store AW/W/B owner path 和 B 后 response |
+| cop_mem_store_kill | vstore_mem + test-only kill | AW/W 接受前 killed store 无 bus side effect，后续 store 恢复 |

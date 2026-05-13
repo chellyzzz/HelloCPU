@@ -64,7 +64,22 @@ module hcpu
     output             [   1:0]         io_slave_rresp             ,
     output             [  31:0]         io_slave_rdata             ,
     output                              io_slave_rlast             ,
-    output             [   3:0]         io_slave_rid                
+    output             [   3:0]         io_slave_rid
+`ifdef COP_MEM_PENDING_KILL_TB
+    ,input                              tb_cop_kill                ,
+    output                              tb_cop_mem_bus_active      ,
+    output                              tb_cop_mem_done            ,
+    output                              tb_cop_mem_killed          ,
+    output                              tb_cop_mem_resp_valid      ,
+    output             [   1:0]         tb_cop_mem_state           ,
+    output                              tb_cop_mem_store           ,
+    output                              tb_cop_mem_aw_fire         ,
+    output                              tb_cop_mem_w_fire          ,
+    output                              tb_cop_mem_b_fire          ,
+    output                              tb_cop_mem_ar_fire         ,
+    output                              tb_cop_mem_r_fire          ,
+    output             [  31:0]         tb_cop_mem_addr
+`endif
 
 );
 /*****************para************************/
@@ -612,7 +627,11 @@ assign exu_ras_pop_en = scalar_exu_ras_pop_en;
 assign exu2wbu_valid = cop_commit_active ? cop_exu2wbu_valid :
                        idu2exu_is_cop_insn ? 1'b0 : scalar_exu2wbu_valid;
 assign exu2idu_ready = cop_pipeline_active ? 1'b0 : scalar_exu2idu_ready;
-assign cop_kill = idu2exu_fence_i || exu_mispredict_flush_r;
+assign cop_kill = idu2exu_fence_i || exu_mispredict_flush_r
+`ifdef COP_MEM_PENDING_KILL_TB
+                || tb_cop_kill
+`endif
+                ;
 assign cop_resp_fire = cop_exu2wbu_valid && wbu2exu_ready;
 assign cop_queue_dequeue = cop_resp_fire;
 assign frontend_flush = pc_update_en || idu2exu_fence_i || exu_mispredict_flush;
@@ -787,6 +806,21 @@ assign cop_mem_w_fire      = LSU_ARB_AXI_WVALID && LSU_SRAM_AXI_WREADY;
 assign cop_mem_b_fire      = LSU_ARB_AXI_BREADY && LSU_SRAM_AXI_BVALID;
 assign cop_mem_ar_fire     = LSU_ARB_AXI_ARVALID && LSU_SRAM_AXI_ARREADY;
 assign cop_mem_r_fire      = LSU_ARB_AXI_RREADY && LSU_SRAM_AXI_RVALID && LSU_SRAM_AXI_RLAST;
+
+`ifdef COP_MEM_PENDING_KILL_TB
+assign tb_cop_mem_bus_active = cop_mem_bus_active;
+assign tb_cop_mem_done = cop_mem_done_r;
+assign tb_cop_mem_killed = cop_mem_killed_r;
+assign tb_cop_mem_resp_valid = COP_MEM_RESP_VALID;
+assign tb_cop_mem_state = cop_mem_state;
+assign tb_cop_mem_store = cop_mem_wen_r;
+assign tb_cop_mem_aw_fire = cop_mem_bus_active && cop_mem_aw_fire;
+assign tb_cop_mem_w_fire = cop_mem_bus_active && cop_mem_w_fire;
+assign tb_cop_mem_b_fire = cop_mem_bus_active && cop_mem_b_fire;
+assign tb_cop_mem_ar_fire = cop_mem_bus_active && cop_mem_ar_fire;
+assign tb_cop_mem_r_fire = cop_mem_bus_active && cop_mem_r_fire;
+assign tb_cop_mem_addr = cop_mem_addr_r;
+`endif
 
 always @(posedge clock or posedge reset) begin
     if (reset) begin
