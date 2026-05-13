@@ -146,6 +146,7 @@ wire                                    exu_wbu_valid              ;  // EXU-WBU
 reg                                     exu_mispredict_flush_r     ;
 reg                    [  31:0]         exu_redirect_pc_r          ;
 //
+wire                                    ifu_fetch_ready            ;
 wire                                    ifu2idu_valid, idu2ifu_ready;
 wire                                    idu2exu_valid, exu2idu_ready;
 wire                                    exu2wbu_valid, wbu2exu_ready;
@@ -399,7 +400,7 @@ hcpu_IFU ifu1
     .i_pc_update                       (pc_update_en              ),
     .ins                               (ins                       ),
   //ifu -> idu handshake
-    .i_post_ready                      (idu2ifu_ready             ),
+    .i_post_ready                      (ifu_fetch_ready           ),
     .pc_next                           (ifu_pc_next               ),
   //cache -> ifu
     .hit                               (icache_hit                ),
@@ -420,23 +421,21 @@ hcpu_IFU ifu1
     .o_predict_btb_hit                 (ifu_predict_btb_hit       )
 );
 
-hcpu_ifu_idu_regs ifu2idu_regs(
-    .i_pc                              (ifu_pc_next               ),
-    .o_pc                              (ifu2idu_pc                ),
-    .i_ins                             (ins                       ),
-    .o_ins                             (ifu2idu_ins               ),
+hcpu_ifu_fetch_queue ifu_fetch_queue(
     .clock                             (clock                     ),
     .reset                             (reset                     ),
     .flush                             (frontend_flush            ),
-
-    .icache_hit                        (icache_hit                ),
-    .i_pre_valid                       (pc_update_en              ),
-    .i_post_ready                      (idu2ifu_ready             ),
-    .o_post_valid                      (ifu2idu_valid             ),
-
+    .i_enq_valid                       (icache_hit                ),
+    .o_enq_ready                       (ifu_fetch_ready           ),
+    .i_pc                              (ifu_pc_next               ),
+    .i_ins                             (ins                       ),
     .i_predict_taken                   (ifu_predict_taken         ),
     .i_predict_target                  (ifu_predict_target        ),
     .i_predict_btb_hit                 (ifu_predict_btb_hit       ),
+    .i_deq_ready                       (idu2ifu_ready             ),
+    .o_deq_valid                       (ifu2idu_valid             ),
+    .o_pc                              (ifu2idu_pc                ),
+    .o_ins                             (ifu2idu_ins               ),
     .o_predict_taken                   (ifu2idu_predict_taken     ),
     .o_predict_target                  (ifu2idu_predict_target    ),
     .o_predict_btb_hit                 (ifu2idu_predict_btb_hit   )
@@ -1440,10 +1439,10 @@ always @(posedge clock or posedge reset) begin
         ras_is_ret_d  <= 1'b0;
         ras_hit_d     <= 1'b0;
     end else begin
-        btb_valid_d   <= icache_hit && idu2ifu_ready;
+        btb_valid_d   <= icache_hit && ifu_fetch_ready && !frontend_flush;
         btb_is_brch_d <= (ins[6:0] == 7'b1100011);
         btb_hit_d     <= btb_lookup_hit;
-        ras_valid_d   <= icache_hit && idu2ifu_ready;
+        ras_valid_d   <= icache_hit && ifu_fetch_ready && !frontend_flush;
         ras_is_ret_d  <= (ins[6:0] == 7'b1100111) && (ins[11:7] == 5'd0);
         ras_hit_d     <= ras_predict_valid;
     end

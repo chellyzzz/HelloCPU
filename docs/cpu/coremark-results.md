@@ -26,7 +26,7 @@ Result:
 
 ```text
 CoreMark Size    : 666
-Total ticks      : 32945919
+Total ticks      : 32937953
 Iterations       : 100
 seedcrc          : 0xe9f5
 [0]crclist       : 0xe714
@@ -34,10 +34,10 @@ seedcrc          : 0xe9f5
 [0]crcstate      : 0x8e3a
 [0]crcfinal      : 0x988c
 Correct operation validated.
-Total cycles     : 32986215
-CoreMark/MHz     : 3.031
+Total cycles     : 32978510
+CoreMark/MHz     : 3.032
 
-[HelloCPU] PASS (cycles: 32990370)
+[HelloCPU] PASS (cycles: 32982676)
 ```
 
 ## Current Benchmark Summary
@@ -52,9 +52,9 @@ CoreMark/MHz     : 3.031
 | ITER=100, same-cycle load hit | Correct CRC | 36530875 | 36535445 | 2.737 | 0.838 | 14.1% |
 | ITER=100, same-cycle load+store hit | Correct CRC | 35043392 | 35047662 | 2.853 | 0.874 | 10.4% |
 | ITER=100, same-cycle hit + DIV fast path | Correct CRC | 35043392 | 35047662 | 2.853 | 0.874 | 10.4% |
-| ITER=100, tournament+loop + 2-cycle redirect recovery | Correct CRC | 32986215 | 32990370 | 3.031 | 0.928 | 7.2% |
+| ITER=100, tournament+loop + 2-cycle redirect recovery + fetch queue checkpoint | Correct CRC | 32978510 | 32982676 | 3.032 | 0.928 | 7.2% |
 
-ITER=100 is the better throughput reference because CoreMark initialization and reporting overhead are amortized across the timed workload. The current reference is the frontend branch run with tournament+loop predictor and validated `2-cycle` redirect recovery.
+ITER=100 is the better throughput reference because CoreMark initialization and reporting overhead are amortized across the timed workload. The current reference is the frontend branch run with tournament+loop predictor, validated `2-cycle` redirect recovery, and the current fetch-queue verification checkpoint.
 
 Compared with the pre-LSU-fast-path ITER=100 reference (`1.545 CoreMark/MHz`, `IPC=0.473`, `51.5%` stalls), the current run raises throughput by about 96.2% and cuts stall rate by 44.3 percentage points.
 
@@ -69,7 +69,7 @@ Source for external rows: EEMBC public CoreMark score database, queried on 2026-
 | GOWIN PicoRV32 | RV32 softcore | 0.57 | 0.24x | Small FPGA-oriented RISC-V softcore |
 | STM32F103C8T6 / Cortex-M3 | Arm Cortex-M3 MCU | 2.21 | 0.93x | Common low-cost MCU reference |
 | Allwinner D1 | RISC-V application-class SoC | 2.24 | 0.94x | Public RISC-V Linux-capable SoC result |
-| HelloCPU current | RV32IM + Zicsr teaching core | 3.031 | 1.00x | Local Verilator result, `ITER=100` |
+| HelloCPU current | RV32IM + Zicsr teaching core | 3.032 | 1.00x | Local Verilator result, `ITER=100` |
 | STM32F407VGT6 / Cortex-M4 | Arm Cortex-M4 MCU | 2.86 | 0.94x | Widely used MCU baseline |
 | VEGA THEJAS32 | RISC-V MCU-class core | 3.33 | 1.10x | Public RISC-V microcontroller-class result |
 | Renesas RA8T2 / Cortex-M33 | Arm Cortex-M33 MCU | 4.05 | 1.34x | Modern Cortex-M33 class |
@@ -94,9 +94,9 @@ This places the current HelloCPU CoreMark/MHz approximately level with the Corte
 | 128-entry BTB | 100 | Correct CRC | 41986504 | 2.381 |
 | Same-cycle load hit | 100 | Correct CRC | 36535445 | 2.737 |
 | Same-cycle load+store hit | 100 | Correct CRC | 35047662 | 2.853 |
-| Tournament+loop + 2-cycle redirect recovery | 100 | Correct CRC | 32990370 | 3.031 |
+| Tournament+loop + 2-cycle redirect recovery + fetch queue checkpoint | 100 | Correct CRC | 32982676 | 3.032 |
 
-The full predictor improved CoreMark ITER=1 by about 16.4% versus the no-prediction reference. The LSU fast-path work improved ITER=100 throughput by about 47.5% over the previous full-predictor baseline, and the low `MUL` fast path adds another 4.5% over the LSU fast-path reference. The same-cycle LSU hit (load + store) adds a further 19.8% over the pre-same-cycle baseline. The frontend branch predictor/recovery work then lifts throughput to `3.031 CoreMark/MHz`, for a cumulative 96.2% improvement from the pre-LSU-fast-path reference.
+The full predictor improved CoreMark ITER=1 by about 16.4% versus the no-prediction reference. The LSU fast-path work improved ITER=100 throughput by about 47.5% over the previous full-predictor baseline, and the low `MUL` fast path adds another 4.5% over the LSU fast-path reference. The same-cycle LSU hit (load + store) adds a further 19.8% over the pre-same-cycle baseline. The frontend branch predictor/recovery work then lifts throughput to `3.032 CoreMark/MHz`, for a cumulative 96.4% improvement from the pre-LSU-fast-path reference.
 
 ## Latest Performance Counters
 
@@ -219,7 +219,7 @@ The fast_done paths are kept because they improve uncache-path latency (relevant
 | Same-cycle load hit, ITER=100 | 2.737 | +14.9% over baseline; LSU wait -78.4% |
 | Same-cycle load+store hit, ITER=100 | 2.853 | +19.8% over baseline; LSU wait -99.9% |
 | Same-cycle hit + DIV fast path, ITER=100 | 2.853 | DIV wait 3762→2962 (-21%); CoreMark unchanged |
-| Tournament+loop + 2-cycle redirect recovery, ITER=100 | 3.031 | +6.2% over same-cycle LSU baseline; redirect cost `3 -> 2` |
+| Tournament+loop + 2-cycle redirect recovery + fetch queue checkpoint, ITER=100 | 3.032 | +6.3% over same-cycle LSU baseline; redirect cost `3 -> 2` |
 
 ## Correctness Notes
 

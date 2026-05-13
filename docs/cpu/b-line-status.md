@@ -21,6 +21,8 @@ Current decision:
 - The main effort now shifts to **2-wide preparation**: frontend boundary formalization, issue/flush contract cleanup, queue insertion points, and wider-issue validation planning.
 - Predictor work remains allowed only as secondary, low-risk, quickly falsifiable optimization.
 
+Tracking document: `docs/cpu/two-wide-preparation-checklist.md`.
+
 当前交付标准：
 
 - behavioral RTL patch
@@ -118,6 +120,37 @@ Constraint:
 
 - `skip_pre_valid` is a failed path and should not be revived.
 - Any new attempt must solve valid/payload timing alignment directly, not by masking control only.
+
+### Current 2-wide preparation checkpoint: fetch queue + flush-owner coverage
+
+Current status: **implemented and validated on frontend branch**
+
+Behavioral slice:
+
+- Insert a `2-entry` fetch queue between IFU and IDU.
+- Keep single dequeue / single issue semantics while validating queue-era boundary rules.
+- On frontend flush, prefer full queue invalidation over selective kill.
+
+Current validation:
+
+- `make ifu_fetch_queue`: PASS
+- `make top_fetch_queue_flush`: PASS
+- `make top_pc_update_flush`: PASS
+- `make run ALL=pc-update-ecall`: PASS
+- `make run ALL=btb-collision`: PASS
+- `make run ALL=sum`: PASS
+- `make bench_only ITER=100`: PASS, `CoreMark/MHz = 3.032`, simulator `32982676` cycles, `IPC = 0.928`
+
+Redirect-owner coverage proof:
+
+- EXU redirect path: top-level flush test observed `16` redirect flushes, `15` with non-empty fetch queue.
+- WBU `pc_update` path: top-level flush test observed `16` architectural flushes, `15` with non-empty fetch queue.
+- In both cases, queue state was verified to clear immediately: count to zero, both valid bits cleared, head/tail reset, and no stale entry surviving one cycle later.
+
+Checkpoint verdict:
+
+- This is the current recommended mainline candidate checkpoint for `2-wide` preparation.
+- It improves verification confidence rather than throughput: no new performance uplift is claimed beyond the already landed `2-cycle` redirect recovery.
 
 ### B-Task-1: IFU/IDU pass-through protocol specification document
 

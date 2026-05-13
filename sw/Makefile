@@ -37,19 +37,9 @@ CM_CFLAGS = $(CFLAGS) -I$(CM_DIR) -I$(CM_PORT) \
             -DPERFORMANCE_RUN=1 -DITERATIONS=$(ITER) \
             -DCOMPILER_FLAGS=\"rv32im_zicsr_-O2\"
 
-benchmark: $(BUILD_DIR)/coremark.bin
-
-$(BUILD_DIR)/coremark_iter$(ITER).stamp: $(CM_SRCS) start.S lib/klib.c link.ld | $(BUILD_DIR)
+benchmark: | $(BUILD_DIR)
 	$(CC) $(CM_CFLAGS) $(LDFLAGS) start.S lib/klib.c $(CM_SRCS) -o $(BUILD_DIR)/coremark.elf
 	$(OBJCOPY) -O binary $(BUILD_DIR)/coremark.elf $(BUILD_DIR)/coremark.bin
-	$(OBJDUMP) -d $(BUILD_DIR)/coremark.elf > $(BUILD_DIR)/coremark.txt
-	@touch $@
-
-$(BUILD_DIR)/coremark.bin: $(BUILD_DIR)/coremark_iter$(ITER).stamp
-
-.PRECIOUS: $(BUILD_DIR)/coremark_iter%.stamp
-	$(CC) $(CM_CFLAGS) $(LDFLAGS) start.S lib/klib.c $(CM_SRCS) -o $(BUILD_DIR)/coremark.elf
-	$(OBJCOPY) -O binary $(BUILD_DIR)/coremark.elf $@
 	$(OBJDUMP) -d $(BUILD_DIR)/coremark.elf > $(BUILD_DIR)/coremark.txt
 
 $(BUILD_DIR) $(SCALAR_BUILD_DIR) $(VECTOR_BUILD_DIR):
@@ -68,4 +58,4 @@ $(VECTOR_BUILD_DIR)/%.bin: $(VECTOR_TEST_DIR)/%.c start.S lib/klib.c link.ld | $
 clean:
 	rm -rf $(BUILD_DIR)
 
-.PHONY: all clean scalar-tests vector-tests
+.PHONY: all clean scalar-tests vector-tests benchmark
