@@ -3,6 +3,7 @@ module hcpu_idu_exu_regs (
     input              [  31:0]         i_ins                      ,
     input                               clock                      ,
     input                               reset                      ,
+    input                               flush                      ,
     // handshake signals
     input                               i_pre_valid                ,
     input                               i_post_ready               ,
@@ -86,6 +87,9 @@ always @(posedge clock or posedge reset) begin
     if(reset) begin
         post_valid <= 1'b0;   
     end
+    else if(flush) begin
+        post_valid <= 1'b0;
+    end
     else if(i_pre_valid) begin
         post_valid <= 1'b1;
     end
@@ -135,6 +139,36 @@ always @(posedge clock or posedge reset) begin
         o_predict_btb_hit <= 1'b0;
         o_rs1_addr      <= 5'b0;
 
+    end
+    else if(flush) begin
+        o_pc            <= 32'b0;
+        o_ins           <= 32'b0;
+        o_src1          <= 32'b0;
+        o_src2          <= 32'b0;
+        o_imm           <= 32'b0;
+        o_src_sel1      <= 2'b0;
+        o_src_sel2      <= 3'b0;
+        o_rd            <= 5'b0;
+        o_exu_opt       <= 3'b0;
+        o_alu_opt       <= 10'b0;
+        o_wen           <= 1'b0;
+        o_csr_wen       <= 1'b0;
+        o_mret          <= 1'b0;
+        o_ecall         <= 1'b0;
+        o_load          <= 1'b0;
+        o_store         <= 1'b0;
+        o_brch          <= 1'b0;
+        o_jal           <= 1'b0;
+        o_jalr          <= 1'b0;
+        o_ebreak        <= 1'b0;
+        o_fence_i       <= 1'b0;
+        o_muldiv        <= 1'b0;
+        o_is_cop_insn   <= 1'b0;
+        o_csr_addr      <= 12'b0;
+        o_predict_taken <= 1'b0;
+        o_predict_target <= 30'b0;
+        o_predict_btb_hit <= 1'b0;
+        o_rs1_addr      <= 5'b0;
     end
     else if(i_post_ready && o_post_valid) begin
         o_pc            <= i_pc;

@@ -5,6 +5,7 @@ module hcpu_ifu_idu_regs (
     output reg         [  31:0]         o_ins                      ,
     input                               clock                      ,
     input                               reset                      ,
+    input                               flush                      ,
     // handshake signals
     input                               icache_hit              ,
     input                               i_pre_valid                ,
@@ -27,6 +28,13 @@ wire fetch_fire = icache_hit && i_post_ready;
 
 always @(posedge clock or posedge reset) begin
     if(reset) begin
+        o_pc            <= 32'h0;
+        o_ins           <= 32'h0;
+        o_predict_taken <= 1'b0;
+        o_predict_target <= 30'b0;
+        o_predict_btb_hit <= 1'b0;
+    end
+    else if(flush) begin
         o_pc            <= 32'h0;
         o_ins           <= 32'h0;
         o_predict_taken <= 1'b0;
