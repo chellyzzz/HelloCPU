@@ -110,7 +110,7 @@ predictor_sim:
 	python3 tools/predictor_sim/predictor_sim.py --trace $(TRACE) --policy $(POLICY) $(ARGS)
 
 ifu_idu_backpressure:
-	$(VERILATOR) --top-module hcpu_ifu_idu_regs --cc --exe --build -Wno-fatal -Wno-style \
+	$(VERILATOR) --top-module hcpu_ifu_idu_regs --cc --exe --build -Wno-fatal -Wno-style $(EXTRA_VERILATOR_FLAGS) \
 		vsrc/cpu/ifu/ifu_idu_regs.v $(abspath $(SIM_DIR)/ifu_idu_regs_backpressure_tb.cpp) \
 		--Mdir $(BUILD_DIR)/ifu_idu_regs_tb \
 		-o $(abspath $(BUILD_DIR)/Vifu_idu_regs_tb)
@@ -155,21 +155,21 @@ commit_visible_ctrl:
 	@$(BUILD_DIR)/Vcommit_visible_ctrl_tb
 
 ifu_fetch_queue:
-	$(VERILATOR) --top-module hcpu_ifu_fetch_queue --cc --exe --build -Wno-fatal -Wno-style \
+	$(VERILATOR) --top-module hcpu_ifu_fetch_queue --cc --exe --build -Wno-fatal -Wno-style $(EXTRA_VERILATOR_FLAGS) \
 		vsrc/cpu/ifu/ifu_fetch_queue.v $(abspath $(SIM_DIR)/ifu_fetch_queue_tb.cpp) \
 		--Mdir $(BUILD_DIR)/ifu_fetch_queue_tb \
 		-o $(abspath $(BUILD_DIR)/Vifu_fetch_queue_tb)
 	@$(BUILD_DIR)/Vifu_fetch_queue_tb
 
 top_fetch_queue_flush: sim sw
-	$(VERILATOR) --top-module $(TOPNAME) +incdir+vsrc/cpu/include --cc --exe --build -O3 -Wno-fatal -Wno-style --timescale "1ns/1ns" --no-timing -j 8 \
+	$(VERILATOR) --top-module $(TOPNAME) +incdir+vsrc/cpu/include --cc --exe --build -O3 -Wno-fatal -Wno-style --timescale "1ns/1ns" --no-timing -j 8 $(EXTRA_VERILATOR_FLAGS) \
 		$(VSRCS) $(abspath $(SIM_DIR)/top_fetch_queue_flush_tb.cpp) \
 		--Mdir $(BUILD_DIR)/top_fetch_queue_flush_tb \
 		-o $(abspath $(BUILD_DIR)/Vtop_fetch_queue_flush_tb)
 	@$(BUILD_DIR)/Vtop_fetch_queue_flush_tb $(if $(IMG),$(IMG),$(SW_DIR)/build/scalar/btb-collision.bin)
 
 top_pc_update_flush: sim sw
-	$(VERILATOR) --top-module $(TOPNAME) +incdir+vsrc/cpu/include --cc --exe --build -O3 -Wno-fatal -Wno-style --timescale "1ns/1ns" --no-timing -j 8 \
+	$(VERILATOR) --top-module $(TOPNAME) +incdir+vsrc/cpu/include --cc --exe --build -O3 -Wno-fatal -Wno-style --timescale "1ns/1ns" --no-timing -j 8 $(EXTRA_VERILATOR_FLAGS) \
 		$(VSRCS) $(abspath $(SIM_DIR)/top_fetch_queue_flush_tb.cpp) \
 		--Mdir $(BUILD_DIR)/top_pc_update_flush_tb \
 		-o $(abspath $(BUILD_DIR)/Vtop_pc_update_flush_tb)

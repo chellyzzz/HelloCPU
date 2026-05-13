@@ -112,4 +112,43 @@ always @(*) begin
 end
 `endif
 
+`ifdef PROTOCOL_ASSERT
+reg        prev_deq_stall;
+reg [31:0] prev_o_pc;
+reg [31:0] prev_o_ins;
+reg        prev_o_predict_taken;
+reg [29:0] prev_o_predict_target;
+reg        prev_o_predict_btb_hit;
+
+always @(posedge clock or posedge reset) begin
+    if (reset) begin
+        prev_deq_stall <= 1'b0;
+        prev_o_pc <= 32'b0;
+        prev_o_ins <= 32'b0;
+        prev_o_predict_taken <= 1'b0;
+        prev_o_predict_target <= 30'b0;
+        prev_o_predict_btb_hit <= 1'b0;
+    end else begin
+        if (prev_deq_stall && !flush && !i_deq_ready) begin
+            if (o_pc != prev_o_pc)
+                $fatal(1, "ifu_fetch_queue pc changed while dequeue remained stalled");
+            if (o_ins != prev_o_ins)
+                $fatal(1, "ifu_fetch_queue instruction changed while dequeue remained stalled");
+            if (o_predict_taken != prev_o_predict_taken)
+                $fatal(1, "ifu_fetch_queue predict_taken changed while dequeue remained stalled");
+            if (o_predict_target != prev_o_predict_target)
+                $fatal(1, "ifu_fetch_queue predict_target changed while dequeue remained stalled");
+            if (o_predict_btb_hit != prev_o_predict_btb_hit)
+                $fatal(1, "ifu_fetch_queue predict_btb_hit changed while dequeue remained stalled");
+        end
+        prev_deq_stall <= o_deq_valid && !i_deq_ready;
+        prev_o_pc <= o_pc;
+        prev_o_ins <= o_ins;
+        prev_o_predict_taken <= o_predict_taken;
+        prev_o_predict_target <= o_predict_target;
+        prev_o_predict_btb_hit <= o_predict_btb_hit;
+    end
+end
+`endif
+
 endmodule

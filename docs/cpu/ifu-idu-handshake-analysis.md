@@ -395,10 +395,24 @@ Validated checks:
 
 This means the current fetch queue is no longer just a structural insertion point; it is a verified frontend flush boundary candidate for future wider-issue preparation.
 
-## Immediate Follow-Up
+### Assertion-Oriented Boundary Closure
+
+The current mainline checkpoint now also carries a minimal default-off assertion set for the first queue-aware boundary contract:
+
+1. `vsrc/cpu/ifu/ifu.v`: if IFU remains blocked after a cache hit, `pc_next` must not drift unless a redirect, `pc_update`, or accepted dequeue occurs.
+2. `vsrc/cpu/ifu/ifu_fetch_queue.v`: if dequeue remains stalled, the visible queue head tuple (`pc`, `ins`, `predict_taken`, `predict_target`, `predict_btb_hit`) must remain stable until `flush` or acceptance.
+3. `vsrc/cpu/idu/idu_exu_regs.v`: `o_pre_ready` must equal `i_post_ready`, and an accepted decode bundle must remain stable while EXU keeps backpressure asserted.
+
+These checks are intentionally small:
+
+1. they only guard queue-aware boundary semantics already relied on by the current RTL
+2. they are gated under `` `ifdef PROTOCOL_ASSERT ``
+3. they do not redefine flush ownership or introduce selective-kill behavior
+
+## Remaining Follow-Up
 
 The next useful follow-up items are:
 
-1. add assertion-oriented wording for each invariant in this document
-2. mark which current invariants become queue-entry invariants rather than single-entry invariants
-3. define the first fetch-queue-specific assertion set
+1. add queue occupancy and flush-owner observability only if future wider frontend work needs more debug resolution
+2. define the first decode/predecode bundle contract before any real dual-decode RTL starts
+3. add broader assertion coverage only when a new boundary semantic is introduced, not preemptively
