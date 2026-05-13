@@ -1483,7 +1483,7 @@ always @(posedge clock) begin
 end
 
 // debug: WBU pc_update
-wire wbu_pc_update_fire = exu_commit_visible && (exu2wbu_ecall || exu2wbu_mret);
+wire wbu_pc_update_fire;
 
 always @(posedge clock) begin
     if (!reset && wbu_pc_update_fire) begin
@@ -1497,43 +1497,42 @@ always @(posedge clock) begin
 end
 
 // debug: redirect recovery gap measurement
-reg        redirect_recovery;
-reg [31:0] redirect_gap_cnt;
-reg        redirect_cause_brch;
-reg        redirect_cause_jal;
-reg        redirect_cause_jalr;
+wire        redirect_fire;
+wire        redirect_complete;
+wire        redirect_recovery;
+wire [31:0] redirect_gap_cnt;
+wire        redirect_cause_brch;
+wire        redirect_cause_jal;
+wire        redirect_cause_jalr;
 
-wire redirect_fire = exu_mispredict_flush_r || pc_update_en;
+hcpu_commit_visible_ctrl commit_visible_ctrl (
+    .clock                        (clock),
+    .reset                        (reset),
+    .i_scalar_exu_mispredict_flush(scalar_exu_mispredict_flush),
+    .i_idu2exu_brch               (idu2exu_brch),
+    .i_idu2exu_jal                (idu2exu_jal),
+    .i_idu2exu_jalr               (idu2exu_jalr),
+    .i_commit_visible             (exu_commit_visible),
+    .i_exu2wbu_ecall              (exu2wbu_ecall),
+    .i_exu2wbu_mret               (exu2wbu_mret),
+    .i_pc_update_en               (pc_update_en),
+    .i_exu_mispredict_flush_r     (exu_mispredict_flush_r),
+    .o_wbu_pc_update_fire         (wbu_pc_update_fire),
+    .o_redirect_fire              (redirect_fire),
+    .o_redirect_complete          (redirect_complete),
+    .o_redirect_recovery          (redirect_recovery),
+    .o_redirect_gap_cnt           (redirect_gap_cnt),
+    .o_redirect_cause_brch        (redirect_cause_brch),
+    .o_redirect_cause_jal         (redirect_cause_jal),
+    .o_redirect_cause_jalr        (redirect_cause_jalr)
+);
 
-always @(posedge clock or posedge reset) begin
-    if (reset) begin
-        redirect_recovery    <= 1'b0;
-        redirect_gap_cnt     <= 32'd0;
-        redirect_cause_brch  <= 1'b0;
-        redirect_cause_jal   <= 1'b0;
-        redirect_cause_jalr  <= 1'b0;
-    end else begin
-        if (scalar_exu_mispredict_flush) begin
-            redirect_cause_brch <= idu2exu_brch;
-            redirect_cause_jal  <= idu2exu_jal;
-            redirect_cause_jalr <= idu2exu_jalr;
-        end else if (wbu_pc_update_fire) begin
-            redirect_cause_brch <= 1'b0;
-            redirect_cause_jal  <= 1'b0;
-            redirect_cause_jalr <= 1'b0;
-        end
-        if (redirect_fire) begin
-            redirect_recovery   <= 1'b1;
-            redirect_gap_cnt    <= 32'd0;
-        end else if (redirect_recovery && exu_commit_visible) begin
-            redirect_gap_dpic(redirect_gap_cnt);
-            if (redirect_cause_brch) redirect_gap_brch_dpic(redirect_gap_cnt);
-            if (redirect_cause_jal)  redirect_gap_jal_dpic(redirect_gap_cnt);
-            if (redirect_cause_jalr) redirect_gap_jalr_dpic(redirect_gap_cnt);
-            redirect_recovery <= 1'b0;
-        end else if (redirect_recovery) begin
-            redirect_gap_cnt <= redirect_gap_cnt + 32'd1;
-        end
+always @(posedge clock) begin
+    if (!reset && redirect_complete) begin
+        redirect_gap_dpic(redirect_gap_cnt);
+        if (redirect_cause_brch) redirect_gap_brch_dpic(redirect_gap_cnt);
+        if (redirect_cause_jal)  redirect_gap_jal_dpic(redirect_gap_cnt);
+        if (redirect_cause_jalr) redirect_gap_jalr_dpic(redirect_gap_cnt);
     end
 end
 `endif // PERF_BRANCH_PRED

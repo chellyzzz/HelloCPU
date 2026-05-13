@@ -41,6 +41,7 @@ Current progress on this validation wave:
 - scalar completion visibility filtering: covered by `make exu_result_visibility`
 - COP pending/visible response flush: covered by `make cop_backend_flush`
 - COP inflight ownership across `kill`, `dequeue`, and same-cycle replacement: covered by `make idu_cop_regs`
+- commit-visible redirect/system gating: covered by `make commit_visible_ctrl`
 - combined focused suite: `make backend_contract_checks`
 
 ## Early Decoupling Guidance

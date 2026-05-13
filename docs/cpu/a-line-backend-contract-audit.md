@@ -205,6 +205,7 @@ After cleanup pass 1 and pass 2:
 - `make exu_wbu_flush`: PASS
 - `make exu_result_visibility`: PASS
 - `make cop_backend_flush`: PASS
+- `make commit_visible_ctrl`: PASS
 - `make backend_contract_checks`: PASS
 
 Observed result:
@@ -223,6 +224,7 @@ The backend contract is now protected by both RTL cleanup and focused module che
 - scalar EXU distinguishes `result_done` from `result_visible`,
 - COP backend flush clears both pending and already visible response state,
 - COP issue ownership now explicitly allows same-cycle `dequeue + issue` replacement in `idu_cop_regs`,
+- top-level commit-visible redirect and system-side-effect control is now isolated in `commit_visible_ctrl`,
 - frontend boundary hold behavior remains covered by the existing IFU/IDU directed test.
 
 Current focused regression entry points:
@@ -231,6 +233,7 @@ Current focused regression entry points:
 - `make exu_result_visibility`
 - `make cop_backend_flush`
 - `make idu_cop_regs`
+- `make commit_visible_ctrl`
 - `make backend_contract_checks`
 
 That is enough to move the backend from “implicitly safe under single-issue assumptions” to “partially explicit and regression-checked,” which is a reasonable A-line stabilization point before adding new behavior.

@@ -35,7 +35,7 @@ VECTOR_TESTS := $(basename $(notdir $(wildcard $(SW_DIR)/tests/vector-tests/*.c)
 
 # === Targets ===
 
-.PHONY: all sim sw clean run_% run_all bench bench_only branch_trace predictor_sim ifu_idu_backpressure exu_wbu_flush exu_result_visibility cop_backend_flush idu_cop_regs backend_contract_checks
+.PHONY: all sim sw clean run_% run_all bench bench_only branch_trace predictor_sim ifu_idu_backpressure exu_wbu_flush exu_result_visibility cop_backend_flush idu_cop_regs commit_visible_ctrl backend_contract_checks
 
 all: sim sw
 
@@ -147,7 +147,14 @@ idu_cop_regs:
 		-o $(abspath $(BUILD_DIR)/Vidu_cop_regs_tb)
 	@$(BUILD_DIR)/Vidu_cop_regs_tb
 
-backend_contract_checks: exu_wbu_flush exu_result_visibility cop_backend_flush idu_cop_regs ifu_idu_backpressure
+commit_visible_ctrl:
+	$(VERILATOR) --top-module hcpu_commit_visible_ctrl --cc --exe --build -Wno-fatal -Wno-style \
+		vsrc/cpu/top/commit_visible_ctrl.v $(abspath $(SIM_DIR)/commit_visible_ctrl_tb.cpp) \
+		--Mdir $(BUILD_DIR)/commit_visible_ctrl_tb \
+		-o $(abspath $(BUILD_DIR)/Vcommit_visible_ctrl_tb)
+	@$(BUILD_DIR)/Vcommit_visible_ctrl_tb
+
+backend_contract_checks: exu_wbu_flush exu_result_visibility cop_backend_flush idu_cop_regs commit_visible_ctrl ifu_idu_backpressure
 
 # Wave for debugging
 wave:
