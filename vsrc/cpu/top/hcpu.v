@@ -154,6 +154,22 @@ wire                                    exu_lsu_dbg_wait_refill_ar;
 wire                                    exu_lsu_dbg_wait_refill_r ;
 wire                                    exu_lsu_dbg_wait_uncached ;
 wire                                    exu_lsu_dbg_wait_wb       ;
+wire                                    scalar_mem_req_valid      ;
+wire                                    scalar_mem_req_store      ;
+wire                   [  31:0]         scalar_mem_req_addr       ;
+wire                   [  31:0]         scalar_mem_req_wdata      ;
+wire                   [   2:0]         scalar_mem_req_size       ;
+wire                                    scalar_mem_resp_valid     ;
+wire                   [  31:0]         scalar_mem_resp_rdata     ;
+wire                                    mem_owner_scalar_active   ;
+wire                                    mem_owner_cop_active      ;
+wire                                    mem_owner_req_valid       ;
+wire                                    mem_owner_req_store       ;
+wire                   [  31:0]         mem_owner_req_addr        ;
+wire                   [  31:0]         mem_owner_req_wdata       ;
+wire                   [   2:0]         mem_owner_req_size        ;
+wire                                    mem_owner_resp_valid      ;
+wire                   [  31:0]         mem_owner_resp_rdata      ;
 wire                                    scalar_exu2wbu_valid       ;
 wire                                    scalar_exu2idu_ready       ;
 wire                                    cop_exu2wbu_valid          ;
@@ -202,6 +218,49 @@ wire                   [   1:0]         LSU_SRAM_AXI_BRESP         ;
 wire                                    LSU_SRAM_AXI_BVALID        ;
 wire                                    LSU_SRAM_AXI_BREADY        ;
 wire                   [   3:0]         LSU_SRAM_AXI_BID           ;
+wire                                    COP_MEM_REQ_VALID          ;
+wire                                    COP_MEM_REQ_STORE          ;
+wire                   [  31:0]         COP_MEM_ADDR               ;
+wire                   [  31:0]         COP_MEM_WDATA              ;
+wire                   [   2:0]         COP_MEM_SIZE               ;
+wire                                    COP_MEM_RESP_VALID         ;
+wire                   [  31:0]         COP_MEM_RDATA              ;
+wire                                    LSU_ARB_AXI_AWVALID        ;
+wire                   [  31:0]         LSU_ARB_AXI_AWADDR         ;
+wire                   [   3:0]         LSU_ARB_AXI_AWID           ;
+wire                   [   7:0]         LSU_ARB_AXI_AWLEN          ;
+wire                   [   2:0]         LSU_ARB_AXI_AWSIZE         ;
+wire                   [   1:0]         LSU_ARB_AXI_AWBURST        ;
+wire                                    LSU_ARB_AXI_WVALID         ;
+wire                   [  31:0]         LSU_ARB_AXI_WDATA          ;
+wire                   [   3:0]         LSU_ARB_AXI_WSTRB          ;
+wire                                    LSU_ARB_AXI_WLAST          ;
+wire                                    LSU_ARB_AXI_BREADY         ;
+wire                                    LSU_ARB_AXI_ARVALID        ;
+wire                   [  31:0]         LSU_ARB_AXI_ARADDR         ;
+wire                   [   3:0]         LSU_ARB_AXI_ARID           ;
+wire                   [   7:0]         LSU_ARB_AXI_ARLEN          ;
+wire                   [   2:0]         LSU_ARB_AXI_ARSIZE         ;
+wire                   [   1:0]         LSU_ARB_AXI_ARBURST        ;
+wire                                    LSU_ARB_AXI_RREADY         ;
+reg                    [   1:0]         cop_mem_state              ;
+reg                                     cop_mem_wen_r              ;
+reg                                     cop_mem_aw_done            ;
+reg                                     cop_mem_w_done             ;
+reg                                     cop_mem_killed_r           ;
+reg                                     cop_mem_done_r             ;
+reg                    [  31:0]         cop_mem_rdata_r            ;
+reg                    [  31:0]         cop_mem_addr_r             ;
+reg                    [  31:0]         cop_mem_wdata_r            ;
+reg                    [   2:0]         cop_mem_size_r             ;
+wire                                    cop_mem_new_req            ;
+wire                                    cop_mem_aw_fire            ;
+wire                                    cop_mem_w_fire             ;
+wire                                    cop_mem_b_fire             ;
+wire                                    cop_mem_ar_fire            ;
+wire                                    cop_mem_r_fire             ;
+wire                                    cop_mem_bus_active         ;
+wire                                    cop_mem_resp_active        ;
 
 //read data channel
 wire                   [  31:0]         CLINT_AXI_RDATA            ;
@@ -510,6 +569,17 @@ assign cop_issue_valid = cop_decode_active && !cop_inflight && !cop_backend_busy
 assign cop_issue_active = cop_decode_active;
 assign cop_commit_active = cop_inflight;
 assign cop_pipeline_active = cop_commit_active || cop_issue_active;
+assign cop_mem_bus_active = (cop_mem_state != 2'd0);
+assign cop_mem_resp_active = cop_mem_bus_active || cop_mem_done_r;
+assign mem_owner_cop_active = cop_mem_bus_active;
+assign mem_owner_scalar_active = !mem_owner_cop_active && scalar_mem_req_valid;
+assign mem_owner_req_valid = mem_owner_cop_active ? 1'b1 : scalar_mem_req_valid;
+assign mem_owner_req_store = mem_owner_cop_active ? cop_mem_wen_r : scalar_mem_req_store;
+assign mem_owner_req_addr = mem_owner_cop_active ? cop_mem_addr_r : scalar_mem_req_addr;
+assign mem_owner_req_wdata = mem_owner_cop_active ? cop_mem_wdata_r : scalar_mem_req_wdata;
+assign mem_owner_req_size = mem_owner_cop_active ? cop_mem_size_r : scalar_mem_req_size;
+assign mem_owner_resp_valid = cop_mem_resp_active ? (cop_mem_done_r && !cop_mem_killed_r) : scalar_mem_resp_valid;
+assign mem_owner_resp_rdata = cop_mem_resp_active ? cop_mem_rdata_r : scalar_mem_resp_rdata;
 assign scalar_issue = idu2exu_valid && !idu2exu_is_cop_insn && !cop_pipeline_active;
 assign cop_refetch_flush = cop_resp_fire;
 assign cop_active_pc = cop_commit_active ? cop_inflight_pc : idu2exu_pc;
@@ -531,7 +601,7 @@ assign exu_ras_pop_en = scalar_exu_ras_pop_en;
 assign exu2wbu_valid = cop_commit_active ? cop_exu2wbu_valid :
                        idu2exu_is_cop_insn ? 1'b0 : scalar_exu2wbu_valid;
 assign exu2idu_ready = cop_pipeline_active ? 1'b0 : scalar_exu2idu_ready;
-assign cop_kill = pc_update_en || idu2exu_fence_i || exu_mispredict_flush_r;
+assign cop_kill = idu2exu_fence_i || exu_mispredict_flush_r;
 assign cop_resp_fire = cop_exu2wbu_valid && wbu2exu_ready;
 assign cop_queue_dequeue = cop_resp_fire;
 
@@ -641,6 +711,13 @@ hcpu_EXU exu1(
     .o_lsu_dbg_wait_refill_r           (exu_lsu_dbg_wait_refill_r ),
     .o_lsu_dbg_wait_uncached           (exu_lsu_dbg_wait_uncached ),
     .o_lsu_dbg_wait_wb                 (exu_lsu_dbg_wait_wb       ),
+    .o_mem_req_valid                   (scalar_mem_req_valid      ),
+    .o_mem_req_store                   (scalar_mem_req_store      ),
+    .o_mem_req_addr                    (scalar_mem_req_addr       ),
+    .o_mem_req_wdata                   (scalar_mem_req_wdata      ),
+    .o_mem_req_size                    (scalar_mem_req_size       ),
+    .o_mem_resp_valid                  (scalar_mem_resp_valid     ),
+    .o_mem_resp_rdata                  (scalar_mem_resp_rdata     ),
   //exu -> wbu handshake
     .i_pre_valid                       (scalar_issue              ),
     .i_post_ready                      (wbu2exu_ready             ),
@@ -658,11 +735,136 @@ hcpu_cop_backend cop_backend1(
     .i_src1                            (cop_active_src1           ),
     .i_src2                            (cop_active_src2           ),
     .i_ins                             (cop_active_ins            ),
+    .o_cop_mem_req_valid               (COP_MEM_REQ_VALID         ),
+    .o_cop_mem_req_store               (COP_MEM_REQ_STORE         ),
+    .o_cop_mem_req_addr                (COP_MEM_ADDR              ),
+    .o_cop_mem_req_wdata               (COP_MEM_WDATA             ),
+    .o_cop_mem_req_size                (COP_MEM_SIZE              ),
+    .i_cop_mem_resp_valid              (COP_MEM_RESP_VALID        ),
+    .i_cop_mem_resp_rdata              (COP_MEM_RDATA             ),
     .o_pre_ready                       (cop_exu2idu_ready         ),
     .o_post_valid                      (cop_exu2wbu_valid         ),
     .o_busy                            (cop_backend_busy          ),
     .o_res                             (cop_exu_res               )
 );
+
+assign LSU_ARB_AXI_AWADDR  = cop_mem_bus_active ? mem_owner_req_addr : LSU_SRAM_AXI_AWADDR;
+assign LSU_ARB_AXI_AWVALID = (cop_mem_state == 2'd1) ? (cop_mem_wen_r && !cop_mem_aw_done) : LSU_SRAM_AXI_AWVALID;
+assign LSU_ARB_AXI_AWID    = cop_mem_bus_active ? 4'b0 : LSU_SRAM_AXI_AWID;
+assign LSU_ARB_AXI_AWLEN   = cop_mem_bus_active ? 8'b0 : LSU_SRAM_AXI_AWLEN;
+assign LSU_ARB_AXI_AWSIZE  = cop_mem_bus_active ? mem_owner_req_size : LSU_SRAM_AXI_AWSIZE;
+assign LSU_ARB_AXI_AWBURST = cop_mem_bus_active ? 2'b00 : LSU_SRAM_AXI_AWBURST;
+assign LSU_ARB_AXI_WDATA   = cop_mem_bus_active ? mem_owner_req_wdata : LSU_SRAM_AXI_WDATA;
+assign LSU_ARB_AXI_WSTRB   = cop_mem_bus_active ? 4'b0001 : LSU_SRAM_AXI_WSTRB;
+assign LSU_ARB_AXI_WVALID  = (cop_mem_state == 2'd1) ? (cop_mem_wen_r && !cop_mem_w_done) : LSU_SRAM_AXI_WVALID;
+assign LSU_ARB_AXI_WLAST   = cop_mem_bus_active ? 1'b1 : LSU_SRAM_AXI_WLAST;
+assign LSU_ARB_AXI_BREADY  = (cop_mem_state == 2'd2 || cop_mem_state == 2'd3) ? cop_mem_wen_r : LSU_SRAM_AXI_BREADY;
+assign LSU_ARB_AXI_ARADDR  = cop_mem_bus_active ? mem_owner_req_addr : LSU_SRAM_AXI_ARADDR;
+assign LSU_ARB_AXI_ARVALID = (cop_mem_state == 2'd1) ? !cop_mem_wen_r : LSU_SRAM_AXI_ARVALID;
+assign LSU_ARB_AXI_ARID    = cop_mem_bus_active ? 4'b0 : LSU_SRAM_AXI_ARID;
+assign LSU_ARB_AXI_ARLEN   = cop_mem_bus_active ? 8'b0 : LSU_SRAM_AXI_ARLEN;
+assign LSU_ARB_AXI_ARSIZE  = cop_mem_bus_active ? mem_owner_req_size : LSU_SRAM_AXI_ARSIZE;
+assign LSU_ARB_AXI_ARBURST = cop_mem_bus_active ? 2'b00 : LSU_SRAM_AXI_ARBURST;
+assign LSU_ARB_AXI_RREADY  = (cop_mem_state == 2'd2 || cop_mem_state == 2'd3) ? !cop_mem_wen_r : LSU_SRAM_AXI_RREADY;
+assign COP_MEM_RESP_VALID  = cop_mem_done_r && !cop_mem_killed_r;
+assign COP_MEM_RDATA       = mem_owner_resp_rdata;
+assign cop_mem_new_req     = COP_MEM_REQ_VALID && (cop_mem_state == 2'd0) && !cop_mem_done_r && !mem_owner_scalar_active;
+assign cop_mem_aw_fire     = LSU_ARB_AXI_AWVALID && LSU_SRAM_AXI_AWREADY;
+assign cop_mem_w_fire      = LSU_ARB_AXI_WVALID && LSU_SRAM_AXI_WREADY;
+assign cop_mem_b_fire      = LSU_ARB_AXI_BREADY && LSU_SRAM_AXI_BVALID;
+assign cop_mem_ar_fire     = LSU_ARB_AXI_ARVALID && LSU_SRAM_AXI_ARREADY;
+assign cop_mem_r_fire      = LSU_ARB_AXI_RREADY && LSU_SRAM_AXI_RVALID && LSU_SRAM_AXI_RLAST;
+
+always @(posedge clock or posedge reset) begin
+    if (reset) begin
+        cop_mem_state   <= 2'd0;
+        cop_mem_wen_r   <= 1'b0;
+        cop_mem_aw_done <= 1'b0;
+        cop_mem_w_done  <= 1'b0;
+        cop_mem_killed_r <= 1'b0;
+        cop_mem_done_r  <= 1'b0;
+        cop_mem_rdata_r <= 32'b0;
+        cop_mem_addr_r  <= 32'b0;
+        cop_mem_wdata_r <= 32'b0;
+        cop_mem_size_r  <= 3'b0;
+    end else begin
+        cop_mem_done_r <= 1'b0;
+        if (cop_kill) begin
+            if ((cop_mem_state == 2'd1) && !cop_mem_wen_r && !cop_mem_ar_fire) begin
+                cop_mem_state <= 2'd0;
+                cop_mem_killed_r <= 1'b0;
+            end else if ((cop_mem_state == 2'd1) && cop_mem_wen_r &&
+                         !(cop_mem_aw_done || cop_mem_aw_fire) && !(cop_mem_w_done || cop_mem_w_fire)) begin
+                cop_mem_state <= 2'd0;
+                cop_mem_killed_r <= 1'b0;
+            end else if (cop_mem_state != 2'd0) begin
+                cop_mem_killed_r <= 1'b1;
+                if ((cop_mem_state == 2'd2) && (cop_mem_wen_r ? cop_mem_b_fire : cop_mem_r_fire)) begin
+                    cop_mem_state <= 2'd0;
+                    cop_mem_killed_r <= 1'b0;
+                end
+                if ((cop_mem_state == 2'd1) && !cop_mem_wen_r && cop_mem_ar_fire) begin
+                    cop_mem_state <= 2'd2;
+                end
+                if ((cop_mem_state == 2'd1) && cop_mem_wen_r) begin
+                    if (cop_mem_aw_fire) begin
+                        cop_mem_aw_done <= 1'b1;
+                    end
+                    if (cop_mem_w_fire) begin
+                        cop_mem_w_done <= 1'b1;
+                    end
+                    if ((cop_mem_aw_done || cop_mem_aw_fire) && (cop_mem_w_done || cop_mem_w_fire)) begin
+                        cop_mem_state <= 2'd2;
+                    end
+                end
+            end
+        end else begin
+        case (cop_mem_state)
+            2'd0: begin
+                if (cop_mem_new_req) begin
+                    cop_mem_state   <= 2'd1;
+                    cop_mem_wen_r   <= COP_MEM_REQ_STORE;
+                    cop_mem_aw_done <= 1'b0;
+                    cop_mem_w_done  <= 1'b0;
+                    cop_mem_killed_r <= 1'b0;
+                    cop_mem_addr_r  <= COP_MEM_ADDR;
+                    cop_mem_wdata_r <= COP_MEM_WDATA;
+                    cop_mem_size_r  <= COP_MEM_SIZE;
+                end
+            end
+            2'd1: begin
+                if (cop_mem_wen_r) begin
+                    if (!cop_mem_aw_done && cop_mem_aw_fire) begin
+                        cop_mem_aw_done <= 1'b1;
+                    end
+                    if (!cop_mem_w_done && cop_mem_w_fire) begin
+                        cop_mem_w_done <= 1'b1;
+                    end
+                    if ((cop_mem_aw_done || cop_mem_aw_fire) && (cop_mem_w_done || cop_mem_w_fire)) begin
+                        cop_mem_state <= 2'd2;
+                    end
+                end else if (cop_mem_ar_fire) begin
+                    cop_mem_state <= 2'd2;
+                end
+            end
+            2'd2: begin
+                if (cop_mem_wen_r ? cop_mem_b_fire : cop_mem_r_fire) begin
+                    cop_mem_state   <= cop_mem_killed_r ? 2'd0 : 2'd3;
+                    cop_mem_rdata_r <= LSU_SRAM_AXI_RDATA;
+                end
+            end
+            2'd3: begin
+                cop_mem_state  <= 2'd0;
+                cop_mem_done_r <= 1'b1;
+                cop_mem_killed_r <= 1'b0;
+            end
+            default: begin
+                cop_mem_state <= 2'd0;
+            end
+        endcase
+        end
+    end
+end
 
 // Latch mispredict signals for one full cycle
 reg mispredict_latched;
@@ -849,34 +1051,34 @@ hcpu_Xbar xbar
     .IFU_ARBURST                       (IFU_SRAM_AXI_ARBURST      ),
 
   // LSU AXI-FULL Interface
-    .LSU_AWADDR                        (LSU_SRAM_AXI_AWADDR       ),
-    .LSU_AWVALID                       (LSU_SRAM_AXI_AWVALID      ),
+    .LSU_AWADDR                        (LSU_ARB_AXI_AWADDR        ),
+    .LSU_AWVALID                       (LSU_ARB_AXI_AWVALID       ),
     .LSU_AWREADY                       (LSU_SRAM_AXI_AWREADY      ),
-    .LSU_AWLEN                         (LSU_SRAM_AXI_AWLEN        ),
-    .LSU_AWSIZE                        (LSU_SRAM_AXI_AWSIZE       ),
-    .LSU_AWBURST                       (LSU_SRAM_AXI_AWBURST      ),
-    .LSU_AWID                          (LSU_SRAM_AXI_AWID         ),
-    .LSU_WVALID                        (LSU_SRAM_AXI_WVALID       ),
+    .LSU_AWLEN                         (LSU_ARB_AXI_AWLEN         ),
+    .LSU_AWSIZE                        (LSU_ARB_AXI_AWSIZE        ),
+    .LSU_AWBURST                       (LSU_ARB_AXI_AWBURST       ),
+    .LSU_AWID                          (LSU_ARB_AXI_AWID          ),
+    .LSU_WVALID                        (LSU_ARB_AXI_WVALID        ),
     .LSU_WREADY                        (LSU_SRAM_AXI_WREADY       ),
-    .LSU_WDATA                         (LSU_SRAM_AXI_WDATA        ),
-    .LSU_WSTRB                         (LSU_SRAM_AXI_WSTRB        ),
-    .LSU_WLAST                         (LSU_SRAM_AXI_WLAST        ),
+    .LSU_WDATA                         (LSU_ARB_AXI_WDATA         ),
+    .LSU_WSTRB                         (LSU_ARB_AXI_WSTRB         ),
+    .LSU_WLAST                         (LSU_ARB_AXI_WLAST         ),
     .LSU_RDATA                         (LSU_SRAM_AXI_RDATA        ),
     .LSU_RRESP                         (LSU_SRAM_AXI_RRESP        ),
     .LSU_RVALID                        (LSU_SRAM_AXI_RVALID       ),
-    .LSU_RREADY                        (LSU_SRAM_AXI_RREADY       ),
+    .LSU_RREADY                        (LSU_ARB_AXI_RREADY        ),
     .LSU_RID                           (LSU_SRAM_AXI_RID          ),
     .LSU_RLAST                         (LSU_SRAM_AXI_RLAST        ),
-    .LSU_ARADDR                        (LSU_SRAM_AXI_ARADDR       ),
-    .LSU_ARVALID                       (LSU_SRAM_AXI_ARVALID      ),
+    .LSU_ARADDR                        (LSU_ARB_AXI_ARADDR        ),
+    .LSU_ARVALID                       (LSU_ARB_AXI_ARVALID       ),
     .LSU_ARREADY                       (LSU_SRAM_AXI_ARREADY      ),
-    .LSU_ARID                          (LSU_SRAM_AXI_ARID         ),
-    .LSU_ARLEN                         (LSU_SRAM_AXI_ARLEN        ),
-    .LSU_ARSIZE                        (LSU_SRAM_AXI_ARSIZE       ),
-    .LSU_ARBURST                       (LSU_SRAM_AXI_ARBURST      ),
+    .LSU_ARID                          (LSU_ARB_AXI_ARID          ),
+    .LSU_ARLEN                         (LSU_ARB_AXI_ARLEN         ),
+    .LSU_ARSIZE                        (LSU_ARB_AXI_ARSIZE        ),
+    .LSU_ARBURST                       (LSU_ARB_AXI_ARBURST       ),
     .LSU_BRESP                         (LSU_SRAM_AXI_BRESP        ),
     .LSU_BVALID                        (LSU_SRAM_AXI_BVALID       ),
-    .LSU_BREADY                        (LSU_SRAM_AXI_BREADY       ),
+    .LSU_BREADY                        (LSU_ARB_AXI_BREADY        ),
     .LSU_BID                           (LSU_SRAM_AXI_BID          ),
 
     .CLINT_ARADDR                      (CLINT_AXI_ARADDR          ),

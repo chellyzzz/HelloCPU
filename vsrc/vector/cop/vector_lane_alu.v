@@ -8,6 +8,12 @@ module hcpu_vector_lane_alu(
 localparam OP_ADD8 = 4'd0;
 localparam OP_XOR8 = 4'd1;
 localparam OP_AND8 = 4'd2;
+localparam OP_SUB8 = 4'd3;
+localparam OP_MUL8 = 4'd4;
+localparam OP_SLL8 = 4'd5;
+localparam OP_SRL8 = 4'd6;
+localparam OP_SRA8 = 4'd7;
+localparam OP_OR8  = 4'd8;
 
 wire [31:0] lane_add8 = {
     i_lhs[31:24] + i_rhs[31:24],
@@ -15,12 +21,48 @@ wire [31:0] lane_add8 = {
     i_lhs[15:8]  + i_rhs[15:8],
     i_lhs[7:0]   + i_rhs[7:0]
 };
+wire [31:0] lane_sub8 = {
+    i_lhs[31:24] - i_rhs[31:24],
+    i_lhs[23:16] - i_rhs[23:16],
+    i_lhs[15:8]  - i_rhs[15:8],
+    i_lhs[7:0]   - i_rhs[7:0]
+};
+wire [31:0] lane_mul8 = {
+    i_lhs[31:24] * i_rhs[31:24],
+    i_lhs[23:16] * i_rhs[23:16],
+    i_lhs[15:8]  * i_rhs[15:8],
+    i_lhs[7:0]   * i_rhs[7:0]
+};
+wire [31:0] lane_sll8 = {
+    i_lhs[31:24] << i_rhs[26:24],
+    i_lhs[23:16] << i_rhs[18:16],
+    i_lhs[15:8]  << i_rhs[10:8],
+    i_lhs[7:0]   << i_rhs[2:0]
+};
+wire [31:0] lane_srl8 = {
+    i_lhs[31:24] >> i_rhs[26:24],
+    i_lhs[23:16] >> i_rhs[18:16],
+    i_lhs[15:8]  >> i_rhs[10:8],
+    i_lhs[7:0]   >> i_rhs[2:0]
+};
+wire [31:0] lane_sra8 = {
+    $signed(i_lhs[31:24]) >>> i_rhs[26:24],
+    $signed(i_lhs[23:16]) >>> i_rhs[18:16],
+    $signed(i_lhs[15:8])  >>> i_rhs[10:8],
+    $signed(i_lhs[7:0])   >>> i_rhs[2:0]
+};
 
 always @(*) begin
     case (i_op)
         OP_ADD8: o_res = lane_add8;
         OP_XOR8: o_res = i_lhs ^ i_rhs;
         OP_AND8: o_res = i_lhs & i_rhs;
+        OP_SUB8: o_res = lane_sub8;
+        OP_MUL8: o_res = lane_mul8;
+        OP_SLL8: o_res = lane_sll8;
+        OP_SRL8: o_res = lane_srl8;
+        OP_SRA8: o_res = lane_sra8;
+        OP_OR8:  o_res = i_lhs | i_rhs;
         default: o_res = lane_add8;
     endcase
 end
