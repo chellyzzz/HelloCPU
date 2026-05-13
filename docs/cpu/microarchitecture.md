@@ -15,7 +15,7 @@ ICache        ALU / LSU / Multiplier / Divider / Branch / COP backend
  +--------------+-> Xbar -> AXI RAM / MMIO
 ```
 
-Current validated throughput: `2.853 CoreMark/MHz`, `IPC=0.874`, `10.4%` stall rate.
+Current validated throughput: `2.940 CoreMark/MHz`, `IPC=0.900`, `10.0%` stall rate.
 
 ## IFU
 
@@ -25,7 +25,7 @@ The IFU owns the fetch PC and selects the next PC from these sources, in priorit
 |--------|---------|
 | EXU redirect | Mispredict recovery |
 | WBU PC update | Architectural redirect / unresolved control flow |
-| Predictor target | BTB, RAS, or static JAL prediction |
+| Predictor target | BTB/tournament/loop, RAS, or static JAL prediction |
 | `pc + 4` | Sequential fetch |
 
 The IFU reads through a 4 KB ICache. Cache hit rate on CoreMark is `99.6%`, so current frontend bottleneck is not cache capacity but redirect recovery.
@@ -41,7 +41,7 @@ The IDU is combinational. It decodes RV32I, RV32M, and Zicsr instructions and pr
 - control-flow signals
 - predictor metadata
 
-The IFU/IDU/IDU-EXU path uses pass-through ready chaining. Registered-valid and skid-buffer variants were tested and rejected because they break control-flow alignment.
+The IFU/IDU boundary uses registered valid with payload and predictor metadata held stable under backpressure. IDU/EXU captures the accepted payload so branch resolution checks the prediction attached to the same instruction.
 
 ## EXU
 
@@ -71,7 +71,7 @@ The LSU contains the DCache arrays, cache hit/miss logic, refill/writeback contr
 | Uncached access | single-beat AXI path |
 | Refill completion | conservative pulsed `RREADY` |
 
-This LSU work is the main reason CoreMark improved from `2.382` to `2.853 CoreMark/MHz`.
+This LSU work is the main reason CoreMark improved from `2.382` to `2.853 CoreMark/MHz`; the current `2.940 CoreMark/MHz` reference adds the post-merge predictor/recovery work.
 
 ### LSU performance status
 
@@ -79,7 +79,7 @@ CoreMark ITER=100:
 
 | Metric | Value |
 |--------|-------|
-| LSU wait | `7,107` cycles |
+| LSU wait | `6,826` cycles |
 | LSU stall share | `0.2%` |
 | Load transactions | `209` |
 | Store transactions | `600` |
@@ -106,10 +106,10 @@ The WBU commits register/CSR writes and generates architectural PC updates.
 
 Correctly predicted branches/JAL/JALR do not force redundant redirects. Remaining WBU redirect events on CoreMark:
 
-- total `795,702`
-- branch `754,234` (94.8%)
-- JAL `4,966`
-- JALR `36,502`
+- total `521,545`
+- branch `489,459` (93.8%)
+- JAL `0`
+- JALR `32,086`
 
 ## Register File
 
@@ -130,7 +130,11 @@ The Xbar arbitrates RAM and MMIO access.
 
 | Component | Role |
 |-----------|------|
-| BTB | branch direction and target |
+| BTB | branch target cache and weak/strong direction input |
+| Global BHT | fallback direction predictor, including BTB-miss taken prediction |
+| Local history + PHT | local direction predictor |
+| Chooser | selects local predictor or BTB/BHT path |
+| Loop-exit override | predicts confident loop exits as not-taken |
 | RAS | return target prediction |
 | Static JAL | JAL target generation in IFU |
 
@@ -138,10 +142,12 @@ Current CoreMark predictor status:
 
 | Metric | Value |
 |--------|-------|
-| BTB hits | `5,939,881` |
-| BTB misses | `1,025,583` |
-| BTB mispredicts | `780,786` |
-| Redirect cost | `3` avg cycles (`772,653` events) |
+| BTB hits | `5,779,930` |
+| BTB misses | `914,458` |
+| BTB mispredicts | `521,545` |
+| Target-bad events | `0` |
+| RAS hits / misses | `194,363 / 3` |
+| Redirect cost | `3` avg cycles (`514,396` events) |
 
 Redirect-related frontend refill is now the dominant bottleneck.
 
@@ -161,14 +167,15 @@ Future vector memory access and RVV migration will require CPU-side decode, LSU 
 
 Current CoreMark ITER=100 stall picture:
 
-The historical table below still reflects the older mixed reporting bucket. Current counter semantics now print `True stall cycles` separately from `Backend pipe occ`, so normal EXU->WBU occupancy is no longer presented as backend stall.
+Current counter semantics print `True stall cycles` separately from `Backend pipe occ`, so normal EXU->WBU occupancy is no longer presented as backend stall.
 
 | Source | Cycles | % of stalls | Owner |
 |--------|--------|-------------|-------|
-| Frontend/empty | `2,005,006` | 55.0% | B |
-| Other backend | `837,926` | 23.0% | A (currently mostly normal EXU→WBU pipe occupancy) |
-| Control recovery | `795,702` | 21.8% | B |
-| LSU wait | `7,107` | 0.2% | A done |
+| Frontend/empty | `2,339,440` | 69.0% | B |
+| Control recovery | `1,043,090` | 30.7% | B/D |
+| IFU held valid | `9,509` | 0.3% | A/B boundary done |
+| LSU wait | `6,826` | 0.2% | A done |
 | DIV wait | `2,962` | 0.1% | A done |
+| Other blocked backend | `0` | 0.0% | A done |
 
-This means HelloCPU is no longer limited by LSU/cache-hit latency. The current bottleneck is frontend redirect recovery. The `Other backend` bucket is now understood to be dominated by normal EXU→WBU pipe occupancy for ordinary scalar instructions, not a large true backend stall source.
+This means HelloCPU is no longer limited by LSU/cache-hit latency. The current bottleneck is frontend redirect recovery: predictor work reduced redirect count, but each remaining redirect still costs about 3 cycles.

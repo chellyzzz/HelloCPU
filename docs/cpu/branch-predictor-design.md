@@ -1,44 +1,71 @@
 # Branch Predictor Design
 
-HelloCPU uses a simple predictor in the IFU and verifies predictions in the EXU. The validated predictor configuration enables conditional-branch BTB prediction, static JAL prediction, and RAS return prediction.
+HelloCPU predicts control flow in the IFU and verifies predictions in the EXU. The current validated configuration combines a tagged BTB target cache, tournament direction prediction, a loop-exit override, static JAL prediction, and RAS return prediction.
 
-This document records the predictor design and the historical validation point when the full predictor became correct. Current whole-CPU performance numbers are maintained in `coremark-results.md`.
+This document records the current predictor design and the historical validation point when the full predictor became correct. Current whole-CPU performance numbers are maintained in `coremark-results.md`.
 
 ## Predictor Validation Snapshot
 
 | Test | Result |
 |------|--------|
+| `make bench_only ITER=100` | Current snapshot on `41b0734`: PASS, `2.940 CoreMark/MHz`, `34,010,300` simulator cycles |
+| CoreMark ITER=100 predictor counters | `521,545` BTB mispredicts, `7.8%` mispredict rate, `0` target-bad events |
 | `make run` | Historical snapshot: `40 passed, 0 failed` |
 | `make run ALL=quick-sort` | Historical snapshot: PASS, `6750` cycles |
 | CoreMark ITER=1 | Historical snapshot: correct CRC, `715631` simulator cycles |
-| CoreMark/MHz | Historical predictor-only snapshot: `1.404`; current CPU reference: `2.381` |
+| CoreMark/MHz | Historical predictor-only snapshot: `1.404`; current CPU reference: `2.940` |
 
 ## IFU Prediction
 
 The IFU chooses the next PC from prediction logic when the current instruction is available and the next stage can accept it.
 
 ```text
-if JAL:                 next_pc = jal_target
-else if return + RAS:   next_pc = ras_target
-else if BTB predicts:   next_pc = btb_target
-else:                   next_pc = pc + 4
+if JAL:                         next_pc = jal_target
+else if return + RAS:           next_pc = ras_target
+else if branch predictor taken: next_pc = predictor_target
+else:                           next_pc = pc + 4
 ```
 
-The IFU passes `predict_taken` and `predict_target` through IFU/IDU and IDU/EXU pipeline registers so EXU can verify the prediction against the actual result.
+For conditional branches, a BTB hit supplies the cached target. A predicted-taken BTB miss uses the branch immediate target decoded in IFU, so direction fallback can still redirect fetch even when the target cache misses.
+
+The IFU passes `predict_taken`, `predict_target`, and `predict_btb_hit` through IFU/IDU and IDU/EXU pipeline registers so EXU can verify direction, target, and predictor subtype counters against the actual result.
 
 ## BTB
 
 | Field | Value |
 |-------|-------|
-| Entries | 64 |
+| Entries | 128 |
 | Mapping | Direct mapped |
-| Index | `pc[7:2]` |
+| Index | `pc[8:2]` |
 | Tag | upper PC bits |
 | Counter | 2-bit saturating counter |
 
-Prediction is taken when the entry hits and `counter[1] == 1`.
+The BTB is now a target cache plus one input to direction prediction. On a BTB hit, strongly taken/strongly not-taken BTB counters decide direction directly; weak BTB states defer to the global BHT counter. On a BTB miss, the BHT can still predict taken and IFU uses the decoded branch target.
 
 BTB updates happen in EXU for conditional branches only. Taken branches allocate/update targets; not-taken branches decay the counter when the entry exists.
+
+## Direction Predictor
+
+| Component | Configuration | Role |
+|-----------|---------------|------|
+| Global BHT | 512 2-bit counters, indexed by `pc[10:2]` | Direction fallback and weak-BTB direction input |
+| Local history table | 1024 entries, 8-bit local history | Per-PC local branch behavior |
+| Local PHT | 256 2-bit counters | Predicts from local history pattern |
+| Chooser | 1024 2-bit counters | Selects local predictor or BTB/BHT path |
+
+The tournament result is selected by the chooser. The chooser only changes when the local predictor and BTB/BHT path disagree and one side is correct.
+
+## Loop-Exit Override
+
+| Field | Value |
+|-------|-------|
+| Entries | 128 |
+| Index | `pc[8:2]` |
+| Tag | upper PC bits |
+| Trip counter | 16 bits |
+| Confidence | 2-bit saturating counter |
+
+The loop predictor only overrides to not-taken at a confident loop exit. It does not force steady-state taken predictions, which avoids regressing tight loops where the tournament predictor is already correct.
 
 ## RAS
 
@@ -91,7 +118,24 @@ o_pc_update <= i_pre_valid &&
 
 This avoids clearing correctly predicted JAL/JALR/branch paths and preserves the benefit of early fetch.
 
-## Historical CoreMark Predictor Counters
+## CoreMark Predictor Counters
+
+Current CoreMark `ITER=100` predictor counters on `41b0734`:
+
+```text
+BTB hits          : 5779930 (86.3%)
+BTB misses        : 914458 (13.7%)
+BTB mispredicts   : 521545 (7.8%)
+  pred NT,taken   : 286597
+  pred T,NT       : 202862
+  target bad      : 0
+RAS hits          : 194363 (100.0%)
+RAS misses        : 3
+WBU pcupdate      : 521545
+Redirect cost     : 3 avg cycles (514396 events)
+```
+
+Historical ITER=1 predictor bring-up counters:
 
 ```text
 BTB hits          : 62766 (84.0%)

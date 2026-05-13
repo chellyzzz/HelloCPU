@@ -74,6 +74,47 @@ ROI verdict:
 
 - **Pass**. This work satisfied the new ROI rule because it first proved the dominant loss was direction miss, then reduced the relevant intermediate metrics, while preserving future structural boundaries.
 
+### Post-merge CoreMark ITER=100 validation
+
+Validation point: `41b0734 fix: wire legacy cop instance to new exu interface`, after `4cda60b merge: integrate b-line predictor recovery`.
+
+Command:
+
+```bash
+make bench_only ITER=100
+```
+
+Result:
+
+- Status: **PASS**
+- `CoreMark/MHz = 2.940`
+- CoreMark-reported `Total cycles = 34,005,979`
+- Simulator `Total cycles = 34,010,300`
+- `Total instructions = 30,617,983`
+- `IPC = 0.900`
+- `True stall cycles = 3,392,318` (`10.0%`)
+- `Frontend/empty = 2,339,440`
+- `IFU held valid = 9,509`
+- `Control recovery = 1,043,090`
+- `BTB hits = 5,779,930` (`86.3%`)
+- `BTB misses = 914,458` (`13.7%`)
+- `BTB mispredicts = 521,545` (`7.8%`)
+- Mispredict subtype split:
+  - `pred NT,taken = 286,597` (`279,551` BTB hit / `7,046` BTB miss)
+  - `pred T,NT = 202,862` (`198,625` BTB hit / `4,237` BTB miss)
+  - `target bad = 0`
+- `RAS hits = 194,363`, `RAS misses = 3`
+- `WBU pcupdate = 521,545` (`489,459` branch / `32,086` JALR)
+- Redirect cost: `3 avg cycles` (`514,396` events), branch `3 avg`, JALR `3 avg`
+
+Analysis vs the original ROI baseline:
+
+- Throughput improved from `2.853` to `2.940` CoreMark/MHz, about `+3.0%`.
+- BTB mispredicts dropped from `780,786` to `521,545`, about `-33.2%`, confirming the predictor-side direction work is carrying the score gain.
+- `target bad` remains `0`, so target coverage is still not the limiting branch issue.
+- `RAS` behavior is effectively saturated (`194,363 / 194,366` hits), so return prediction is not a current bottleneck.
+- `Control recovery` and `Frontend/empty` are higher than the old baseline counters despite fewer mispredicts. Treat these as a follow-up audit item: after the predictor/recovery merge and IFU/IDU valid repair, the intermediate counter semantics may no longer be directly comparable to the pre-merge baseline, and the redirect-cost summary still reports `3 avg cycles` rather than a proven sustained `2-cycle` recovery.
+
 ## Assigned Tasks
 
 ### B-Task-7: BTB miss / mispredict reduction
