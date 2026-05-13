@@ -260,6 +260,7 @@ wire                                    cop_mem_b_fire             ;
 wire                                    cop_mem_ar_fire            ;
 wire                                    cop_mem_r_fire             ;
 wire                                    cop_mem_bus_active         ;
+wire                                    cop_mem_resp_active        ;
 
 //read data channel
 wire                   [  31:0]         CLINT_AXI_RDATA            ;
@@ -569,15 +570,16 @@ assign cop_issue_active = cop_decode_active;
 assign cop_commit_active = cop_inflight;
 assign cop_pipeline_active = cop_commit_active || cop_issue_active;
 assign cop_mem_bus_active = (cop_mem_state != 2'd0);
-assign mem_owner_cop_active = cop_mem_bus_active || cop_mem_done_r;
+assign cop_mem_resp_active = cop_mem_bus_active || cop_mem_done_r;
+assign mem_owner_cop_active = cop_mem_bus_active;
 assign mem_owner_scalar_active = !mem_owner_cop_active && scalar_mem_req_valid;
 assign mem_owner_req_valid = mem_owner_cop_active ? 1'b1 : scalar_mem_req_valid;
 assign mem_owner_req_store = mem_owner_cop_active ? cop_mem_wen_r : scalar_mem_req_store;
 assign mem_owner_req_addr = mem_owner_cop_active ? cop_mem_addr_r : scalar_mem_req_addr;
 assign mem_owner_req_wdata = mem_owner_cop_active ? cop_mem_wdata_r : scalar_mem_req_wdata;
 assign mem_owner_req_size = mem_owner_cop_active ? cop_mem_size_r : scalar_mem_req_size;
-assign mem_owner_resp_valid = mem_owner_cop_active ? (cop_mem_done_r && !cop_mem_killed_r) : scalar_mem_resp_valid;
-assign mem_owner_resp_rdata = mem_owner_cop_active ? cop_mem_rdata_r : scalar_mem_resp_rdata;
+assign mem_owner_resp_valid = cop_mem_resp_active ? (cop_mem_done_r && !cop_mem_killed_r) : scalar_mem_resp_valid;
+assign mem_owner_resp_rdata = cop_mem_resp_active ? cop_mem_rdata_r : scalar_mem_resp_rdata;
 assign scalar_issue = idu2exu_valid && !idu2exu_is_cop_insn && !cop_pipeline_active;
 assign cop_refetch_flush = cop_resp_fire;
 assign cop_active_pc = cop_commit_active ? cop_inflight_pc : idu2exu_pc;
