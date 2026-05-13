@@ -252,6 +252,7 @@ This still does not add queueing or multi-request overlap. It only makes the bac
 - `accept`, `done`, and `commit-visible` now mean the same thing on both scalar and COP result paths
 - delayed scalar LSU completion is treated like a killed response, not an automatically visible one
 - performance reporting now keeps `Other blocked backend` aligned with true residual blocked cycles instead of the broader historical bucket name
+- multiply reporting now separates `MUL-low` and `MUL-high`, so `mul-high` no longer hides inside `Other backend` interpretation
 
 Current focused regression entry points now additionally include:
 

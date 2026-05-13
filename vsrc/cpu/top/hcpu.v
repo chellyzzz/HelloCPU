@@ -998,6 +998,7 @@ reg  idu2exu_cop_d;
 reg  idu2exu_fence_i_d;
 reg  idu2exu_brch_d;
 reg  idu2exu_is_div_d;
+reg  idu2exu_is_mul_low_d;
 
 always @(posedge clock or posedge reset) begin
   if (reset) begin
@@ -1008,6 +1009,7 @@ always @(posedge clock or posedge reset) begin
     idu2exu_fence_i_d <= 1'b0;
     idu2exu_brch_d    <= 1'b0;
     idu2exu_is_div_d  <= 1'b0;
+    idu2exu_is_mul_low_d <= 1'b0;
   end else begin
     idu2exu_load_d    <= idu2exu_load;
     idu2exu_store_d   <= idu2exu_store;
@@ -1016,6 +1018,7 @@ always @(posedge clock or posedge reset) begin
     idu2exu_fence_i_d <= idu2exu_fence_i;
     idu2exu_brch_d    <= idu2exu_brch;
     idu2exu_is_div_d  <= idu2exu_muldiv && idu2exu_exu_opt[2];
+    idu2exu_is_mul_low_d <= idu2exu_muldiv && !idu2exu_exu_opt[2] && (idu2exu_exu_opt[1:0] == 2'b00);
   end
 end
 
@@ -1280,6 +1283,8 @@ import "DPI-C" function void brch_tkn_dpic   ();
 import "DPI-C" function void load_dpic       ();
 import "DPI-C" function void store_dpic      ();
 import "DPI-C" function void mul_cnt_dpic    ();
+import "DPI-C" function void mul_low_cnt_dpic();
+import "DPI-C" function void mul_high_cnt_dpic();
 import "DPI-C" function void div_cnt_dpic    ();
 import "DPI-C" function void cop_cnt_dpic    ();
 import "DPI-C" function void alu_cnt_dpic    ();
@@ -1360,8 +1365,13 @@ always @(posedge clock) begin
     if (idu2exu_load_d)                load_dpic();
     if (idu2exu_store_d)               store_dpic();
     if (idu2exu_muldiv_d) begin
-      if (idu2exu_is_div_d)  div_cnt_dpic();
-      else                   mul_cnt_dpic();
+      if (idu2exu_is_div_d) begin
+        div_cnt_dpic();
+      end else begin
+        mul_cnt_dpic();
+        if (idu2exu_is_mul_low_d) mul_low_cnt_dpic();
+        else                      mul_high_cnt_dpic();
+      end
     end
     if (idu2exu_cop_d)                   cop_cnt_dpic();
     if (!idu2exu_load_d && !idu2exu_store_d && !idu2exu_muldiv_d && !idu2exu_cop_d &&

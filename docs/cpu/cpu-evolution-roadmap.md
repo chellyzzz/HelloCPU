@@ -336,6 +336,7 @@ A 线负责：
 - `Other blocked backend` 保留给真正的 residual blocked case
 - 正常一拍 EXU->WBU 传递单独落到 `Backend pipe occ`
 - `Backend pipe occ` 继续细分为 `ALU/other`、`branch`、`JAL`、`JALR`、`sys/csr`
+- `mul-high` 不再作为 `Other` 残项理解；它现在在 `MUL/DIV wait` 与 multiply mix 中单独可见
 
 #### A-2：统一 backend 接口语义
 
