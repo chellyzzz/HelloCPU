@@ -22,6 +22,7 @@ module hcpu_IFU
     // Prediction outputs (to pipeline registers)
     output                              o_predict_taken            ,
     output             [  31:2]         o_predict_target           ,
+    output                              o_predict_btb_hit          ,
 
     // ICache interface
     output             [  31:0]         req_addr                   ,
@@ -60,6 +61,7 @@ wire pred_taken_comb = pred_taken_btb || pred_taken_jal || pred_taken_ras;
 
 assign o_predict_taken  = hit && pred_taken_comb;
 assign o_predict_target = pred_target;
+assign o_predict_btb_hit = hit && is_brch && btb_lookup_hit;
 
 wire [31:0] next_seq_pc = pc_next + 32'd4;
 wire [31:0] next_pred_pc = {pred_target, 2'b00};

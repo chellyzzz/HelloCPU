@@ -4,3 +4,5 @@ wave.vcd
 *.o
 *.d
 *.a
+__pycache__/
+*.pyc

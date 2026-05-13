@@ -35,7 +35,7 @@ VECTOR_TESTS := $(basename $(notdir $(wildcard $(SW_DIR)/tests/vector-tests/*.c)
 
 # === Targets ===
 
-.PHONY: all sim sw clean run_% run_all bench bench_only
+.PHONY: all sim sw clean run_% run_all bench bench_only branch_trace predictor_sim ifu_idu_backpressure
 
 all: sim sw
 
@@ -87,6 +87,8 @@ endif
 #   make bench ITER=100       → standard performance run
 #   make bench_only ITER=200   → without rebuilding all tests
 ITER ?= 1
+TRACE ?= branch_trace.log
+POLICY ?= current
 
 bench: sim sw
 	$(MAKE) -C $(SW_DIR) benchmark ITER=$(ITER)
@@ -98,6 +100,21 @@ bench_only: sim
 	$(MAKE) -C $(SW_DIR) benchmark ITER=$(ITER)
 	@echo "=== CoreMark (ITER=$(ITER)) ==="
 	@$(BUILD_DIR)/V$(TOPNAME) $(SW_DIR)/build/coremark.bin
+
+branch_trace: sim
+	$(MAKE) -C $(SW_DIR) benchmark ITER=$(ITER)
+	@echo "=== Branch trace (ITER=$(ITER)) ==="
+	@$(BUILD_DIR)/V$(TOPNAME) $(SW_DIR)/build/coremark.bin --branch-trace=$(TRACE)
+
+predictor_sim:
+	python3 tools/predictor_sim/predictor_sim.py --trace $(TRACE) --policy $(POLICY) $(ARGS)
+
+ifu_idu_backpressure:
+	$(VERILATOR) --top-module hcpu_ifu_idu_regs --cc --exe --build -Wno-fatal -Wno-style \
+		vsrc/cpu/ifu/ifu_idu_regs.v $(abspath $(SIM_DIR)/ifu_idu_regs_backpressure_tb.cpp) \
+		--Mdir $(BUILD_DIR)/ifu_idu_regs_tb \
+		-o $(abspath $(BUILD_DIR)/Vifu_idu_regs_tb)
+	@$(BUILD_DIR)/Vifu_idu_regs_tb
 
 # Wave for debugging
 wave:

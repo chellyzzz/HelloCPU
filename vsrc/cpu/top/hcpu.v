@@ -133,8 +133,10 @@ wire                                    scalar_exu_ras_pop_en      ;
 // prediction through pipeline
 wire                                    ifu_predict_taken          ;
 wire                   [  31:2]         ifu_predict_target         ;
+wire                                    ifu_predict_btb_hit        ;
 wire                                    idu2exu_predict_taken      ;
 wire                   [  31:2]         idu2exu_predict_target     ;
+wire                                    idu2exu_predict_btb_hit    ;
 wire                   [   4:0]         idu2exu_rs1_addr           ;
 wire                                    exu2wbu_predict_taken      ;
 wire                                    exu_predict_correct        ;
@@ -147,6 +149,7 @@ reg                    [  31:0]         exu_redirect_pc_r          ;
 wire                                    ifu2idu_valid, idu2ifu_ready;
 wire                                    idu2exu_valid, exu2idu_ready;
 wire                                    exu2wbu_valid, wbu2exu_ready;
+wire                                    frontend_flush             ;
 wire                                    exu_lsu_dbg_wait_start    ;
 wire                                    exu_lsu_dbg_wait_hit      ;
 wire                                    exu_lsu_dbg_wait_refill   ;
@@ -292,6 +295,7 @@ wire [31:0] ifu2idu_ins;
 wire [31:0] ifu2idu_pc;
 wire        ifu2idu_predict_taken;
 wire [31:2] ifu2idu_predict_target;
+wire        ifu2idu_predict_btb_hit;
 
 hcpu_CSR_RegisterFile Csrs(
     .clock                             (clock                     ),
@@ -408,11 +412,12 @@ hcpu_IFU ifu1
     .ras_predict_valid                 (ras_predict_valid         ),
     .ras_predict_target                (ras_predict_target        ),
   // mispredict recovery
-    .exu_mispredict_flush              (exu_mispredict_flush_r     ),
-    .exu_redirect_pc                   (exu_redirect_pc_r          ),
+    .exu_mispredict_flush              (exu_mispredict_flush       ),
+    .exu_redirect_pc                   (exu_redirect_pc            ),
   // prediction outputs to pipeline
     .o_predict_taken                   (ifu_predict_taken         ),
-    .o_predict_target                  (ifu_predict_target        )
+    .o_predict_target                  (ifu_predict_target        ),
+    .o_predict_btb_hit                 (ifu_predict_btb_hit       )
 );
 
 hcpu_ifu_idu_regs ifu2idu_regs(
@@ -421,7 +426,8 @@ hcpu_ifu_idu_regs ifu2idu_regs(
     .i_ins                             (ins                       ),
     .o_ins                             (ifu2idu_ins               ),
     .clock                             (clock                     ),
-    .reset                             (reset  || pc_update_en || idu2exu_fence_i || exu_mispredict_flush_r  ),
+    .reset                             (reset                     ),
+    .flush                             (frontend_flush            ),
 
     .icache_hit                        (icache_hit                ),
     .i_pre_valid                       (pc_update_en              ),
@@ -430,8 +436,10 @@ hcpu_ifu_idu_regs ifu2idu_regs(
 
     .i_predict_taken                   (ifu_predict_taken         ),
     .i_predict_target                  (ifu_predict_target        ),
+    .i_predict_btb_hit                 (ifu_predict_btb_hit       ),
     .o_predict_taken                   (ifu2idu_predict_taken     ),
-    .o_predict_target                  (ifu2idu_predict_target    )
+    .o_predict_target                  (ifu2idu_predict_target    ),
+    .o_predict_btb_hit                 (ifu2idu_predict_btb_hit   )
 );
 
 hcpu_IDU idu1(
@@ -466,7 +474,8 @@ hcpu_IDU idu1(
 
 hcpu_idu_exu_regs idu2exu_regs(
     .clock                             (clock                     ),
-    .reset                             (reset || pc_update_en || idu2exu_fence_i || exu_mispredict_flush_r   ),
+    .reset                             (reset                     ),
+    .flush                             (frontend_flush            ),
     .i_pre_valid                       (ifu2idu_valid             ),
     .i_post_ready                      (exu2idu_ready             ),
     .o_pre_ready                       (idu2ifu_ready             ),
@@ -506,6 +515,7 @@ hcpu_idu_exu_regs idu2exu_regs(
 
     .i_predict_taken                   (ifu2idu_predict_taken     ),
     .i_predict_target                  (ifu2idu_predict_target    ),
+    .i_predict_btb_hit                 (ifu2idu_predict_btb_hit   ),
     .i_rs1_addr                        (idu_addr_rs1              ),
     
     .o_pc                              (idu2exu_pc                ),
@@ -536,6 +546,7 @@ hcpu_idu_exu_regs idu2exu_regs(
     .o_csr_addr                        (idu2exu_csr_addr          ),
     .o_predict_taken                   (idu2exu_predict_taken     ),
     .o_predict_target                  (idu2exu_predict_target    ),
+    .o_predict_btb_hit                 (idu2exu_predict_btb_hit   ),
     .o_rs1_addr                        (idu2exu_rs1_addr          )
 );
 
@@ -605,6 +616,7 @@ assign exu2idu_ready = cop_pipeline_active ? 1'b0 : scalar_exu2idu_ready;
 assign cop_kill = idu2exu_fence_i || exu_mispredict_flush_r;
 assign cop_resp_fire = cop_exu2wbu_valid && wbu2exu_ready;
 assign cop_queue_dequeue = cop_resp_fire;
+assign frontend_flush = pc_update_en || idu2exu_fence_i || exu_mispredict_flush;
 
 hcpu_idu_cop_regs idu2cop_regs(
     .clock                             (clock                     ),
@@ -655,6 +667,7 @@ hcpu_EXU exu1(
     .i_is_cop_insn                     (1'b0                      ),
     .i_predict_taken                   (idu2exu_predict_taken     ),
     .i_predict_target                  (idu2exu_predict_target    ),
+    .i_predict_btb_hit                 (idu2exu_predict_btb_hit   ),
     .i_rd_addr                         (idu2exu_rd                ),
     .i_rs1_addr                        (idu2exu_rs1_addr          ),
     .o_res                             (scalar_exu_res            ),
