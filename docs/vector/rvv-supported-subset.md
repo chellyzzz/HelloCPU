@@ -31,8 +31,8 @@
 
 | 项目 | 当前状态 | 第一批 RVV 目标 | 备注 |
 |------|----------|-----------------|------|
-| `vl` | prototype | planned | 当前 custom COP `vlen` 已按 `VLMAX=4` 饱和，仍不是标准 `vl` |
-| `vtype` | prototype | planned | P1B custom COP prototype 已覆盖 supported/illegal/kill |
+| `vl` | prototype | planned | 当前 custom COP `vlen` 和 `vsetivli_p` 已按 `VLMAX=4` 饱和，仍不是标准 `vl` |
+| `vtype` | prototype | planned | P1C/P2 custom COP prototype 已覆盖 supported/illegal/kill/consumer |
 | `vstart` | unsupported | unsupported | 第一批固定视为 0，不支持中途重启 |
 | `vxrm` | unsupported | deferred | 饱和/舍入类指令前不需要 |
 | `vxsat` | unsupported | deferred | 饱和类指令前不需要 |
@@ -55,15 +55,15 @@
 
 | 指令 | 当前状态 | 第一批 RVV 目标 | 备注 |
 |------|----------|-----------------|------|
-| `vsetvli` | unsupported | planned | P1B 尚未接标准 decode |
-| `vsetivli` | unsupported | planned | P1B 尚未接标准 decode |
+| `vsetvli` | unsupported | planned | 尚未接标准 decode |
+| `vsetivli` | prototype | planned | 当前仅有 custom `vsetivli_p` prototype，不是标准编码 |
 | `vsetvl` | unsupported | deferred | 可等 `vsetvli` 稳定后做 |
 
 ## 六、整数 ALU 指令
 
 | 指令 | 当前状态 | 第一批 RVV 目标 | 备注 |
 |------|----------|-----------------|------|
-| `vadd.vv` | prototype | planned | 可映射当前 VRF lane add 验证经验 |
+| `vadd.vv` | prototype | planned | P1C `vstate_add` 已验证 `vl/vtype` consumer 行为，但不是标准编码 |
 | `vadd.vx` | prototype | planned | 可复用 GPR source path |
 | `vadd.vi` | unsupported | deferred | immediate decode 可后置 |
 | `vsub.vv` | prototype | planned | 当前 VRF lane sub 可作为基础 |
@@ -133,6 +133,8 @@
 | pending-kill load | supported by directed test | RVV memory path 也需要覆盖 |
 | RVV decode illegal | unsupported | planned |
 | custom COP `vtype` prototype | supported by prototype tests | 保留到标准 `vset*` path 稳定 |
+| custom COP state consumer | supported by prototype tests | `vstate_add` 覆盖 `vl/vtype/vill` gating |
+| custom COP `vsetivli_p` | supported by prototype tests | 标准 `vsetivli` 前的低风险 prototype |
 | RVV `vset*` | unsupported | planned |
 | RVV ALU directed | unsupported | planned |
 | RVV load/store directed | unsupported | planned |

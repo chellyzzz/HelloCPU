@@ -52,10 +52,15 @@ wire        scratch_write;
 wire        vlen_write;
 wire        vtype_write;
 wire        vtype_read;
+wire        vstate_add;
+wire        vsetivli_proto;
 wire [31:0] scalar_lane_result;
 wire [31:0] vrf_op_result;
 wire [31:0] vlen_next_value;
+wire [31:0] vtype_write_value;
+wire [31:0] vsetivli_vtype_value;
 wire [31:0] vtype_next_value;
+wire [31:0] vstate_add_result;
 
 hcpu_vector_cop_decode u_cop_decode(
     .i_ins(i_ins),
@@ -70,7 +75,9 @@ hcpu_vector_cop_decode u_cop_decode(
     .o_scratch_write(scratch_write),
     .o_vlen_write(vlen_write),
     .o_vtype_write(vtype_write),
-    .o_vtype_read(vtype_read)
+    .o_vtype_read(vtype_read),
+    .o_vstate_add(vstate_add),
+    .o_vsetivli_proto(vsetivli_proto)
 );
 
 hcpu_vector_lane_alu u_scalar_lane_alu(
@@ -91,9 +98,21 @@ wire [31:0] scalar_op  = (cop_funct7 == 7'd1) ? (i_src1 - i_src2) :
                           (cop_funct7 == 7'd2) ? (i_src1 * i_src2) :
                           (i_src1 + i_src2);
 assign vlen_next_value = (i_src1 > 32'd4) ? 32'd4 : i_src1;
-assign vtype_next_value = ((i_src1[2:0] == 3'd0) || (i_src1[2:0] == 3'd2)) && (i_src1[5:3] == 3'd0) ?
-                          {29'b0, i_src1[2:0]} :
-                          32'h80000000;
+assign vtype_write_value = ((i_src1[2:0] == 3'd0) || (i_src1[2:0] == 3'd2)) && (i_src1[5:3] == 3'd0) ?
+                           {29'b0, i_src1[2:0]} :
+                           32'h80000000;
+assign vsetivli_vtype_value = ((i_src2[2:0] == 3'd0) || (i_src2[2:0] == 3'd2)) && (i_src2[5:3] == 3'd0) ?
+                              {29'b0, i_src2[2:0]} :
+                              32'h80000000;
+assign vtype_next_value = vsetivli_proto ? vsetivli_vtype_value : vtype_write_value;
+assign vstate_add_result = vtype[31] ? 32'h80000000 :
+                           (vtype[2:0] == 3'd2) ? ((vlen == 32'b0) ? 32'b0 : (i_src1 + i_src2)) :
+                           (vtype[2:0] == 3'd0) ? {
+                               (vlen > 32'd3) ? (i_src1[31:24] + i_src2[31:24]) : 8'b0,
+                               (vlen > 32'd2) ? (i_src1[23:16] + i_src2[23:16]) : 8'b0,
+                               (vlen > 32'd1) ? (i_src1[15:8]  + i_src2[15:8])  : 8'b0,
+                               (vlen > 32'd0) ? (i_src1[7:0]   + i_src2[7:0])   : 8'b0
+                           } : 32'h80000000;
 wire [1:0]  vrf_idx   = i_src2[1:0];
 wire        is_mem_op = is_mem_load || is_mem_store;
 wire [31:0] cop_result = (cop_funct3 == 3'b001) ? scalar_lane_result :
@@ -105,6 +124,8 @@ wire [31:0] cop_result = (cop_funct3 == 3'b001) ? scalar_lane_result :
                           (cop_funct3 == 3'b111) ? op_count :
                           vtype_write ? vtype :
                           vtype_read ? vtype :
+                          vstate_add ? vstate_add_result :
+                          vsetivli_proto ? vlen_next_value :
                           is_vrf_lane ? vrf_op_result :
                           is_vrf_op  ? vrf[vrf_idx] :
                           scalar_op;
@@ -169,9 +190,9 @@ always @(posedge clock or posedge reset) begin
             latched_res <= cop_result;
             pending_scratch_write <= scratch_write;
             pending_scratch_value <= i_src1;
-            pending_vlen_write    <= vlen_write;
+            pending_vlen_write    <= vlen_write || vsetivli_proto;
             pending_vlen_value    <= vlen_next_value;
-            pending_vtype_write   <= vtype_write;
+            pending_vtype_write   <= vtype_write || vsetivli_proto;
             pending_vtype_value   <= vtype_next_value;
             if (is_mem_op) begin
                 countdown    <= 2'b0;

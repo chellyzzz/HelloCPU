@@ -152,16 +152,34 @@ P1B RTL 合入前至少需要以下 directed software tests：
 - COP lane/state/VRF 不回退。
 - COP memory smoke 和 directed coverage 不回退。
 
-## 七、进入 P2 的条件
+## 七、P1C/P2 prototype extension
+
+P1C 在不修改 CPU shared boundary 的前提下，新增 custom COP `vstate_add` 作为第一条 `vl/vtype` consumer：
+
+| funct3 | funct7 | 操作 | 说明 |
+|--------|--------|------|------|
+| 0 | 18 | `vstate_add` | 按 prototype `vl/vtype` 执行加法，`vill=1` 返回 unsupported sentinel |
+
+P2 的第一步仍保持 COP-local，新增 custom COP `vsetivli_p` 作为标准 `vsetivli` 前的低风险状态配置原型：
+
+| funct3 | funct7 | 操作 | 说明 |
+|--------|--------|------|------|
+| 0 | 19 | `vsetivli_p` | `rs1=AVL`、`rs2=prototype vtype immediate`，同时写入 `vl/vtype`，返回新 `vl` |
+
+这两个编码仍属于 custom COP prototype。标准 OP-V decode、trap/illegal path、CSR 可见状态都留给后续 CPU interface review。
+
+## 八、进入标准 RVV decode 的条件
 
 只有满足以下条件，才进入标准 RVV decode 或 `vset*` path：
 
 - `vl` prototype 行为稳定，并有 kill/flush coverage。
 - `vtype` prototype 行为稳定，并有 illegal config coverage。
 - subset matrix 已把 `vl/vtype` 从 `planned` 更新为 `prototype`。
+- custom `vstate_add` 已证明 `vl/vtype/vill` gating 可用。
+- custom `vsetivli_p` 已证明 AVL 饱和和 `vtype` 配置路径可用。
 - 标准 RVV unsupported 行为已有设计文档，避免 silent wrong execution。
-- 若需要 CPU decode/trap 配合，先走 interface review。
+- CPU decode/trap/CSR interface review 完成。
 
-## 八、当前结论
+## 九、当前结论
 
-P1A 冻结的策略是：先把状态语义做稳，再接标准编码。下一步 P1B 应只实现 COP-local prototype `vtype` 和相关 tests，不改 CPU decode，不扩大 memory side effects。
+P1A/P1B/P1C/P2 prototype 的策略是：先把状态语义、state consumer 和 vset-like 配置路径做稳，再接标准编码。当前仍不改 CPU decode，不扩大 memory side effects，不声明标准 RVV supported。

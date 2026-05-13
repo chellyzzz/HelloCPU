@@ -260,6 +260,8 @@ P1A 状态契约见 `rvv-state-p1.md`。P1A 只冻结状态语义和验证范围
 
 当前状态：P1B 已实现 custom COP `vtype` prototype 和 `vl` 饱和到 `VLMAX=4` 的 prototype 行为。该阶段仍不声明标准 RVV supported；标准 `vset*` decode 留给后续 P2/interface review。
 
+P1C/P2 prototype 已新增 custom COP `vstate_add` 和 `vsetivli_p`：前者验证 `vl/vtype/vill` 被执行类操作消费，后者验证 vset-like AVL 饱和和 `vtype` 配置路径。两者仍使用 custom-0，不是标准 RVV decode。
+
 ### M2：RVV ALU 子集可运行
 
 - 标准 RVV 编码进入 backend。
