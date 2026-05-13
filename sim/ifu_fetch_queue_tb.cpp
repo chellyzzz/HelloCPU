@@ -22,22 +22,64 @@ static int expect(bool condition, const char *message) {
   return 0;
 }
 
+static int expect_predecode(Vhcpu_ifu_fetch_queue *top,
+                            uint32_t rd,
+                            uint32_t rs1,
+                            uint32_t rs2,
+                            bool wen,
+                            bool csr_wen,
+                            bool load,
+                            bool store,
+                            bool brch,
+                            bool jal,
+                            bool jalr,
+                            bool fence_i,
+                            bool muldiv,
+                            bool is_cop,
+                            bool ecall,
+                            bool mret,
+                            bool ebreak,
+                            const char *context) {
+  int fail = 0;
+  fail |= expect(top->o_predecode_rd == rd, context);
+  fail |= expect(top->o_predecode_rs1_addr == rs1, context);
+  fail |= expect(top->o_predecode_rs2_addr == rs2, context);
+  fail |= expect(top->o_predecode_wen == wen, context);
+  fail |= expect(top->o_predecode_csr_wen == csr_wen, context);
+  fail |= expect(top->o_predecode_load == load, context);
+  fail |= expect(top->o_predecode_store == store, context);
+  fail |= expect(top->o_predecode_brch == brch, context);
+  fail |= expect(top->o_predecode_jal == jal, context);
+  fail |= expect(top->o_predecode_jalr == jalr, context);
+  fail |= expect(top->o_predecode_fence_i == fence_i, context);
+  fail |= expect(top->o_predecode_muldiv == muldiv, context);
+  fail |= expect(top->o_predecode_is_cop_insn == is_cop, context);
+  fail |= expect(top->o_predecode_ecall == ecall, context);
+  fail |= expect(top->o_predecode_mret == mret, context);
+  fail |= expect(top->o_predecode_ebreak == ebreak, context);
+  return fail;
+}
+
 int main(int argc, char **argv) {
   Verilated::commandArgs(argc, argv);
   Vhcpu_ifu_fetch_queue *top = new Vhcpu_ifu_fetch_queue;
   int fail = 0;
 
   constexpr uint32_t pc_a = 0x30000010u;
-  constexpr uint32_t ins_a = 0x11111113u;
+  constexpr uint32_t ins_a = 0x00130293u;  // addi x5, x6, 1
   constexpr uint32_t target_a = 0x30000040u >> 2;
 
   constexpr uint32_t pc_b = 0x30000014u;
-  constexpr uint32_t ins_b = 0x22222213u;
+  constexpr uint32_t ins_b = 0x00208463u;  // beq x1, x2, 8
   constexpr uint32_t target_b = 0x30000080u >> 2;
 
   constexpr uint32_t pc_c = 0x30000018u;
-  constexpr uint32_t ins_c = 0x33333313u;
+  constexpr uint32_t ins_c = 0x00c22383u;  // lw x7, 12(x4)
   constexpr uint32_t target_c = 0x300000c0u >> 2;
+
+  constexpr uint32_t pc_d = 0x3000001cu;
+  constexpr uint32_t ins_d = 0x0000100fu;  // fence.i
+  constexpr uint32_t target_d = 0x30000100u >> 2;
 
   top->reset = 1;
   top->flush = 0;
@@ -70,6 +112,9 @@ int main(int argc, char **argv) {
   fail |= expect(top->o_predict_taken == 1, "first enqueue captures predict_taken");
   fail |= expect(top->o_predict_target == target_a, "first enqueue captures predict_target");
   fail |= expect(top->o_predict_btb_hit == 1, "first enqueue captures predict_btb_hit");
+  fail |= expect_predecode(top, 5, 6, 0, true, false, false, false, false, false,
+                           false, false, false, false, false, false, false,
+                           "addi predecode captured");
 
   top->i_pc = pc_b;
   top->i_ins = ins_b;
@@ -83,6 +128,9 @@ int main(int argc, char **argv) {
   fail |= expect(top->o_pc == pc_a, "oldest entry remains visible while second entry queues");
   fail |= expect(top->o_ins == ins_a, "oldest instruction remains visible while second entry queues");
   fail |= expect(top->o_enq_ready == 0, "queue reports full under backpressure after two entries");
+  fail |= expect_predecode(top, 5, 6, 0, true, false, false, false, false, false,
+                           false, false, false, false, false, false, false,
+                           "stall preserves first predecode entry");
 
   top->i_pc = pc_c;
   top->i_ins = ins_c;
@@ -110,6 +158,9 @@ int main(int argc, char **argv) {
   fail |= expect(top->o_predict_taken == 0, "second entry predict_taken preserved after replace");
   fail |= expect(top->o_predict_target == target_b, "second entry predict_target preserved after replace");
   fail |= expect(top->o_predict_btb_hit == 0, "second entry predict_btb_hit preserved after replace");
+  fail |= expect_predecode(top, 8, 1, 2, false, false, false, false, true, false,
+                           false, false, false, false, false, false, false,
+                           "branch predecode preserved after replace");
 
   top->i_enq_valid = 0;
   tick(top);
@@ -121,6 +172,9 @@ int main(int argc, char **argv) {
   fail |= expect(top->o_predict_taken == 1, "third predict_taken drains last");
   fail |= expect(top->o_predict_target == target_c, "third predict_target drains last");
   fail |= expect(top->o_predict_btb_hit == 0, "third predict_btb_hit drains last");
+  fail |= expect_predecode(top, 7, 4, 0, true, false, true, false, false, false,
+                           false, false, false, false, false, false, false,
+                           "load predecode drains last");
 
   tick(top);
   top->eval();
@@ -182,12 +236,21 @@ int main(int argc, char **argv) {
   fail |= expect(top->o_deq_valid == 0, "flush dominates concurrent dequeue and enqueue");
   fail |= expect(top->o_enq_ready == 1, "flush leaves queue ready after concurrent activity");
 
-  top->i_enq_valid = 0;
+  top->i_enq_valid = 1;
   top->i_deq_ready = 0;
+  top->i_pc = pc_d;
+  top->i_ins = ins_d;
+  top->i_predict_taken = 0;
+  top->i_predict_target = target_d;
+  top->i_predict_btb_hit = 0;
   tick(top);
   top->eval();
 
-  fail |= expect(top->o_deq_valid == 0, "no stale entry appears after flush-dominant cycle");
+  fail |= expect(top->o_deq_valid == 1, "queue accepts new entry after flush-dominant cycle");
+  fail |= expect(top->o_ins == ins_d, "fence.i instruction becomes visible after fresh enqueue");
+  fail |= expect_predecode(top, 0, 0, 0, false, false, false, false, false, false,
+                           false, true, false, false, false, false, false,
+                           "fence.i predecode captured");
 
   delete top;
   if (fail) {

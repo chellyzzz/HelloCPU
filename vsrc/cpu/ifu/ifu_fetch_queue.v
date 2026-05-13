@@ -1,3 +1,74 @@
+module hcpu_ifu_predecode_sidecar (
+    input              [31:0]           i_ins,
+    output             [27:0]           o_predecode_bundle
+);
+
+localparam TYPE_I      = 7'b0010011;
+localparam TYPE_I_LOAD = 7'b0000011;
+localparam TYPE_JALR   = 7'b1100111;
+localparam TYPE_EBRK   = 7'b1110011;
+localparam TYPE_S      = 7'b0100011;
+localparam TYPE_R      = 7'b0110011;
+localparam TYPE_AUIPC  = 7'b0010111;
+localparam TYPE_LUI    = 7'b0110111;
+localparam TYPE_JAL    = 7'b1101111;
+localparam TYPE_B      = 7'b1100011;
+localparam TYPE_FENCE  = 7'b0001111;
+localparam TYPE_COP    = 7'b0001011;
+
+wire [2:0] func3 = i_ins[14:12];
+wire [6:0] opcode = i_ins[6:0];
+wire [6:0] func7 = i_ins[31:25];
+wire [4:0] rs1 = i_ins[19:15];
+wire [4:0] rs2 = i_ins[24:20];
+wire [4:0] rd = i_ins[11:7];
+
+wire type_i = (opcode == TYPE_I);
+wire type_i_load = (opcode == TYPE_I_LOAD);
+wire type_r = (opcode == TYPE_R);
+wire type_m = type_r && (func7 == 7'b0000001);
+wire type_lui = (opcode == TYPE_LUI);
+wire type_auipc = (opcode == TYPE_AUIPC);
+wire type_jal = (opcode == TYPE_JAL);
+wire type_jalr = (opcode == TYPE_JALR);
+wire type_s = (opcode == TYPE_S);
+wire type_b = (opcode == TYPE_B);
+wire type_ebrk = (opcode == TYPE_EBRK);
+wire type_cop = (opcode == TYPE_COP);
+wire valid_ins = type_i || type_i_load || type_r || type_lui || type_auipc ||
+                 type_jal || type_jalr || type_s || type_b || type_ebrk || type_cop ||
+                 (opcode == TYPE_FENCE);
+
+wire [4:0] sidecar_rs1_addr = (type_auipc || type_lui || type_jal) ? 5'b0 : rs1;
+wire [4:0] sidecar_rs2_addr = (type_r || type_b || type_s || type_cop) ? rs2 : 5'b0;
+wire sidecar_wen = valid_ins && !(type_s || type_b || opcode == TYPE_FENCE);
+wire sidecar_csr_wen = type_ebrk && |func3;
+wire sidecar_ecall = type_ebrk && (func3 == 3'b000) && (rs2[1:0] == 2'b00);
+wire sidecar_mret = type_ebrk && (func3 == 3'b000) && (rs2[1:0] == 2'b10);
+wire sidecar_ebreak = type_ebrk && (func3 == 3'b000) && (rs2[1:0] == 2'b01);
+wire sidecar_fence_i = (opcode == TYPE_FENCE) && (func3 == 3'b001);
+
+assign o_predecode_bundle = {
+    rd,
+    sidecar_rs1_addr,
+    sidecar_rs2_addr,
+    sidecar_wen,
+    sidecar_csr_wen,
+    type_i_load,
+    type_s,
+    type_b,
+    type_jal,
+    type_jalr,
+    sidecar_fence_i,
+    type_m,
+    type_cop,
+    sidecar_ecall,
+    sidecar_mret,
+    sidecar_ebreak
+};
+
+endmodule
+
 module hcpu_ifu_fetch_queue (
     input                               clock,
     input                               reset,
@@ -17,16 +88,34 @@ module hcpu_ifu_fetch_queue (
     output             [31:0]           o_ins,
     output                              o_predict_taken,
     output             [31:2]           o_predict_target,
-    output                              o_predict_btb_hit
+    output                              o_predict_btb_hit,
+    output             [4:0]            o_predecode_rd,
+    output             [4:0]            o_predecode_rs1_addr,
+    output             [4:0]            o_predecode_rs2_addr,
+    output                              o_predecode_wen,
+    output                              o_predecode_csr_wen,
+    output                              o_predecode_load,
+    output                              o_predecode_store,
+    output                              o_predecode_brch,
+    output                              o_predecode_jal,
+    output                              o_predecode_jalr,
+    output                              o_predecode_fence_i,
+    output                              o_predecode_muldiv,
+    output                              o_predecode_is_cop_insn,
+    output                              o_predecode_ecall,
+    output                              o_predecode_mret,
+    output                              o_predecode_ebreak
 );
 
 localparam DEPTH = 2;
+localparam PREDECODE_WIDTH = 28;
 
 reg [31:0] pc_q [0:DEPTH-1];
 reg [31:0] ins_q [0:DEPTH-1];
 reg        predict_taken_q [0:DEPTH-1];
 reg [29:0] predict_target_q [0:DEPTH-1];
 reg        predict_btb_hit_q [0:DEPTH-1];
+reg [PREDECODE_WIDTH-1:0] predecode_q [0:DEPTH-1];
 reg        valid_q [0:DEPTH-1];
 
 reg        head;
@@ -38,9 +127,16 @@ wire empty = (count == 0);
 wire deq_valid = !empty;
 wire enq_ready = !full || (deq_valid && i_deq_ready);
 wire [1:0] valid_count = {1'b0, valid_q[0]} + {1'b0, valid_q[1]};
+wire [PREDECODE_WIDTH-1:0] enq_predecode_bundle;
+wire [PREDECODE_WIDTH-1:0] deq_predecode_bundle = predecode_q[head];
 
 wire enq_fire = i_enq_valid && enq_ready;
 wire deq_fire = deq_valid && i_deq_ready;
+
+hcpu_ifu_predecode_sidecar predecode_sidecar(
+    .i_ins                              (i_ins                     ),
+    .o_predecode_bundle                 (enq_predecode_bundle      )
+);
 
 assign o_enq_ready = enq_ready;
 assign o_deq_valid = deq_valid;
@@ -49,6 +145,24 @@ assign o_ins = ins_q[head];
 assign o_predict_taken = predict_taken_q[head];
 assign o_predict_target = predict_target_q[head];
 assign o_predict_btb_hit = predict_btb_hit_q[head];
+assign {
+    o_predecode_rd,
+    o_predecode_rs1_addr,
+    o_predecode_rs2_addr,
+    o_predecode_wen,
+    o_predecode_csr_wen,
+    o_predecode_load,
+    o_predecode_store,
+    o_predecode_brch,
+    o_predecode_jal,
+    o_predecode_jalr,
+    o_predecode_fence_i,
+    o_predecode_muldiv,
+    o_predecode_is_cop_insn,
+    o_predecode_ecall,
+    o_predecode_mret,
+    o_predecode_ebreak
+} = deq_predecode_bundle;
 
 integer i;
 always @(posedge clock or posedge reset) begin
@@ -62,6 +176,7 @@ always @(posedge clock or posedge reset) begin
             predict_taken_q[i] <= 1'b0;
             predict_target_q[i] <= 30'b0;
             predict_btb_hit_q[i] <= 1'b0;
+            predecode_q[i] <= {PREDECODE_WIDTH{1'b0}};
             valid_q[i] <= 1'b0;
         end
     end else if (flush) begin
@@ -83,6 +198,7 @@ always @(posedge clock or posedge reset) begin
             predict_taken_q[tail] <= i_predict_taken;
             predict_target_q[tail] <= i_predict_target;
             predict_btb_hit_q[tail] <= i_predict_btb_hit;
+            predecode_q[tail] <= enq_predecode_bundle;
             valid_q[tail] <= 1'b1;
             tail <= tail + 1'b1;
         end

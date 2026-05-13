@@ -332,6 +332,22 @@ wire [31:0] ifu2idu_pc;
 wire        ifu2idu_predict_taken;
 wire [31:2] ifu2idu_predict_target;
 wire        ifu2idu_predict_btb_hit;
+wire [4:0] ifu2idu_predecode_rd;
+wire [4:0] ifu2idu_predecode_rs1_addr;
+wire [4:0] ifu2idu_predecode_rs2_addr;
+wire       ifu2idu_predecode_wen;
+wire       ifu2idu_predecode_csr_wen;
+wire       ifu2idu_predecode_load;
+wire       ifu2idu_predecode_store;
+wire       ifu2idu_predecode_brch;
+wire       ifu2idu_predecode_jal;
+wire       ifu2idu_predecode_jalr;
+wire       ifu2idu_predecode_fence_i;
+wire       ifu2idu_predecode_muldiv;
+wire       ifu2idu_predecode_is_cop_insn;
+wire       ifu2idu_predecode_ecall;
+wire       ifu2idu_predecode_mret;
+wire       ifu2idu_predecode_ebreak;
 
 hcpu_CSR_RegisterFile Csrs(
     .clock                             (clock                     ),
@@ -473,7 +489,23 @@ hcpu_ifu_fetch_queue ifu_fetch_queue(
     .o_ins                             (ifu2idu_ins               ),
     .o_predict_taken                   (ifu2idu_predict_taken     ),
     .o_predict_target                  (ifu2idu_predict_target    ),
-    .o_predict_btb_hit                 (ifu2idu_predict_btb_hit   )
+    .o_predict_btb_hit                 (ifu2idu_predict_btb_hit   ),
+    .o_predecode_rd                    (ifu2idu_predecode_rd      ),
+    .o_predecode_rs1_addr              (ifu2idu_predecode_rs1_addr),
+    .o_predecode_rs2_addr              (ifu2idu_predecode_rs2_addr),
+    .o_predecode_wen                   (ifu2idu_predecode_wen     ),
+    .o_predecode_csr_wen               (ifu2idu_predecode_csr_wen ),
+    .o_predecode_load                  (ifu2idu_predecode_load    ),
+    .o_predecode_store                 (ifu2idu_predecode_store   ),
+    .o_predecode_brch                  (ifu2idu_predecode_brch    ),
+    .o_predecode_jal                   (ifu2idu_predecode_jal     ),
+    .o_predecode_jalr                  (ifu2idu_predecode_jalr    ),
+    .o_predecode_fence_i               (ifu2idu_predecode_fence_i ),
+    .o_predecode_muldiv                (ifu2idu_predecode_muldiv  ),
+    .o_predecode_is_cop_insn           (ifu2idu_predecode_is_cop_insn),
+    .o_predecode_ecall                 (ifu2idu_predecode_ecall   ),
+    .o_predecode_mret                  (ifu2idu_predecode_mret    ),
+    .o_predecode_ebreak                (ifu2idu_predecode_ebreak  )
 );
 
 hcpu_IDU idu1(
@@ -504,6 +536,45 @@ hcpu_IDU idu1(
     .o_muldiv                          (muldiv                    ),
     .o_is_cop_insn                     (is_cop_insn               )
 );
+
+`ifndef SYNTHESIS
+always @(*) begin
+    if (ifu2idu_valid) begin
+        if (ifu2idu_predecode_rd != idu_addr_rd)
+            $fatal(1, "hcpu predecode rd mismatch vs IDU decode");
+        if (ifu2idu_predecode_rs1_addr != idu_addr_rs1)
+            $fatal(1, "hcpu predecode rs1 mismatch vs IDU decode");
+        if (ifu2idu_predecode_rs2_addr != idu_addr_rs2)
+            $fatal(1, "hcpu predecode rs2 mismatch vs IDU decode");
+        if (ifu2idu_predecode_wen != idu_wen)
+            $fatal(1, "hcpu predecode wen mismatch vs IDU decode");
+        if (ifu2idu_predecode_csr_wen != csr_wen)
+            $fatal(1, "hcpu predecode csr_wen mismatch vs IDU decode");
+        if (ifu2idu_predecode_load != if_load)
+            $fatal(1, "hcpu predecode load mismatch vs IDU decode");
+        if (ifu2idu_predecode_store != if_store)
+            $fatal(1, "hcpu predecode store mismatch vs IDU decode");
+        if (ifu2idu_predecode_brch != brch)
+            $fatal(1, "hcpu predecode branch mismatch vs IDU decode");
+        if (ifu2idu_predecode_jal != jal)
+            $fatal(1, "hcpu predecode jal mismatch vs IDU decode");
+        if (ifu2idu_predecode_jalr != jalr)
+            $fatal(1, "hcpu predecode jalr mismatch vs IDU decode");
+        if (ifu2idu_predecode_fence_i != fence_i)
+            $fatal(1, "hcpu predecode fence.i mismatch vs IDU decode");
+        if (ifu2idu_predecode_muldiv != muldiv)
+            $fatal(1, "hcpu predecode muldiv mismatch vs IDU decode");
+        if (ifu2idu_predecode_is_cop_insn != is_cop_insn)
+            $fatal(1, "hcpu predecode cop mismatch vs IDU decode");
+        if (ifu2idu_predecode_ecall != ecall)
+            $fatal(1, "hcpu predecode ecall mismatch vs IDU decode");
+        if (ifu2idu_predecode_mret != mret)
+            $fatal(1, "hcpu predecode mret mismatch vs IDU decode");
+        if (ifu2idu_predecode_ebreak != ebreak)
+            $fatal(1, "hcpu predecode ebreak mismatch vs IDU decode");
+    end
+end
+`endif
 
 
 hcpu_idu_exu_regs idu2exu_regs(
