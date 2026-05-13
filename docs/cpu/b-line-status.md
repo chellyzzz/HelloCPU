@@ -1,7 +1,7 @@
 # B-Line Status
 
-Branch: `codex/b-line-predictor-rtl`
-Baseline: WSL-native worktree from `/home/chelly/HelloCPU` at `323cd54 merge: integrate cop memory owner boundary`
+Branch: `cpu-mainline-branch`
+Baseline: `8837032 docs: consolidate CPU planning into evolution roadmap and add ROI guardrails for redirect work`
 Current mode: **Active frontend performance ownership**
 
 ## Current Mission
@@ -32,69 +32,125 @@ Pass-through is the correct V1 frontend architecture.
 | Registered-valid (IFU/IDU `post_valid` hold) | `sum` misses commits at `0x30000000` and `0x30000b00`; instruction skipped after redirect | Rejected |
 | Skid buffer | Not directly tested; inferred incompatible with current single-entry pipeline semantics | Rejected per analysis |
 
-### Current Tournament-Loop RTL Prototype
+### Current validated baseline
 
-Status: **ported to WSL-native worktree, initial validation passed**
+- Current mainline baseline metrics:
+  - `CoreMark/MHz = 2.853`
+  - `IPC = 0.874`
+  - `Frontend/empty = 2,005,006`
+  - `Control recovery = 795,702`
+  - `BTB mispredicts = 780,786`
+- Redirect proof result on baseline:
+  - branch `target bad = 0`
+  - dominant problem is branch **direction**, not branch target coverage.
+
+### Current winning B-Task-7 candidate
+
+Status: **validated and worth keeping**
 
 Implementation summary:
 
-- Implemented inside `vsrc/cpu/ifu/btb.v`; no IFU/IDU/IDU-EXU semantic change intended.
-- Keeps the tagged BTB target path and current BTB/BHT direction predictor as one tournament arm.
-- Adds local-history direction prediction (`1024` local histories, `8`-bit history, shared `256`-entry pattern table).
-- Adds a `1024`-entry chooser between current direction prediction and local-history direction prediction.
-- Adds a tagged loop table that only overrides likely loop exits to not-taken after a stable trip count.
-- Adds branch trace support and `tools/predictor_sim/` for offline policy screening.
+- Keep tagged BTB target cache for hit cases.
+- Add independent BHT direction fallback only when BTB lookup misses.
+- Do not change IFU/IDU/IDU-EXU boundary semantics.
 
-Previously measured result before WSL worktree migration (`CoreMark ITER=100`):
+Measured result vs baseline:
 
-- `CoreMark/MHz: 2.862 -> 2.942`
-- `Total cycles: 34,933,286 -> 33,986,109`
-- `IPC: 0.876 -> 0.901`
-- `Frontend/empty: 1,968,111 -> 1,686,099`
-- `Control recovery: 771,457 -> 550,238`
-- `BTB mispredicts: 756,531 -> 534,343`
+- `CoreMark/MHz: 2.853 -> 2.861`
+- `IPC: 0.874 -> 0.876`
+- `Frontend/empty: 2,005,006 -> 1,971,153`
+- `Control recovery: 795,702 -> 775,077`
+- `BTB mispredicts: 780,786 -> 760,013`
 
-WSL-native validation so far:
+ROI verdict:
 
-- `make sim`: pass
-- `quick-sort`: pass, `4487` cycles, `75` BTB mispredicts
-- `CoreMark ITER=30`: pass, `CoreMark/MHz = 2.932`, `160,982` BTB mispredicts
-
-Remaining WSL-native validation before delivery:
-
-- `CoreMark ITER=100`
-- B-line gate: `sum`, `quick-sort`, `cop-chain`, `cop-vadd8`, `cop-vadd8-chain`, `cop-vadd8-after-add`, `cop-vxor8`, `cop-vand8`, `cop-mixed-lanes`
+- **Pass**. This work satisfied the new ROI rule because it first proved the dominant loss was direction miss, then reduced the relevant intermediate metrics, while preserving future structural boundaries.
 
 ## Assigned Tasks
 
 ### B-Task-7: BTB miss / mispredict reduction
 
-Current status: **tournament-loop RTL prototype ported**
+Current status: **first profitable candidate found**
 
 Next work under the same ROI rule:
 
-1. Validate the WSL-native worktree result before any commit or merge.
-2. Review hardware cost and timing risk before freezing table sizes.
+1. Keep measuring branch miss subtype counts before larger predictor changes.
+2. Prefer direction-side improvements before BTB capacity or associativity expansion.
 3. Only continue if mispredict / control recovery / frontend bubble keep moving down together.
-4. Keep using `CoreMark ITER=30` branch traces for screening; reserve `ITER=100` for final delivery validation.
 
 ### B-Task-8: redirect recovery 3 -> 2 cycles
 
-Current status: **analysis complete, RTL not started**
+Current status: **not started after ROI reset**
 
 Constraint:
 
 - `skip_pre_valid` is a failed path and should not be revived.
 - Any new attempt must solve valid/payload timing alignment directly, not by masking control only.
-- Preferred route is synchronous flush inputs for IFU/IDU and IDU/EXU, not raw async-reset fanout.
+
+### B-Task-1: IFU/IDU pass-through protocol specification document
+
+**Priority**: High
+**Risk**: None (documentation only)
+**Owner**: B
+
+Formalize V1 correct architecture semantics in `docs/cpu/ifu-idu-handshake-analysis.md`:
+
+- Signal meanings for `ifu2idu_valid`, `idu2ifu_ready`, `idu2exu_valid`, `exu2idu_ready` and all payload fields.
+- Valid/ready lifecycle: when `valid` can deassert, when `ready` can deassert, what holds payload stable.
+- Redirect/refetch semantics: what happens to in-flight `valid`/payload on `pc_update_en`, `exu_mispredict_flush_r`, COP flush.
+- Implicit pre-valid bubbles: IFU can present `valid=0` on ICache miss; this is not a registered-hold semantic.
+
+Deliverable: updated `docs/cpu/ifu-idu-handshake-analysis.md` with a formal "Protocol Specification" section.
+
+### B-Task-2: IFU/IDU/EXU protocol assertion coverage
+
+**Priority**: Medium
+**Risk**: Low (`ifdef`-protected, no behavior change)
+**Owner**: B
+
+Add `ifdef`-protected SystemVerilog assertions in B-owned files:
+
+- `vsrc/cpu/ifu/ifu.v`: assert `ifu2idu_valid` does not deassert while `!idu2ifu_ready` (pass-through hold).
+- `vsrc/cpu/idu/idu.v`: assert `idu2exu_valid` does not deassert while `!exu2idu_ready` (pass-through hold).
+- `vsrc/cpu/idu/idu_exu_regs.v`: assert `o_pre_ready` follows `i_post_ready` (pass-through).
+- `vsrc/cpu/ifu/ifu_idu_regs.v`: assert `o_post_valid` tracks `icache_hit` (pass-through from ICache).
+- Redirect assertion: after `pc_update_en` or `exu_mispredict_flush_r`, verify `idu2exu_valid` drops within N cycles.
+
+These assertions protect against future regressions when A or B modify handshake semantics.
+
+Deliverable: assertion patches in `cpu-frontend-interface-lab`, gated on `` `ifdef PROTOCOL_ASSERT ``.
+
+### B-Task-3: same-cycle LSU result interface design memo
+
+**Priority**: High (blocking A-line maximum-yield optimization)
+**Risk**: None (design memo, no RTL)
+**Owner**: B (per A/B behavior-RTL rule: 5-line design note + failure plan before A reviews)
+
+Document what IFU/IDU must provide for A to safely implement same-cycle LSU hit:
+
+1. **EXU first-cycle response**: When LSU detects cache hit in S_IDLE (same cycle as instruction enters EXU), how should `exu2idu_ready` / `scalar_exu2idu_ready` behave? Current: `o_pre_ready = lsu_done` only after S_CHECK. Proposal: `o_pre_ready` combinational from `fast_load_hit_done` (already exists) but IDU/EXU valid lifetime must tolerate this.
+
+2. **IDU `valid` release condition**: Currently `idu2exu_valid` held while `!exu2idu_ready` and drops when `exu2idu_ready && !idu_insn_valid`. If EXU reports `ready=1` in the same cycle the instruction is presented, does the IDU payload need to be latched or can it be consumed in zero cycles?
+
+3. **Payload stability**: If `idu2exu_valid` can be consumed in the same cycle it is presented, the IDU->EXU pipeline register must accept the payload on `i_pre_valid && i_post_ready` (which it already does). But the *next* instruction's IDU decode must be available in the very next cycle.
+
+4. **Failure mode**: A's previous same-cycle LSU hit attempts failed because `sum` skipped commits after redirect and `load-store`/`quick-sort` hung or produced wrong results. The design memo must explain exactly which handshake invariant was violated.
+
+5. **Integration plan**: A will modify `lsu.v` (A-owned) and `exu.v`/`hcpu.v` (shared); B must confirm that IFU/IDU pass-through semantics remain satisfied and provide assertion activation.
+
+Deliverable: section in this document under "Design Memos", referenced from `docs/cpu/ifu-idu-handshake-analysis.md`.
+
+## Design Memos
+
+*(B-Task-3 deliverable will be added here once written.)*
 
 ## B-Line Gate
 
 Current B-line regression gate:
 
-1. `sum`
-2. `quick-sort`
-3. `cop-chain`
+1. `sum.bin`
+2. `quick-sort.bin`
+3. `cop-chain.bin`
 4. `cop-vadd8`
 5. `cop-vadd8-chain`
 6. `cop-vadd8-after-add`

@@ -22,10 +22,12 @@
 `ifdef DEBUG_ALL
   `define ICACHE_DEBUG
   `define DCACHE_DEBUG
+  `define OWNER_ASSERT
 `endif
 
 // ---- individual switches (override by un-commenting directly) ----
 // `define ICACHE_DEBUG
 // `define DCACHE_DEBUG
+// `define OWNER_ASSERT
 
 `endif // DEBUG_MACROS_VH

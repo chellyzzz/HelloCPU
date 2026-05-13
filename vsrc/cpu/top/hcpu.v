@@ -1240,6 +1240,14 @@ import "DPI-C" function void stall_div_dpic  ();
 import "DPI-C" function void stall_cop_dpic  ();
 import "DPI-C" function void stall_ctrl_dpic ();
 import "DPI-C" function void stall_other_dpic();
+import "DPI-C" function void stall_other_blocked_dpic();
+import "DPI-C" function void stall_other_pipe_dpic();
+import "DPI-C" function void stall_other_pipe_alu_dpic();
+import "DPI-C" function void stall_other_pipe_brch_dpic();
+import "DPI-C" function void stall_other_pipe_jal_dpic();
+import "DPI-C" function void stall_other_pipe_jalr_dpic();
+import "DPI-C" function void stall_other_pipe_sys_dpic();
+import "DPI-C" function void backend_pipe_occ_dpic();
 import "DPI-C" function void btb_hit_dpic    ();
 import "DPI-C" function void btb_miss_dpic   ();
 import "DPI-C" function void btb_misp_dpic   ();
@@ -1300,7 +1308,6 @@ end
 `ifdef PERF_STALL
 always @(posedge clock) begin
   if (!reset && !exu2wbu_valid) begin
-    stall_cnt_dpic();
     if (ifu2idu_valid && !idu2ifu_ready) begin
       stall_ifu_held_dpic();
       if (exu_mispredict_flush_r || pc_update_en) begin
@@ -1328,8 +1335,10 @@ always @(posedge clock) begin
 
   if (!reset && !exu2wbu_valid) begin
     if (exu_mispredict_flush_r || pc_update_en) begin
+      stall_cnt_dpic();
       stall_ctrl_dpic();
     end else if (idu2exu_valid && !exu2idu_ready) begin
+      stall_cnt_dpic();
       if (idu2exu_load || idu2exu_store) begin
         stall_lsu_dpic();
         if (exu_lsu_dbg_wait_start) begin
@@ -1364,11 +1373,25 @@ always @(posedge clock) begin
         stall_cop_dpic();
       end else begin
         stall_other_dpic();
+        stall_other_blocked_dpic();
       end
     end else if (!idu2exu_valid) begin
+      stall_cnt_dpic();
       stall_front_dpic();
     end else begin
-      stall_other_dpic();
+      backend_pipe_occ_dpic();
+      stall_other_pipe_dpic();
+      if (idu2exu_brch) begin
+        stall_other_pipe_brch_dpic();
+      end else if (idu2exu_jal) begin
+        stall_other_pipe_jal_dpic();
+      end else if (idu2exu_jalr) begin
+        stall_other_pipe_jalr_dpic();
+      end else if (idu2exu_csr_wen || idu2exu_ecall || idu2exu_mret || idu2exu_fence_i || idu2exu_ebreak) begin
+        stall_other_pipe_sys_dpic();
+      end else begin
+        stall_other_pipe_alu_dpic();
+      end
     end
   end
 end

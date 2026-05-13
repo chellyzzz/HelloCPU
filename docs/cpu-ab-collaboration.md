@@ -63,6 +63,20 @@ Files that require coordination:
 
 B may modify shared files only with A's explicit approval for each change.
 
+## D-Line Architecture Coordination
+
+When cross-line interface control becomes the bottleneck, use D-line as the architecture / integration owner rather than pushing that work back onto A.
+
+The D-line role, authority, and freeze rules are defined in:
+
+- `docs/cpu/d-line-architecture-integration.md`
+
+In short:
+
+1. A still controls CPU mainline entry.
+2. D controls cross-line interface clarity and freeze points.
+3. A/B/C should involve D before merging changes that alter shared issue / completion / flush / memory boundary semantics.
+
 ## Branch Rules
 
 1. A works on `cpu-mainline-branch`.

@@ -87,6 +87,8 @@ endif
 #   make bench ITER=100       → standard performance run
 #   make bench_only ITER=200   → without rebuilding all tests
 ITER ?= 1
+TRACE ?= branch_trace.log
+POLICY ?= current
 
 bench: sim sw
 	$(MAKE) -C $(SW_DIR) benchmark ITER=$(ITER)
@@ -99,14 +101,13 @@ bench_only: sim
 	@echo "=== CoreMark (ITER=$(ITER)) ==="
 	@$(BUILD_DIR)/V$(TOPNAME) $(SW_DIR)/build/coremark.bin
 
-TRACE_BIN ?= $(SW_DIR)/build/coremark.bin
-TRACE_OUT ?= branch_trace.log
-
 branch_trace: sim
-	@$(BUILD_DIR)/V$(TOPNAME) $(TRACE_BIN) --branch-trace=$(TRACE_OUT)
+	$(MAKE) -C $(SW_DIR) benchmark ITER=$(ITER)
+	@echo "=== Branch trace (ITER=$(ITER)) ==="
+	@$(BUILD_DIR)/V$(TOPNAME) $(SW_DIR)/build/coremark.bin --branch-trace=$(TRACE)
 
 predictor_sim:
-	@python3 tools/predictor_sim/predictor_sim.py --trace $(TRACE_OUT) --policy current
+	python3 tools/predictor_sim/predictor_sim.py --trace $(TRACE) --policy $(POLICY) $(ARGS)
 
 # Wave for debugging
 wave:
