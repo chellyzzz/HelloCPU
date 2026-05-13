@@ -254,6 +254,8 @@ DONE: 合并结果，写入 VRF，o_done 置 1
 
 当前基线通过 CPU memory owner 边界实现 VRF 与内存的交互。V1 实现仅支持 unit-stride 8-bit 访存，后续可逐步扩展到 RVV 标准。
 
+P0 收尾状态：当前 smoke 覆盖 `cop-vload-mem`、`cop-vstore-mem`、`cop-vload-store-mem`、`cop-vload-repeat-mem`、`cop-vstore-repeat-mem`；directed coverage 覆盖 pending-kill load、store AW/W/B owner path 和 AW/W 接受前 killed-store 无 bus side effect。后续 P1 不应扩大 memory side effect 语义，除非先完成 RVV store commit/kill 设计。
+
 关键设计决策：
 1. **CPU memory owner 边界**：scalar 和 COP 请求使用统一 owner 语义
 2. **COP busy 串行化**：V1 不支持多个 COP memory 请求在飞

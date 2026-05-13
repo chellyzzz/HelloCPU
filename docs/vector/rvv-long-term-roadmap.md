@@ -248,6 +248,8 @@
 - 所有新增行为都有 directed test。
 - COP store 的 owner path 和 pre-accept killed-store side effect 有 directed coverage。
 
+当前状态：M0/P0 已收尾于 `vector-next-cop-mem-pending-kill` 分支。已验证 scalar smoke、COP lane/state/VRF、COP memory smoke、pending-kill load、store AW/W/B owner path 和 pre-accept killed-store side effect。下一阶段进入 M1/P1 前，应保持 custom COP 原型作为回归基线，并优先定义最小 `vl/vtype` 状态与 unsupported RVV 行为。
+
 ### M1：RVV 状态可配置
 
 - 最小 `vl/vtype` 状态实现。
