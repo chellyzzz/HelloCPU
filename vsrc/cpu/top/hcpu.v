@@ -1481,9 +1481,7 @@ always @(posedge clock) begin
 end
 
 // debug: WBU pc_update
-wire wbu_pc_update_fire = exu_wbu_valid &&
-                          (exu2wbu_ecall || exu2wbu_mret ||
-                           ((exu2wbu_jal || exu2wbu_jalr || exu2wbu_is_brch) && !exu2wbu_predict_correct));
+wire wbu_pc_update_fire = exu_wbu_valid && (exu2wbu_ecall || exu2wbu_mret);
 
 always @(posedge clock) begin
     if (!reset && wbu_pc_update_fire) begin
@@ -1513,10 +1511,14 @@ always @(posedge clock or posedge reset) begin
         redirect_cause_jal   <= 1'b0;
         redirect_cause_jalr  <= 1'b0;
     end else begin
-        if (wbu_pc_update_fire) begin
-            redirect_cause_brch <= exu2wbu_is_brch;
-            redirect_cause_jal  <= exu2wbu_jal;
-            redirect_cause_jalr <= exu2wbu_jalr;
+        if (scalar_exu_mispredict_flush) begin
+            redirect_cause_brch <= idu2exu_brch;
+            redirect_cause_jal  <= idu2exu_jal;
+            redirect_cause_jalr <= idu2exu_jalr;
+        end else if (wbu_pc_update_fire) begin
+            redirect_cause_brch <= 1'b0;
+            redirect_cause_jal  <= 1'b0;
+            redirect_cause_jalr <= 1'b0;
         end
         if (redirect_fire) begin
             redirect_recovery   <= 1'b1;

@@ -53,13 +53,9 @@ always @(posedge clock or posedge reset) begin
     o_pc_update <= 1'b0;
     o_pc_next <= 32'b0;
   end
-  else if(~o_pc_update) begin
-    o_pc_update <= i_pre_valid && (i_ecall || i_mret || ((i_jal || i_jalr || i_is_brch) && !i_predict_correct));
-    o_pc_next <= i_pc_next;
-  end
-  else if(o_pc_update) begin
-    o_pc_update <= 1'b0;
-    o_pc_next <= 32'b0;
+  else begin
+    o_pc_update <= i_pre_valid && (i_ecall || i_mret);
+    o_pc_next <= (i_pre_valid && (i_ecall || i_mret)) ? i_pc_next : 32'b0;
   end
 end
 

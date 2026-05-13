@@ -19,16 +19,14 @@ This document records CoreMark correctness and performance for HelloCPU.
 Command sequence:
 
 ```bash
-make sim
-make -C sw benchmark ITER=100 -B
-./build/Vsim_top sw/build/coremark.bin --max-cycles=100000000
+make bench_only ITER=100
 ```
 
 Result:
 
 ```text
 CoreMark Size    : 666
-Total ticks      : 35044000
+Total ticks      : 32945919
 Iterations       : 100
 seedcrc          : 0xe9f5
 [0]crclist       : 0xe714
@@ -36,10 +34,10 @@ seedcrc          : 0xe9f5
 [0]crcstate      : 0x8e3a
 [0]crcfinal      : 0x988c
 Correct operation validated.
-Total cycles     : 35044000
-CoreMark/MHz     : 2.853
+Total cycles     : 32986215
+CoreMark/MHz     : 3.031
 
-[HelloCPU] PASS (cycles: 35048462)
+[HelloCPU] PASS (cycles: 32990370)
 ```
 
 ## Current Benchmark Summary
@@ -54,10 +52,11 @@ CoreMark/MHz     : 2.853
 | ITER=100, same-cycle load hit | Correct CRC | 36530875 | 36535445 | 2.737 | 0.838 | 14.1% |
 | ITER=100, same-cycle load+store hit | Correct CRC | 35043392 | 35047662 | 2.853 | 0.874 | 10.4% |
 | ITER=100, same-cycle hit + DIV fast path | Correct CRC | 35043392 | 35047662 | 2.853 | 0.874 | 10.4% |
+| ITER=100, tournament+loop + 2-cycle redirect recovery | Correct CRC | 32986215 | 32990370 | 3.031 | 0.928 | 7.2% |
 
-ITER=100 is the better throughput reference because CoreMark initialization and reporting overhead are amortized across the timed workload. The current reference is the same-cycle load+store hit run.
+ITER=100 is the better throughput reference because CoreMark initialization and reporting overhead are amortized across the timed workload. The current reference is the frontend branch run with tournament+loop predictor and validated `2-cycle` redirect recovery.
 
-Compared with the pre-LSU-fast-path ITER=100 reference (`1.545 CoreMark/MHz`, `IPC=0.473`, `51.5%` stalls), the same-cycle LSU hit optimizations raise throughput by about 84.7% and cut stall rate by 41.1 percentage points.
+Compared with the pre-LSU-fast-path ITER=100 reference (`1.545 CoreMark/MHz`, `IPC=0.473`, `51.5%` stalls), the current run raises throughput by about 96.2% and cuts stall rate by 44.3 percentage points.
 
 ## Public Processor Comparison
 
@@ -70,14 +69,14 @@ Source for external rows: EEMBC public CoreMark score database, queried on 2026-
 | GOWIN PicoRV32 | RV32 softcore | 0.57 | 0.24x | Small FPGA-oriented RISC-V softcore |
 | STM32F103C8T6 / Cortex-M3 | Arm Cortex-M3 MCU | 2.21 | 0.93x | Common low-cost MCU reference |
 | Allwinner D1 | RISC-V application-class SoC | 2.24 | 0.94x | Public RISC-V Linux-capable SoC result |
-| HelloCPU current | RV32IM + Zicsr teaching core | 2.853 | 1.00x | Local Verilator result, `ITER=100` |
-| STM32F407VGT6 / Cortex-M4 | Arm Cortex-M4 MCU | 2.86 | 1.00x | Widely used MCU baseline |
-| VEGA THEJAS32 | RISC-V MCU-class core | 3.33 | 1.40x | Public RISC-V microcontroller-class result |
-| Renesas RA8T2 / Cortex-M33 | Arm Cortex-M33 MCU | 4.05 | 1.70x | Modern Cortex-M33 class |
-| STM32F746 / Cortex-M7 | Arm Cortex-M7 MCU | 5.01 | 2.10x | High-performance Cortex-M MCU baseline |
-| STM32H7Rx/7Sx / Cortex-M7 | Arm Cortex-M7 MCU | 5.33 | 2.24x | Faster Cortex-M7-class MCU result |
-| Renesas RA8T2 / Cortex-M85 | Arm Cortex-M85 MCU | 6.38 | 2.68x | Modern high-end Cortex-M baseline |
-| Raspberry Pi 4B / Cortex-A72 | Arm Cortex-A application core | 22.67 | 9.52x | Out-of-class application processor reference |
+| HelloCPU current | RV32IM + Zicsr teaching core | 3.031 | 1.00x | Local Verilator result, `ITER=100` |
+| STM32F407VGT6 / Cortex-M4 | Arm Cortex-M4 MCU | 2.86 | 0.94x | Widely used MCU baseline |
+| VEGA THEJAS32 | RISC-V MCU-class core | 3.33 | 1.10x | Public RISC-V microcontroller-class result |
+| Renesas RA8T2 / Cortex-M33 | Arm Cortex-M33 MCU | 4.05 | 1.34x | Modern Cortex-M33 class |
+| STM32F746 / Cortex-M7 | Arm Cortex-M7 MCU | 5.01 | 1.65x | High-performance Cortex-M MCU baseline |
+| STM32H7Rx/7Sx / Cortex-M7 | Arm Cortex-M7 MCU | 5.33 | 1.76x | Faster Cortex-M7-class MCU result |
+| Renesas RA8T2 / Cortex-M85 | Arm Cortex-M85 MCU | 6.38 | 2.10x | Modern high-end Cortex-M baseline |
+| Raspberry Pi 4B / Cortex-A72 | Arm Cortex-A application core | 22.67 | 7.48x | Out-of-class application processor reference |
 
 This places the current HelloCPU CoreMark/MHz approximately level with the Cortex-M4 class, below mature Cortex-M7/M85 microcontroller-class cores, and far below application-class out-of-order or superscalar cores. That positioning is consistent with the current design: a simple in-order RV32IM core with branch prediction, caches, and same-cycle LSU hit eliminating load/store pipeline stalls.
 
@@ -94,80 +93,81 @@ This places the current HelloCPU CoreMark/MHz approximately level with the Corte
 | Low `MUL` fast path | 100 | Correct CRC | 42000681 | 2.381 |
 | 128-entry BTB | 100 | Correct CRC | 41986504 | 2.381 |
 | Same-cycle load hit | 100 | Correct CRC | 36535445 | 2.737 |
-| Same-cycle load+store hit | 100 | Correct CRC | 35048462 | 2.853 |
+| Same-cycle load+store hit | 100 | Correct CRC | 35047662 | 2.853 |
+| Tournament+loop + 2-cycle redirect recovery | 100 | Correct CRC | 32990370 | 3.031 |
 
-The full predictor improved CoreMark ITER=1 by about 16.4% versus the no-prediction reference. The LSU fast-path work improved ITER=100 throughput by about 47.5% over the previous full-predictor baseline, and the low `MUL` fast path adds another 4.5% over the LSU fast-path reference. The same-cycle LSU hit (load + store) adds a further 19.8% over the pre-same-cycle baseline, for a cumulative 84.7% improvement from the pre-LSU-fast-path reference.
+The full predictor improved CoreMark ITER=1 by about 16.4% versus the no-prediction reference. The LSU fast-path work improved ITER=100 throughput by about 47.5% over the previous full-predictor baseline, and the low `MUL` fast path adds another 4.5% over the LSU fast-path reference. The same-cycle LSU hit (load + store) adds a further 19.8% over the pre-same-cycle baseline. The frontend branch predictor/recovery work then lifts throughput to `3.031 CoreMark/MHz`, for a cumulative 96.2% improvement from the pre-LSU-fast-path reference.
 
 ## Latest Performance Counters
 
 ```text
-Total cycles         : 35047662
-Total instructions   : 30618174 (IPC = 0.874)
-Stall cycles         : 3648703 (10.4%)
+Total cycles         : 32990370
+Total instructions   : 30617979 (IPC = 0.928)
+True stall cycles    : 2372392 (7.2%)
+Backend pipe occ     : 0 (0.0%)
 
-Frontend/empty       : 2005006 (54.9% of stalls)
-IFU held valid       : 9968 (0.3% of stalls)
-  LSU                : 6866 (68.9% of held-valid stalls)
-  MUL/DIV            : 2889 (29.0% of held-valid stalls)
+Frontend/empty       : 1841129 (77.6% of stalls)
+IFU held valid       : 9449 (0.4% of stalls)
+  LSU                : 6553 (69.4% of held-valid stalls)
+  MUL/DIV            : 2896 (30.6% of held-valid stalls)
     MUL              :    0 ( 0.0%)
-    DIV              : 2889 (100.0%)
-LSU wait             : 7107 (0.2% of stalls)
-  start              : 6474 (91.1% of LSU wait)
-    load             : 6043 (93.3% of start)
-    store            :  431 (6.7% of start)
-  refill             : 260 (3.7% of LSU wait)
-  uncached           : 152
-  writeback          :  18
-MUL/DIV wait         : 2962 (0.1% of stalls)
+    DIV              : 2896 (100.0%)
+LSU wait             : 6832 (0.3% of stalls)
+  start              : 741 (10.8% of LSU wait)
+    load             : 64 (8.6% of start)
+    store            : 677 (91.4% of start)
+  refill             : 3641 (53.3% of LSU wait)
+  uncached           : 2150
+  writeback          : 300
+MUL/DIV wait         : 2896 (0.1% of stalls)
   MUL                :    0 ( 0.0%)
-  DIV                : 2962 (100.0%)
-Control recovery     : 795702 (21.8% of stalls)
-Other backend        : 837926 (23.0% of stalls)
+  DIV                : 2896 (100.0%)
+Control recovery     : 521535 (22.0% of stalls)
+Other blocked bknd   : 0 (0.0% of stalls)
 
-ALU ops              : 15816432 (51.7%)
-Branches             : 6241782 (20.4%)
-Jumps (JAL+JALR)     : 633875 (2.1%)
-Loads                : 5480739 (17.9%)
-Stores               : 1505532 (4.9%)
+ALU ops              : 15816238 (51.7%)
+Branches             : 6241784 (20.4%)
+Jumps (JAL+JALR)     : 633877 (2.1%)
+Loads                : 5480737 (17.9%)
+Stores               : 1505531 (4.9%)
 Multiplies           : 939697 (3.1%)
-Divides              : 114
+Divides              : 112
 
-BTB hits             : 5939881 (85.3%)
-BTB misses           : 1025583 (14.7%)
-BTB mispredicts      : 780786 (11.2%)
-RAS hits             : 204795 (99.4%)
-RAS misses           : 1268 (0.6%)
+BTB hits             : 5575550 (86.0%)
+BTB misses           : 908065 (14.0%)
+BTB mispredicts      : 521535 (8.0%)
+RAS hits             : 188282 (100.0%)
+RAS misses           : 3
 JAL target bad       : 0
-WBU pcupdate         : 795702
-  branch             : 754234 (94.8% of WBU pcupdate)
-  JAL                : 4966 (0.6% of WBU pcupdate)
-  JALR               : 36502 (4.6% of WBU pcupdate)
+WBU pcupdate         : 0
+  branch             : 0 (0.0% of WBU pcupdate)
+  JAL                : 0 (0.0% of WBU pcupdate)
+  JALR               : 0 (0.0% of WBU pcupdate)
   ECALL              : 0
   MRET               : 0
 
-Redirect cost        : 3 avg cycles (772653 events)
-  branch             : 3 avg (731392 events)
-  JAL                : 20 avg (4962 events)
-  JALR               : 3 avg (36299 events)
+Redirect cost        : 2 avg cycles (514395 events)
+  branch             : 2 avg (482312 events)
+  JALR               : 2 avg (32083 events)
 
-ICache hits          : 33738382 (99.6%)
-ICache misses        : 124251 (0.4%)
+ICache hits          : 31660539 (99.6%)
+ICache misses        : 126273 (0.4%)
 Load xacts           : 209 / done: 209
 Store xacts          : 600 / done: 599
 ```
 
 ## Bottleneck Analysis
 
-The same-cycle LSU hit optimizations have fundamentally changed the bottleneck profile. Total stalls dropped from `51.5%` (pre-LSU-fast-path) to `10.4%` on ITER=100. LSU wait is now negligible (`7,107` cycles, `0.2%` of stalls).
+The same-cycle LSU hit optimizations fundamentally changed the bottleneck profile, and the frontend predictor/recovery work then removed another full redirect cycle. Total stalls dropped from `51.5%` (pre-LSU-fast-path) to `7.2%` on ITER=100. LSU wait remains negligible (`6,832` cycles, `0.3%` of stalls).
 
 | Area | Evidence | Impact | Owner |
 |------|----------|--------|-------|
-| Frontend/empty | `2,005,006` cycles, `54.9%` of all stalls | **#1 bottleneck.** 96% = redirect recovery bubble (772K redirects × ~2.5 frontend/empty cycles). Root cause: BTB miss → mispredict → redirect. | B |
-| Control recovery | `795,702` cycles, `21.8%` of stalls; `754,234` branch (`94.8%`), `4,962` JAL, `36,502` JALR | #3 bottleneck. Redirect cost 3 avg cycles. Combined with frontend/empty bubble = 2.73M total redirect cost (74.8% of stalls). | B |
-| Other backend | `837,926` cycles, `23.0%` of stalls | Historical mixed bucket. New simulator counter semantics now report this as `Other blocked bknd` plus separate `Backend pipe occ` / `Pipe occ breakdown`, because the old bucket was dominated by normal EXU→WBU occupancy rather than true stall. | A |
+| Frontend/empty | `1,841,129` cycles, `77.6%` of all stalls | **#1 bottleneck.** Redirect bubbles still dominate, but each redirect is now cheaper. | B |
+| Control recovery | `521,535` cycles, `22.0%` of stalls | Redirect cost is now `2 avg cycles`, matching the intended recovery target. | B |
+| Other blocked backend | `0` cycles, `0.0%` of stalls | Counter cleanup separates true stall from normal backend occupancy. | A |
 | DIV stalls | `2,962` cycles, `0.1%` — 114 divides; fast path (by-1, trivial-zero) saves 800 cycles | Solved. Minimal for CoreMark. | A |
-| LSU wait | `7,107` cycles, `0.2%` — only cache miss refill and uncacheable | **Solved.** Same-cycle load+store hit eliminated 99.9% of LSU stall. | A |
-| ICache misses | `124,452` misses, `99.6%` hit rate | Not the primary bottleneck. | — |
+| LSU wait | `6,832` cycles, `0.3%` — only cache miss refill and uncached | **Solved.** Same-cycle load+store hit eliminated the dominant LSU stall. | A |
+| ICache misses | `126,273` misses, `99.6%` hit rate | Not the primary bottleneck. | — |
 
 ### Same-Cycle LSU Hit Results
 
@@ -185,9 +185,9 @@ Implementation: `lsu.v` only, +86 lines total. Adds combinational tag lookup fro
 
 | # | Optimization | Yield | Owner | Status |
 |---|---|---|---|---|
-| 1 | **BTB miss rate reduction** (780K mispredicts × 3 cycles = 2.3M) | +5-8% | B | B-Task-7 assigned |
-| 2 | **Stall counter cleanup** (separate true stall from normal backend occupancy) | Better observability | A | Landed in simulator/RTL counters; official ITER=100 republish still pending clean baseline rerun |
-| 3 | **Redirect recovery -1 cycle** (772K × 1 cycle saved) | +2% | B | B-Task-8, previous attempt failed |
+| 1 | **Predictor direction refinement** (521K remaining mispredicts) | +1-3% | B | Current next target; errors are still mostly BTB-hit direction misses |
+| 2 | **Stall counter cleanup** (separate true stall from normal backend occupancy) | Better observability | A | Done in current branch view |
+| 3 | **Redirect recovery -1 cycle** | Achieved | B | Done in frontend branch; validated at `2 avg cycles` |
 | 4 | DIV fast path (by-1, trivial-zero) | +0% for CoreMark | A | Done (`8f48295`) |
 | 5 | AXI-level (combinational RREADY) | ~0% | — | Abandoned, AXI RAM incompatible |
 
@@ -219,6 +219,7 @@ The fast_done paths are kept because they improve uncache-path latency (relevant
 | Same-cycle load hit, ITER=100 | 2.737 | +14.9% over baseline; LSU wait -78.4% |
 | Same-cycle load+store hit, ITER=100 | 2.853 | +19.8% over baseline; LSU wait -99.9% |
 | Same-cycle hit + DIV fast path, ITER=100 | 2.853 | DIV wait 3762→2962 (-21%); CoreMark unchanged |
+| Tournament+loop + 2-cycle redirect recovery, ITER=100 | 3.031 | +6.2% over same-cycle LSU baseline; redirect cost `3 -> 2` |
 
 ## Correctness Notes
 

@@ -2,7 +2,7 @@
 
 Branch: `cpu-mainline-branch`
 Baseline: `8837032 docs: consolidate CPU planning into evolution roadmap and add ROI guardrails for redirect work`
-Current mode: **Active frontend performance ownership**
+Current mode: **2-wide preparation ownership**
 
 ## Current Mission
 
@@ -12,6 +12,14 @@ B 线当前主责：
 2. BTB / RAS / predictor 策略
 3. redirect recovery 路径
 4. frontend stall 根因对应的 behavioral RTL 改进
+
+## Strategy Update
+
+Current decision:
+
+- B no longer treats branch hit-rate refinement as the main battlefield.
+- The main effort now shifts to **2-wide preparation**: frontend boundary formalization, issue/flush contract cleanup, queue insertion points, and wider-issue validation planning.
+- Predictor work remains allowed only as secondary, low-risk, quickly falsifiable optimization.
 
 当前交付标准：
 
@@ -70,7 +78,7 @@ ROI verdict:
 
 ### B-Task-7: BTB miss / mispredict reduction
 
-Current status: **first profitable candidate found**
+Current status: **merged into mainline**
 
 Next work under the same ROI rule:
 
@@ -80,7 +88,31 @@ Next work under the same ROI rule:
 
 ### B-Task-8: redirect recovery 3 -> 2 cycles
 
-Current status: **not started after ROI reset**
+Current status: **implemented and validated on frontend branch**
+
+Validated branch point: `codex/b-line-predictor-rtl` fast-forwarded to `41b0734`, then patched to remove redundant WBU redirect on branch/JALR mispredicts.
+
+Root cause:
+
+- The same control mispredict was being handled twice: first by EXU immediate redirect, then again one cycle later by WBU `pc_update`.
+- That second redirect re-flushed the frontend and kept measured recovery at `3 avg cycles` even though predictor-side event count had already dropped.
+
+Behavioral fix:
+
+- Keep WBU `pc_update` only for architectural redirects (`ECALL/MRET`).
+- Let branch/JALR mispredict recovery complete entirely on the EXU redirect path.
+- Keep redirect-gap attribution aligned with the real EXU redirect cause.
+
+Validation:
+
+- `make sim`: PASS
+- `make ifu_idu_backpressure`: PASS
+- `make run ALL=sum`: PASS
+- `make run ALL=quick-sort`: PASS
+- `make run ALL=cop-chain`: PASS
+- `make run ALL=cop-vadd8-chain`: PASS
+- `make bench_only ITER=30`: PASS, `CoreMark/MHz = 3.021`, `Redirect cost = 2 avg cycles`
+- `make bench_only ITER=100`: PASS, `CoreMark/MHz = 3.031`, simulator `32990370` cycles, `Redirect cost = 2 avg cycles (514395 events)`
 
 Constraint:
 
@@ -162,6 +194,6 @@ Any patch touching redirect/refetch/flush must also record either commit-trace e
 
 ## Coordination
 
-- B is in active frontend performance mode, not maintenance.
-- B currently carries a behavior-changing candidate for `B-Task-7`.
+- B is now in active **2-wide preparation mode**, not pure frontend scoring mode.
+- B keeps ownership of frontend behavioral RTL, but the main target has shifted from local predictor tuning to wider-issue readiness.
 - B owns `vsrc/cpu/ifu/*`, `vsrc/cpu/idu/*`, `vsrc/vector/cop/*`, and related frontend analysis/status docs.
