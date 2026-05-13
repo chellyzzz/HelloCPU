@@ -35,7 +35,7 @@ VECTOR_TESTS := $(basename $(notdir $(wildcard $(SW_DIR)/tests/vector-tests/*.c)
 
 # === Targets ===
 
-.PHONY: all sim sw clean run_% run_all bench bench_only branch_trace predictor_sim ifu_idu_backpressure exu_wbu_flush exu_result_visibility cop_backend_flush idu_cop_regs commit_visible_ctrl backend_contract_checks
+.PHONY: all sim sw clean run_% run_all bench bench_only branch_trace predictor_sim ifu_idu_backpressure exu_wbu_flush exu_result_visibility cop_backend_flush idu_cop_regs commit_visible_ctrl ifu_fetch_queue top_fetch_queue_flush top_pc_update_flush backend_contract_checks
 
 all: sim sw
 
@@ -153,6 +153,27 @@ commit_visible_ctrl:
 		--Mdir $(BUILD_DIR)/commit_visible_ctrl_tb \
 		-o $(abspath $(BUILD_DIR)/Vcommit_visible_ctrl_tb)
 	@$(BUILD_DIR)/Vcommit_visible_ctrl_tb
+
+ifu_fetch_queue:
+	$(VERILATOR) --top-module hcpu_ifu_fetch_queue --cc --exe --build -Wno-fatal -Wno-style \
+		vsrc/cpu/ifu/ifu_fetch_queue.v $(abspath $(SIM_DIR)/ifu_fetch_queue_tb.cpp) \
+		--Mdir $(BUILD_DIR)/ifu_fetch_queue_tb \
+		-o $(abspath $(BUILD_DIR)/Vifu_fetch_queue_tb)
+	@$(BUILD_DIR)/Vifu_fetch_queue_tb
+
+top_fetch_queue_flush: sim sw
+	$(VERILATOR) --top-module $(TOPNAME) +incdir+vsrc/cpu/include --cc --exe --build -O3 -Wno-fatal -Wno-style --timescale "1ns/1ns" --no-timing -j 8 \
+		$(VSRCS) $(abspath $(SIM_DIR)/top_fetch_queue_flush_tb.cpp) \
+		--Mdir $(BUILD_DIR)/top_fetch_queue_flush_tb \
+		-o $(abspath $(BUILD_DIR)/Vtop_fetch_queue_flush_tb)
+	@$(BUILD_DIR)/Vtop_fetch_queue_flush_tb $(if $(IMG),$(IMG),$(SW_DIR)/build/scalar/btb-collision.bin)
+
+top_pc_update_flush: sim sw
+	$(VERILATOR) --top-module $(TOPNAME) +incdir+vsrc/cpu/include --cc --exe --build -O3 -Wno-fatal -Wno-style --timescale "1ns/1ns" --no-timing -j 8 \
+		$(VSRCS) $(abspath $(SIM_DIR)/top_fetch_queue_flush_tb.cpp) \
+		--Mdir $(BUILD_DIR)/top_pc_update_flush_tb \
+		-o $(abspath $(BUILD_DIR)/Vtop_pc_update_flush_tb)
+	@$(BUILD_DIR)/Vtop_pc_update_flush_tb $(if $(IMG),$(IMG),$(SW_DIR)/build/scalar/pc-update-ecall.bin) --pc-update
 
 backend_contract_checks: exu_wbu_flush exu_result_visibility cop_backend_flush idu_cop_regs commit_visible_ctrl ifu_idu_backpressure
 

@@ -242,6 +242,8 @@
 - 保留低风险、小步、可快速证伪的前端补充优化；
 - 但主精力切到 2-wide 前置准备，不再把 branch hit-rate 微调当成主线。
 
+执行入口见 `docs/cpu/two-wide-preparation-checklist.md`。
+
 ## 阶段 3：前后端解耦与局部并行
 
 ### 目标
@@ -362,6 +364,8 @@ B 线负责：
 - redirect / flush / kill
 - accepted payload / registered valid
 - future fetch/decode queue insertion points
+
+执行清单见 `docs/cpu/two-wide-preparation-checklist.md`。
 
 #### B-2：frontend queue and decoupling preparation
 
