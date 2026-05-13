@@ -169,12 +169,16 @@ assign mem_req_size = (exu_opt == 3'b001 || exu_opt == 3'b101) ? 3'd1 :
                                                                    3'd0;
 
 reg post_valid;
+wire result_done;
+wire result_visible;
 
 assign if_lsu = i_load || i_store;
-assign o_post_valid =  if_lsu   ?  lsu_done    :
-                       if_cop   ?  cop_done    :
-                       i_muldiv ?  muldiv_done :
+assign result_done =   if_lsu   ? lsu_done    :
+                       if_cop   ? cop_done    :
+                       i_muldiv ? muldiv_done :
                        i_pre_valid;
+assign result_visible = result_done && !i_flush;
+assign o_post_valid = result_visible;
 assign o_pre_ready  =  if_lsu   ?  lsu_done    :
                        if_cop   ?  cop_done    :
                        i_muldiv ?  muldiv_done :
@@ -185,7 +189,7 @@ assign o_mem_req_store  = i_store;
 assign o_mem_req_addr   = alu_res;
 assign o_mem_req_wdata  = i_src2;
 assign o_mem_req_size   = mem_req_size;
-assign o_mem_resp_valid = i_pre_valid && if_lsu && lsu_done;
+assign o_mem_resp_valid = i_pre_valid && if_lsu && lsu_done && !i_flush;
 assign o_mem_resp_rdata = load_res;
 
 always @(posedge clock or posedge reset) begin

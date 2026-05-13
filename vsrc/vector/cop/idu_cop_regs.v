@@ -40,7 +40,7 @@ assign o_active_src2 = o_issue_fire ? i_src2 :
                        entry_valid  ? entry_src2 : i_src2;
 assign o_rd = entry_rd;
 assign o_wen = entry_wen;
-assign o_issue_ready = !o_inflight && !i_backend_busy;
+assign o_issue_ready = (!o_inflight || i_dequeue) && !i_backend_busy;
 assign o_issue_fire = i_issue_valid && o_issue_ready;
 
 always @(posedge clock or posedge reset) begin

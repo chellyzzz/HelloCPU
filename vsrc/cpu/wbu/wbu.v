@@ -44,7 +44,7 @@ always @(posedge clock or posedge reset) begin
     o_pre_ready <= 1'b1;
   end
   else begin
-    o_pre_ready <= o_pre_ready;
+    o_pre_ready <= 1'b1;
   end
 end
 

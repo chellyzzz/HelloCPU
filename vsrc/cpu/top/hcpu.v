@@ -906,6 +906,7 @@ wire                                    exu2wbu_wen                ;
 wire                                    exu2wbu_csr_wen            ;
 wire                                    exu2wbu_commit_wen         ;
 wire                                    exu2wbu_commit_csr_wen     ;
+wire                                    exu_commit_visible         ;
 wire                                    exu2wbu_brch               ;
 wire                                    exu2wbu_jal                ;
 wire                                    exu2wbu_jalr               ;
@@ -1042,8 +1043,9 @@ hcpu_WBU wbu1(
     .o_pre_ready                       (wbu2exu_ready             ) 
 );
 
-assign exu2wbu_commit_wen     = exu_wbu_valid && exu2wbu_wen;
-assign exu2wbu_commit_csr_wen = exu_wbu_valid && exu2wbu_csr_wen;
+assign exu_commit_visible     = exu_wbu_valid;
+assign exu2wbu_commit_wen     = exu_commit_visible && exu2wbu_wen;
+assign exu2wbu_commit_csr_wen = exu_commit_visible && exu2wbu_csr_wen;
 
 hcpu_Xbar xbar
 (
@@ -1273,7 +1275,7 @@ import "DPI-C" function void redirect_gap_jalr_dpic(input int cycles);
 // ===========================================================================
 `ifdef PERF_INST_MIX
 always @(posedge clock) begin
-  if (!reset && exu_wbu_valid) begin
+  if (!reset && exu_commit_visible) begin
     commit_pc_dpic(exu2wbu_pc);
     commit_trace_dpic(exu2wbu_pc, {27'b0, exu2wbu_rd_addr}, exu2wbu_res,
                       {31'b0, exu2wbu_commit_wen}, {31'b0, exu2wbu_store},
@@ -1481,7 +1483,7 @@ always @(posedge clock) begin
 end
 
 // debug: WBU pc_update
-wire wbu_pc_update_fire = exu_wbu_valid && (exu2wbu_ecall || exu2wbu_mret);
+wire wbu_pc_update_fire = exu_commit_visible && (exu2wbu_ecall || exu2wbu_mret);
 
 always @(posedge clock) begin
     if (!reset && wbu_pc_update_fire) begin
@@ -1523,7 +1525,7 @@ always @(posedge clock or posedge reset) begin
         if (redirect_fire) begin
             redirect_recovery   <= 1'b1;
             redirect_gap_cnt    <= 32'd0;
-        end else if (redirect_recovery && exu_wbu_valid) begin
+        end else if (redirect_recovery && exu_commit_visible) begin
             redirect_gap_dpic(redirect_gap_cnt);
             if (redirect_cause_brch) redirect_gap_brch_dpic(redirect_gap_cnt);
             if (redirect_cause_jal)  redirect_gap_jal_dpic(redirect_gap_cnt);

@@ -17,8 +17,8 @@ At this point, further branch hit-rate tuning has entered a smaller-yield zone. 
 
 | Priority | Task | Goal | Main Files | Exit Criteria |
 |----------|------|------|------------|---------------|
-| P0 | Audit `accept/done/commit` semantics | Make backend receive / complete / commit boundaries explicit | `vsrc/cpu/exu/exu.v`, `vsrc/cpu/top/hcpu.v`, `vsrc/cpu/wbu/wbu.v` | Each backend path clearly identifies accept, functional completion, and architectural commit |
-| P0 | Normalize `kill/flush/completion` handling | Prevent stale completion from re-entering post-redirect control flow | `vsrc/cpu/exu/exu.v`, `vsrc/cpu/top/hcpu.v` | Killed or stale completions are absorbed consistently and cannot fire redirect or commit-visible side effects |
+| P0 | Audit `accept/done/commit` semantics | Make backend receive / complete / commit boundaries explicit | `vsrc/cpu/exu/exu.v`, `vsrc/cpu/top/hcpu.v`, `vsrc/cpu/wbu/wbu.v` | Each backend path clearly identifies accept, functional completion, and architectural commit. First audit pass complete in `docs/cpu/a-line-backend-contract-audit.md`. |
+| P0 | Normalize `kill/flush/completion` handling | Prevent stale completion from re-entering post-redirect control flow | `vsrc/cpu/exu/exu.v`, `vsrc/cpu/top/hcpu.v` | Killed or stale completions are absorbed consistently and cannot fire redirect or commit-visible side effects. First cleanup pass landed in `exu_wbu_regs.v`, `wbu.v`, and `exu.v`. |
 | P0 | Freeze scalar/COP owner contract | Preserve V1 memory-owner boundary while preparing for wider frontend behavior | `vsrc/cpu/top/hcpu.v`, `docs/interface/cpu-memory-service-model.md` | Scalar and COP request/response/kill responsibility is explicit and stable |
 | P0 | Add directed stale-completion regressions | Cover the most fragile redirect/completion edge cases | `sim/*`, directed regression entry points | Key stale-completion and flush corner cases are reproducible and pass reliably |
 | P1 | Map backend constraints for `2-wide` prep | Tell B-line exactly which backend assumptions must remain true | `docs/cpu/*` | Single-result, single-commit, and inflight ownership assumptions are documented |
@@ -34,6 +34,14 @@ The first directed validation wave should cover:
 4. `request accepted, then killed before response visible`
 
 These tests are more valuable than another local benchmark tweak because they protect the new frontend recovery baseline from backend semantic regressions.
+
+Current progress on this validation wave:
+
+- `EXU/WBU` flush payload clearing: covered by `make exu_wbu_flush`
+- scalar completion visibility filtering: covered by `make exu_result_visibility`
+- COP pending/visible response flush: covered by `make cop_backend_flush`
+- COP inflight ownership across `kill`, `dequeue`, and same-cycle replacement: covered by `make idu_cop_regs`
+- combined focused suite: `make backend_contract_checks`
 
 ## Early Decoupling Guidance
 

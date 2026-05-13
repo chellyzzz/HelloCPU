@@ -35,7 +35,7 @@ VECTOR_TESTS := $(basename $(notdir $(wildcard $(SW_DIR)/tests/vector-tests/*.c)
 
 # === Targets ===
 
-.PHONY: all sim sw clean run_% run_all bench bench_only branch_trace predictor_sim ifu_idu_backpressure
+.PHONY: all sim sw clean run_% run_all bench bench_only branch_trace predictor_sim ifu_idu_backpressure exu_wbu_flush exu_result_visibility cop_backend_flush idu_cop_regs backend_contract_checks
 
 all: sim sw
 
@@ -115,6 +115,39 @@ ifu_idu_backpressure:
 		--Mdir $(BUILD_DIR)/ifu_idu_regs_tb \
 		-o $(abspath $(BUILD_DIR)/Vifu_idu_regs_tb)
 	@$(BUILD_DIR)/Vifu_idu_regs_tb
+
+exu_wbu_flush:
+	$(VERILATOR) --top-module hcpu_exu_wbu_regs --cc --exe --build -Wno-fatal -Wno-style \
+		vsrc/cpu/exu/exu_wbu_regs.v $(abspath $(SIM_DIR)/exu_wbu_flush_tb.cpp) \
+		--Mdir $(BUILD_DIR)/exu_wbu_flush_tb \
+		-o $(abspath $(BUILD_DIR)/Vexu_wbu_flush_tb)
+	@$(BUILD_DIR)/Vexu_wbu_flush_tb
+
+exu_result_visibility:
+	$(VERILATOR) --top-module hcpu_EXU --cc --exe --build -Wno-fatal -Wno-style +incdir+vsrc/cpu/include \
+		vsrc/vector/cop/dummy_coprocessor.v vsrc/vector/cop/vector_cop_decode.v vsrc/vector/cop/vector_lane_alu.v \
+		vsrc/cpu/exu/divider.v vsrc/cpu/exu/multiplier.v vsrc/cpu/exu/alu.v vsrc/cpu/exu/lsu.v vsrc/cpu/exu/exu.v \
+		$(abspath $(SIM_DIR)/exu_result_visibility_tb.cpp) \
+		--Mdir $(BUILD_DIR)/exu_result_visibility_tb \
+		-o $(abspath $(BUILD_DIR)/Vexu_result_visibility_tb)
+	@$(BUILD_DIR)/Vexu_result_visibility_tb
+
+cop_backend_flush:
+	$(VERILATOR) --top-module hcpu_cop_backend --cc --exe --build -Wno-fatal -Wno-style \
+		vsrc/vector/cop/cop_backend.v vsrc/vector/cop/dummy_coprocessor.v vsrc/vector/cop/vector_cop_decode.v vsrc/vector/cop/vector_lane_alu.v \
+		$(abspath $(SIM_DIR)/cop_backend_flush_tb.cpp) \
+		--Mdir $(BUILD_DIR)/cop_backend_flush_tb \
+		-o $(abspath $(BUILD_DIR)/Vcop_backend_flush_tb)
+	@$(BUILD_DIR)/Vcop_backend_flush_tb
+
+idu_cop_regs:
+	$(VERILATOR) --top-module hcpu_idu_cop_regs --cc --exe --build -Wno-fatal -Wno-style \
+		vsrc/vector/cop/idu_cop_regs.v $(abspath $(SIM_DIR)/idu_cop_regs_tb.cpp) \
+		--Mdir $(BUILD_DIR)/idu_cop_regs_tb \
+		-o $(abspath $(BUILD_DIR)/Vidu_cop_regs_tb)
+	@$(BUILD_DIR)/Vidu_cop_regs_tb
+
+backend_contract_checks: exu_wbu_flush exu_result_visibility cop_backend_flush idu_cop_regs ifu_idu_backpressure
 
 # Wave for debugging
 wave:

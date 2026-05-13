@@ -83,8 +83,29 @@ always @(posedge clock or posedge reset) begin
         o_is_div    <= 'b0;
         o_valid     <= 1'b0;
     end
-    else if(i_post_ready && i_flush) begin
-        o_valid <= 1'b0;
+    else if(i_flush) begin
+        o_pc_next   <= 'b0;
+        o_pc        <= 'b0;
+        o_csr_addr  <= 'b0;
+        o_rd_addr   <= 'b0;
+        o_wen       <= 'b0;
+        o_csr_wen   <= 'b0;
+        o_brch      <= 'b0;
+        o_jal       <= 'b0;
+        o_jalr      <= 'b0;
+        o_mret      <= 'b0;
+        o_ecall     <= 'b0;
+        o_predict_taken <= 'b0;
+        o_predict_correct <= 'b0;
+        o_res       <= 'b0;
+        o_ebreak    <= 'b0;
+        o_load      <= 'b0;
+        o_store     <= 'b0;
+        o_muldiv    <= 'b0;
+        o_fence_i   <= 'b0;
+        o_is_brch   <= 'b0;
+        o_is_div    <= 'b0;
+        o_valid     <= 1'b0;
     end
     else if(i_post_ready && o_post_valid) begin
         o_pc_next   <= i_pc_next;

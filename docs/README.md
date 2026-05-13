@@ -10,6 +10,7 @@ CPU 侧与当前性能演进直接相关的重点文档包括：
 
 - `cpu/coremark-results.md`
 - `cpu/microarchitecture.md`
+- `cpu/a-line-backend-contract-audit.md`
 - `cpu/cpu-evolution-roadmap.md`
 - `cpu/a-line-2wide-prep-plan.md`
 - `cpu/post-merge-stabilization-freeze.md`
