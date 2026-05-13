@@ -159,6 +159,13 @@ Next B-line contract target:
 - Limit predecode fields to instruction-local decode outputs only.
 - Keep operand reads, CSR data selection, and issue/arbitration state out of the first predecode contract.
 
+Current landed RTL slice:
+
+- `vsrc/cpu/ifu/ifu_fetch_queue.v` now stores a minimal hazard-oriented predecode sidecar with each fetch entry.
+- Current stored fields are instruction-local only: `rd`, `rs1_addr`, `rs2_addr`, `wen`, `csr_wen`, `load`, `store`, `brch`, `jal`, `jalr`, `fence_i`, `muldiv`, `is_cop_insn`, `ecall`, `mret`, `ebreak`.
+- The sidecar does not change execution semantics yet; dequeue still feeds the existing single-issue decode / register-read path.
+- Queue-level directed validation and top-level smoke regressions now cover this structure.
+
 Current pairing/hazard draft direction:
 
 - Near-term real slice stays `2-wide fetch/predecode` with single issue preserved.

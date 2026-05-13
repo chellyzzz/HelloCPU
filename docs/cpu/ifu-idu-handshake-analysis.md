@@ -452,6 +452,12 @@ The first queue-safe predecode bundle may include only instruction-local fields:
 
 These are allowed because they are functions of `ins` only and do not require register-file or CSR read side effects.
 
+Current landed RTL subset:
+
+1. the fetch queue now stores a hazard-oriented subset of this bundle
+2. current stored fields are `rd`, `rs1_addr`, `rs2_addr`, `wen`, `csr_wen`, `load`, `store`, `brch`, `jal`, `jalr`, `fence_i`, `muldiv`, `is_cop_insn`, `ecall`, `mret`, `ebreak`
+3. `imm`, `csr_addr`, `exu_opt`, `alu_opt`, and source-select fields are not stored yet
+
 #### Fields Explicitly Not In Predecode
 
 The first predecode contract must not store or virtualize operand-read results:
@@ -500,6 +506,11 @@ When predecode storage becomes real RTL, the first assertion set should check on
 2. dequeue stall keeps the full predecode bundle stable
 3. flush removes both fetch identity and attached predecode bits together
 4. no younger entry's predecode bits may bypass an older valid entry in the first implementation
+
+Current landed validation hook:
+
+1. `hcpu` simulation now checks the stored fetch-queue predecode sidecar against the current combinational `hcpu_IDU` decode whenever `ifu2idu_valid` is high
+2. this keeps the sidecar tied to current decode truth without changing execution behavior
 
 ## Immediate Follow-Up
 

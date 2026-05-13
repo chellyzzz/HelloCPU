@@ -146,6 +146,7 @@ Current preferred first slice:
 - `2-wide fetch/predecode` only
 - single dequeue into the existing decode/register-read path
 - no decode queue, no dual dispatch, no dual writeback in v1
+- an intermediate safe step is allowed: store instruction-local predecode sidecar bits in fetch-queue entries without changing issue width
 
 Done when:
 
