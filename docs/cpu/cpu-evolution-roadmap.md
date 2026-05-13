@@ -330,9 +330,29 @@ A 线负责：
 
 这仍然是 A 线当前最直接的工作，而且已经确认：这一桶当前大头不是 MUL 或 COP，而是普通 `ALU/other` 指令的正常一拍传递。
 
+当前主线状态：这一清洗已进入稳定口径。
+
+- `true stall` 与 `normal backend pipe occupancy` 已分开统计
+- `Other blocked backend` 保留给真正的 residual blocked case
+- 正常一拍 EXU->WBU 传递单独落到 `Backend pipe occ`
+- `Backend pipe occ` 继续细分为 `ALU/other`、`branch`、`JAL`、`JALR`、`sys/csr`
+
 #### A-2：统一 backend 接口语义
 
 把 LSU、MUL、DIV、COP 的完成/提交/flush 语义进一步统一，为未来 vector memory 接入准备。
+
+当前主线采用的统一术语是：
+
+- `accept`：frontend-side payload ownership transferred into backend execution
+- `done`：backend function result has completed
+- `commit-visible`：result is allowed to reach shared WBU / architectural side effects
+
+当前 A 线约束：
+
+- `done != commit-visible`
+- `flush/kill` must be absorbed before `commit-visible`
+- scalar LSU 和 COP backend 都按这一规则表达结果可见性
+- scalar LSU has focused top-level pending-kill coverage, not just module-level visibility checks
 
 #### A-3：评估 scalar LSU 向 service model 演进
 

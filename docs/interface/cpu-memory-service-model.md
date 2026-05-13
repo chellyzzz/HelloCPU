@@ -129,6 +129,14 @@ Important V1 semantic note:
 
 - `scalar_mem_req_valid` currently means **the scalar EXU entry owns an active memory request**, not a new decoupled one-cycle launch handshake.
 - `scalar_mem_resp_valid` means **the active scalar memory request has completed**.
+- `scalar_mem_resp_valid` is still a visibility boundary, not a raw completion pulse: killed or stale scalar LSU completion must be absorbed before response visibility.
+
+The current regression protection for that rule is a top-level directed check that:
+
+- holds a scalar load response,
+- injects a test-only scalar backend flush,
+- observes the stale AXI completion drain,
+- requires a later scalar response to remain visible and the program to finish.
 
 This is intentional. The current step is to expose a clean boundary first, without rewriting LSU into a new protocol all at once.
 
@@ -213,9 +221,9 @@ Those belong to later phases.
 
 The next A-line step is:
 
-1. finish cleaning counter semantics (`true stall` vs `normal backend occupancy`)
-2. document scalar LSU request/complete boundaries in code-facing terms
-3. prepare for C-line minimal COP memory by keeping the service boundary small and explicit
+1. keep `accept / done / commit-visible` semantics aligned across scalar LSU and COP memory-facing backends
+2. preserve `true stall` vs `normal backend occupancy` as the only performance-facing counter split
+3. prepare for later scalar LSU service-model evolution without breaking the current single-owner V1 rule
 
 ## Summary
 

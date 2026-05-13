@@ -35,7 +35,7 @@ VECTOR_TESTS := $(basename $(notdir $(wildcard $(SW_DIR)/tests/vector-tests/*.c)
 
 # === Targets ===
 
-.PHONY: all sim sw clean run_% run_all bench bench_only branch_trace predictor_sim ifu_idu_backpressure exu_wbu_flush exu_result_visibility cop_backend_flush idu_cop_regs commit_visible_ctrl ifu_fetch_queue top_fetch_queue_flush top_pc_update_flush cop_mem_pending_kill cop_mem_store_directed cop_mem_store_kill backend_contract_checks
+.PHONY: all sim sw clean run_% run_all bench bench_only branch_trace predictor_sim ifu_idu_backpressure exu_wbu_flush exu_result_visibility cop_backend_flush idu_cop_regs commit_visible_ctrl ifu_fetch_queue top_fetch_queue_flush top_pc_update_flush cop_mem_pending_kill cop_mem_store_directed cop_mem_store_kill scalar_mem_pending_kill backend_contract_checks
 
 all: sim sw
 
@@ -208,7 +208,18 @@ cop_mem_store_kill: sw
 		-o $(abspath $(BUILD_DIR)/Vcop_mem_store_kill_tb)
 	@$(BUILD_DIR)/Vcop_mem_store_kill_tb $(SW_DIR)/build/vector/cop-vstore-repeat-mem.bin
 
-backend_contract_checks: exu_wbu_flush exu_result_visibility cop_backend_flush idu_cop_regs commit_visible_ctrl ifu_idu_backpressure
+scalar_mem_pending_kill: sw
+	$(VERILATOR) --top-module scalar_mem_pending_kill_top +incdir+vsrc/cpu/include --cc --exe --build -Wno-fatal -Wno-style \
+		--timescale "1ns/1ns" --no-timing \
+		"+define+SCALAR_MEM_PENDING_KILL_TB" \
+		$(EXTRA_VERILATOR_FLAGS) \
+		$(SIM_DIR)/scalar_mem_pending_kill_top.v $(SIM_DIR)/axi_ram.v $(shell find -L vsrc -name "*.v" -o -name "*.sv" 2>/dev/null) \
+		$(abspath $(SIM_DIR)/scalar_mem_pending_kill_tb.cpp) \
+		--Mdir $(BUILD_DIR)/scalar_mem_pending_kill_tb \
+		-o $(abspath $(BUILD_DIR)/Vscalar_mem_pending_kill_tb)
+	@$(BUILD_DIR)/Vscalar_mem_pending_kill_tb $(SW_DIR)/build/scalar/load-repeat.bin
+
+backend_contract_checks: exu_wbu_flush exu_result_visibility cop_backend_flush idu_cop_regs commit_visible_ctrl ifu_idu_backpressure scalar_mem_pending_kill
 
 # Wave for debugging
 wave:

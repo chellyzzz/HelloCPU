@@ -169,6 +169,14 @@ Current CoreMark ITER=100 stall picture:
 
 Current counter semantics print `True stall cycles` separately from `Backend pipe occ`, so normal EXU->WBU occupancy is no longer presented as backend stall.
 
+Current backend contract semantics use three layers consistently:
+
+- `accept`: payload enters backend ownership
+- `done`: backend function completes
+- `commit-visible`: result may enter shared WBU / architectural side effects
+
+Killed or stale completions are filtered before `commit-visible`.
+
 | Source | Cycles | % of stalls | Owner |
 |--------|--------|-------------|-------|
 | Frontend/empty | `2,339,440` | 69.0% | B |

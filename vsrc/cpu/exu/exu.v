@@ -169,16 +169,19 @@ assign mem_req_size = (exu_opt == 3'b001 || exu_opt == 3'b101) ? 3'd1 :
                                                                    3'd0;
 
 reg post_valid;
-wire result_done;
-wire result_visible;
+reg lsu_kill_pending;
+wire backend_done;
+wire backend_commit_visible;
+wire lsu_result_killed;
 
 assign if_lsu = i_load || i_store;
-assign result_done =   if_lsu   ? lsu_done    :
-                       if_cop   ? cop_done    :
-                       i_muldiv ? muldiv_done :
-                       i_pre_valid;
-assign result_visible = result_done && !i_flush;
-assign o_post_valid = result_visible;
+assign lsu_result_killed = if_lsu && (i_flush || lsu_kill_pending);
+assign backend_done =   if_lsu   ? lsu_done    :
+                        if_cop   ? cop_done    :
+                        i_muldiv ? muldiv_done :
+                        i_pre_valid;
+assign backend_commit_visible = backend_done && !lsu_result_killed && !(!if_lsu && i_flush);
+assign o_post_valid = backend_commit_visible;
 assign o_pre_ready  =  if_lsu   ?  lsu_done    :
                        if_cop   ?  cop_done    :
                        i_muldiv ?  muldiv_done :
@@ -189,7 +192,7 @@ assign o_mem_req_store  = i_store;
 assign o_mem_req_addr   = alu_res;
 assign o_mem_req_wdata  = i_src2;
 assign o_mem_req_size   = mem_req_size;
-assign o_mem_resp_valid = i_pre_valid && if_lsu && lsu_done && !i_flush;
+assign o_mem_resp_valid = i_pre_valid && if_lsu && lsu_done && !lsu_result_killed;
 assign o_mem_resp_rdata = load_res;
 
 always @(posedge clock or posedge reset) begin
@@ -197,6 +200,16 @@ always @(posedge clock or posedge reset) begin
         post_valid <= 1'b0;   
     end
     else post_valid <= i_pre_valid;
+end
+
+always @(posedge clock or posedge reset) begin
+    if (reset) begin
+        lsu_kill_pending <= 1'b0;
+    end else if (if_lsu && lsu_done) begin
+        lsu_kill_pending <= 1'b0;
+    end else if (if_lsu && i_pre_valid && !lsu_done && i_flush) begin
+        lsu_kill_pending <= 1'b1;
+    end
 end
 
 reg                  [  31:0]         alu_src1                   ;

@@ -247,11 +247,11 @@ static void print_perf_summary() {
     printf("│   Control recovery   : %10lu (%5.1f%%)            │\n",
            cnt_stall_ctrl, 100.0 * cnt_stall_ctrl / cnt_stall);
     printf("│   Other blocked bknd : %10lu (%5.1f%%)            │\n",
-           cnt_stall_other, 100.0 * cnt_stall_other / cnt_stall);
+           cnt_stall_other_blocked, 100.0 * cnt_stall_other_blocked / cnt_stall);
     if (cnt_stall_other > 0) {
-      printf("│     ├─ blocked       : %10lu (%5.1f%%)            │\n",
-             cnt_stall_other_blocked,
-             100.0 * cnt_stall_other_blocked / cnt_stall_other);
+      printf("│     ├─ residual total: %10lu (%5.1f%%)            │\n",
+             cnt_stall_other,
+             100.0 * cnt_stall_other / cnt_stall);
     }
   }
   if (cnt_backend_pipe_occ > 0) {

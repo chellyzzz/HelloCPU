@@ -80,6 +80,15 @@ module hcpu
     output                              tb_cop_mem_r_fire          ,
     output             [  31:0]         tb_cop_mem_addr
 `endif
+`ifdef SCALAR_MEM_PENDING_KILL_TB
+    ,input                              tb_scalar_flush            ,
+    output                              tb_scalar_mem_req_valid    ,
+    output                              tb_scalar_mem_resp_valid   ,
+    output                              tb_scalar_mem_kill_pending ,
+    output                              tb_scalar_mem_ar_fire      ,
+    output                              tb_scalar_mem_r_fire       ,
+    output             [  31:0]         tb_scalar_mem_addr
+`endif
 
 );
 /*****************para************************/
@@ -193,6 +202,9 @@ wire                                    scalar_exu2wbu_valid       ;
 wire                                    scalar_exu2idu_ready       ;
 wire                                    cop_exu2wbu_valid          ;
 wire                                    cop_exu2idu_ready          ;
+wire                                    scalar_backend_commit_visible;
+wire                                    cop_backend_commit_visible ;
+wire                                    cop_backend_resp_fire      ;
 //cache 
 wire                   [ISA_WIDTH-1:0]  icache_ins                 ;
 wire                   [ISA_WIDTH-1:0]  ifu_req_addr               ;
@@ -589,8 +601,16 @@ wire                                    cop_inflight_wen           ;
 wire                                    cop_kill                   ;
 wire                                    cop_queue_dequeue          ;
 wire                                    cop_resp_fire              ;
+wire                                    scalar_flush_test          ;
 
 assign cop_decode_active = idu2exu_is_cop_insn;
+assign scalar_flush_test =
+`ifdef SCALAR_MEM_PENDING_KILL_TB
+                           tb_scalar_flush
+`else
+                           1'b0
+`endif
+                           ;
 assign cop_issue_valid = cop_decode_active && !cop_inflight && !cop_backend_busy;
 assign cop_issue_active = cop_decode_active;
 assign cop_commit_active = cop_inflight;
@@ -624,15 +644,18 @@ assign exu_btb_update_taken = scalar_exu_btb_update_taken;
 assign exu_ras_push_en = scalar_exu_ras_push_en;
 assign exu_ras_push_data = scalar_exu_ras_push_data;
 assign exu_ras_pop_en = scalar_exu_ras_pop_en;
-assign exu2wbu_valid = cop_commit_active ? cop_exu2wbu_valid :
-                       idu2exu_is_cop_insn ? 1'b0 : scalar_exu2wbu_valid;
+assign scalar_backend_commit_visible = scalar_exu2wbu_valid;
+assign cop_backend_commit_visible = cop_exu2wbu_valid;
+assign exu2wbu_valid = cop_commit_active ? cop_backend_commit_visible :
+                       idu2exu_is_cop_insn ? 1'b0 : scalar_backend_commit_visible;
 assign exu2idu_ready = cop_pipeline_active ? 1'b0 : scalar_exu2idu_ready;
 assign cop_kill = idu2exu_fence_i || exu_mispredict_flush_r
 `ifdef COP_MEM_PENDING_KILL_TB
                 || tb_cop_kill
 `endif
                 ;
-assign cop_resp_fire = cop_exu2wbu_valid && wbu2exu_ready;
+assign cop_backend_resp_fire = cop_backend_commit_visible && wbu2exu_ready;
+assign cop_resp_fire = cop_backend_resp_fire;
 assign cop_queue_dequeue = cop_resp_fire;
 assign frontend_flush = pc_update_en || idu2exu_fence_i || exu_mispredict_flush;
 
@@ -755,7 +778,7 @@ hcpu_EXU exu1(
     .i_post_ready                      (wbu2exu_ready             ),
     .o_post_valid                      (scalar_exu2wbu_valid      ),
     .o_pre_ready                       (scalar_exu2idu_ready      ),
-    .i_flush                           (exu_mispredict_flush_r     ) 
+    .i_flush                           (exu_mispredict_flush_r || scalar_flush_test) 
 );
 
 hcpu_cop_backend cop_backend1(
@@ -820,6 +843,15 @@ assign tb_cop_mem_b_fire = cop_mem_bus_active && cop_mem_b_fire;
 assign tb_cop_mem_ar_fire = cop_mem_bus_active && cop_mem_ar_fire;
 assign tb_cop_mem_r_fire = cop_mem_bus_active && cop_mem_r_fire;
 assign tb_cop_mem_addr = cop_mem_addr_r;
+`endif
+
+`ifdef SCALAR_MEM_PENDING_KILL_TB
+assign tb_scalar_mem_req_valid = scalar_mem_req_valid;
+assign tb_scalar_mem_resp_valid = scalar_mem_resp_valid;
+assign tb_scalar_mem_kill_pending = exu1.lsu_kill_pending;
+assign tb_scalar_mem_ar_fire = !cop_mem_bus_active && LSU_ARB_AXI_ARVALID && LSU_SRAM_AXI_ARREADY;
+assign tb_scalar_mem_r_fire = !cop_mem_resp_active && LSU_ARB_AXI_RREADY && LSU_SRAM_AXI_RVALID && LSU_SRAM_AXI_RLAST;
+assign tb_scalar_mem_addr = scalar_mem_req_addr;
 `endif
 
 always @(posedge clock or posedge reset) begin
@@ -1037,7 +1069,7 @@ hcpu_exu_wbu_regs exu_wbu_regs (
     .o_valid                           (exu_wbu_valid             ),
     .i_post_ready                      (wbu2exu_ready             ),
     .o_post_valid                      (exu2wbu_valid             ),
-    .i_flush                            (exu_mispredict_flush_r     ) 
+    .i_flush                            (exu_mispredict_flush_r || scalar_flush_test) 
 );
 
 hcpu_WBU wbu1(
