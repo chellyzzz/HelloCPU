@@ -180,6 +180,8 @@ P2 的第一步仍保持 COP-local，新增 custom COP `vsetivli_p` 作为标准
 - 标准 RVV unsupported 行为已有设计文档，避免 silent wrong execution。
 - CPU decode/trap/CSR interface review 完成。
 
+标准 decode review 草案见 `rvv-standard-decode-p2-review.md`。
+
 ## 九、当前结论
 
 P1A/P1B/P1C/P2 prototype 的策略是：先把状态语义、state consumer 和 vset-like 配置路径做稳，再接标准编码。当前仍不改 CPU decode，不扩大 memory side effects，不声明标准 RVV supported。

@@ -17,6 +17,8 @@
 
 当前 HelloCPU 尚未声明支持标准 RVV。现有能力属于 `custom-0` COP prototype，用于验证 CPU/COP issue、kill、VRF、memory owner 和 pending-kill 语义。
 
+标准 OP-V `vsetivli` 进入 RTL 前的 interface review 草案见 `rvv-standard-decode-p2-review.md`。
+
 第一批 RVV 目标是形成一个小而明确的整数子集：
 
 - `vsetvli` 或 `vsetivli`。
