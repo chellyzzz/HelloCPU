@@ -1,5 +1,6 @@
-#include "Vcop_mem_pending_kill_top.h"
+#include "Vscalar_mem_pending_kill_top.h"
 #include "verilated.h"
+
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -45,6 +46,7 @@ extern "C" void pmem_write(int addr, int data, int strb) {
 }
 
 #define DPI_STUB0(name) extern "C" void name() {}
+#define DPI_STUB1(name) extern "C" void name(int) {}
 DPI_STUB0(csr_cnt_dpic)
 DPI_STUB0(brch_cnt_dpic)
 DPI_STUB0(jal_cnt_dpic)
@@ -124,19 +126,20 @@ DPI_STUB0(br_misp_pred_nt_btb_hit_dpic)
 DPI_STUB0(br_misp_pred_nt_btb_miss_dpic)
 DPI_STUB0(br_misp_pred_taken_nt_btb_hit_dpic)
 DPI_STUB0(br_misp_pred_taken_nt_btb_miss_dpic)
+DPI_STUB1(redirect_gap_dpic)
+DPI_STUB1(redirect_gap_brch_dpic)
+DPI_STUB1(redirect_gap_jal_dpic)
+DPI_STUB1(redirect_gap_jalr_dpic)
 #undef DPI_STUB0
+#undef DPI_STUB1
 
 extern "C" void commit_pc_dpic(int) {}
-extern "C" void redirect_gap_dpic(int) {}
-extern "C" void redirect_gap_brch_dpic(int) {}
-extern "C" void redirect_gap_jal_dpic(int) {}
-extern "C" void redirect_gap_jalr_dpic(int) {}
 extern "C" void mergesort_loop_dpic(int, int, int, int, int) {}
 extern "C" void branch_trace_dpic(int, int, int, int, int, int) {}
 extern "C" void commit_trace_dpic(int, int, int, int, int, int, int, int, int,
-                                  int, int, int, int, int) {}
+                                   int, int, int, int, int) {}
 
-static void tick(Vcop_mem_pending_kill_top *top) {
+static void tick(Vscalar_mem_pending_kill_top *top) {
   top->clock = 0;
   top->eval();
   top->clock = 1;
@@ -168,88 +171,61 @@ static int fail(const char *message) {
 
 int main(int argc, char **argv) {
   Verilated::commandArgs(argc, argv);
-  const char *image = argc > 1 ? argv[1] : "sw/build/vector/cop-vload-repeat-mem.bin";
+  const char *image = argc > 1 ? argv[1] : "sw/build/scalar/load-repeat.bin";
   if (!load_image(image)) {
     return fail("failed to load test image");
   }
 
-  Vcop_mem_pending_kill_top *top = new Vcop_mem_pending_kill_top;
+  Vscalar_mem_pending_kill_top *top = new Vscalar_mem_pending_kill_top;
   top->reset = 1;
-  top->tb_cop_kill = 0;
+  top->tb_scalar_flush = 0;
   top->tb_hold_read_resp = 0;
-  top->tb_hold_write_req = 0;
   for (int i = 0; i < 4; i++) tick(top);
   top->reset = 0;
 
-  bool killed_first_cop_read = false;
-  bool observed_killed_drain = false;
+  bool killed_first_scalar_read = false;
+  bool observed_kill_pending = false;
   bool observed_stale_r_fire = false;
-  bool observed_second_cop_response = false;
-  bool armed_second_response = false;
-  int ar_fire_count = 0;
-  int cop_ar_fire_count = 0;
-  int cop_r_fire_count = 0;
-  int cop_active_count = 0;
+  bool observed_later_scalar_response = false;
 
   for (int cycle = 0; cycle < 20000 && !finished; cycle++) {
     tick(top);
-    if (top->tb_ar_fire) ar_fire_count++;
-    if (top->tb_cop_mem_ar_fire) cop_ar_fire_count++;
-    if (top->tb_cop_mem_r_fire) cop_r_fire_count++;
-    if (top->tb_cop_mem_bus_active) cop_active_count++;
 
-    if (!killed_first_cop_read && top->tb_cop_mem_ar_fire) {
-      if (top->tb_araddr != top->tb_cop_mem_addr) {
-        return fail("COP AR fire did not match master AR address");
-      }
-      killed_first_cop_read = true;
+    if (!killed_first_scalar_read && top->tb_scalar_mem_ar_fire) {
+      killed_first_scalar_read = true;
       top->tb_hold_read_resp = 1;
-      top->tb_cop_kill = 1;
+      top->tb_scalar_flush = 1;
       tick(top);
-      top->tb_cop_kill = 0;
+      top->tb_scalar_flush = 0;
     }
 
-    if (killed_first_cop_read && top->tb_cop_mem_killed && top->tb_cop_mem_state == 2) {
-      observed_killed_drain = true;
-      if (top->tb_cop_mem_resp_valid) {
-        return fail("killed COP memory exposed response while draining");
-      }
-      for (int i = 0; i < 4; i++) tick(top);
+    if (killed_first_scalar_read && top->tb_scalar_mem_kill_pending) {
+      observed_kill_pending = true;
       top->tb_hold_read_resp = 0;
     }
 
-    if (observed_killed_drain && !observed_stale_r_fire && top->tb_cop_mem_r_fire) {
+    if (observed_kill_pending && !observed_stale_r_fire && top->tb_scalar_mem_r_fire) {
       observed_stale_r_fire = true;
-      if (top->tb_cop_mem_resp_valid) {
-        return fail("stale completion reached COP response");
+      if (top->tb_scalar_mem_resp_valid) {
+        return fail("stale scalar completion reached visible response");
       }
     }
 
-    if (observed_stale_r_fire && top->tb_cop_mem_ar_fire) {
-      armed_second_response = true;
-    }
-
-    if (armed_second_response && top->tb_cop_mem_resp_valid) {
-      observed_second_cop_response = true;
+    if (observed_stale_r_fire && top->tb_scalar_mem_resp_valid) {
+      observed_later_scalar_response = true;
     }
   }
 
   int result = 0;
-  if (!killed_first_cop_read) result |= fail("did not observe first COP read request");
-  if (!observed_killed_drain) result |= fail("did not observe killed COP drain state");
-  if (!observed_stale_r_fire) result |= fail("did not observe stale read completion");
-  if (!observed_second_cop_response) result |= fail("did not observe later COP response");
-  if (!finished) result |= fail("program did not finish after pending-kill scenario");
-  if (finished && exit_code != 0) result |= fail("program failed after pending-kill scenario");
-  if (result) {
-    std::fprintf(stderr,
-                 "debug: ar_fire_count=%d cop_ar_fire_count=%d cop_r_fire_count=%d cop_active_count=%d exit_code=%d\n",
-                 ar_fire_count, cop_ar_fire_count, cop_r_fire_count,
-                 cop_active_count, exit_code);
-  }
+  if (!killed_first_scalar_read) result |= fail("did not observe first scalar read request");
+  if (!observed_kill_pending) result |= fail("did not observe scalar kill-pending state");
+  if (!observed_stale_r_fire) result |= fail("did not observe stale scalar read completion");
+  if (!observed_later_scalar_response) result |= fail("did not observe later scalar visible response");
+  if (!finished) result |= fail("program did not finish after scalar pending-kill scenario");
+  if (finished && exit_code != 0) result |= fail("program failed after scalar pending-kill scenario");
 
   delete top;
   if (result) return 1;
-  std::printf("PASS: COP pending memory kill drains stale completion and recovers\n");
+  std::printf("PASS: scalar pending kill drains stale completion and recovers\n");
   return 0;
 }

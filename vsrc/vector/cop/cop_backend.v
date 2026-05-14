@@ -27,6 +27,10 @@ wire        cop_mem_req_store;
 wire [31:0] cop_mem_addr;
 wire [31:0] cop_mem_wdata;
 wire [2:0]  cop_mem_size;
+wire        backend_accept;
+wire        backend_done;
+wire        backend_commit_visible;
+wire        backend_resp_fire;
 reg         cop_busy;
 reg         resp_valid;
 reg [31:0]  resp_res;
@@ -50,8 +54,13 @@ hcpu_dummy_coprocessor u_dummy_coprocessor(
     .i_cop_mem_resp_rdata(i_cop_mem_resp_rdata)
 );
 
+assign backend_accept = i_pre_valid && !cop_busy && !resp_valid;
+assign backend_done = cop_done;
+assign backend_commit_visible = resp_valid;
+assign backend_resp_fire = backend_commit_visible && i_post_ready;
+
 assign o_pre_ready = !cop_busy && !resp_valid;
-assign o_post_valid = resp_valid;
+assign o_post_valid = backend_commit_visible;
 assign o_busy = cop_busy || resp_valid;
 assign o_res = resp_res;
 assign o_cop_mem_req_valid = cop_mem_req_valid;
@@ -66,17 +75,17 @@ always @(posedge clock or posedge reset) begin
         resp_valid <= 1'b0;
         resp_res <= 32'b0;
     end else begin
-        if (i_pre_valid && !cop_busy && !resp_valid) begin
+        if (backend_accept) begin
             cop_busy <= 1'b1;
         end
 
-        if (cop_done) begin
+        if (backend_done) begin
             cop_busy <= 1'b0;
             resp_valid <= 1'b1;
             resp_res <= cop_res;
         end
 
-        if (resp_valid && i_post_ready) begin
+        if (backend_resp_fire) begin
             resp_valid <= 1'b0;
         end
     end

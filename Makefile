@@ -35,7 +35,7 @@ VECTOR_TESTS := $(basename $(notdir $(wildcard $(SW_DIR)/tests/vector-tests/*.c)
 
 # === Targets ===
 
-.PHONY: all sim sw clean run_% run_all bench bench_only branch_trace predictor_sim ifu_idu_backpressure exu_wbu_flush exu_result_visibility cop_backend_flush idu_cop_regs commit_visible_ctrl ifu_fetch_queue top_fetch_queue_flush top_pc_update_flush cop_mem_pending_kill cop_mem_store_directed cop_mem_store_kill cop_vtype_kill backend_contract_checks
+.PHONY: all sim sw clean run_% run_all bench bench_only branch_trace predictor_sim ifu_idu_backpressure exu_wbu_flush exu_result_visibility cop_backend_flush idu_cop_regs commit_visible_ctrl ifu_fetch_queue top_fetch_queue_flush top_pc_update_flush cop_mem_pending_kill cop_mem_store_directed cop_mem_store_kill cop_vtype_kill scalar_mem_pending_kill backend_contract_checks embench-build embench-run embench-run-one
 
 all: sim sw
 
@@ -101,6 +101,24 @@ bench_only: sim
 	@echo "=== CoreMark (ITER=$(ITER)) ==="
 	@$(BUILD_DIR)/V$(TOPNAME) $(SW_DIR)/build/coremark.bin
 
+embench-build: sim
+	$(MAKE) -C $(SW_DIR) embench-build ALL="$(ALL)"
+
+embench-run: embench-build
+	@mkdir -p $(BUILD_DIR)/embench
+	@for b in $(or $(ALL),$(shell $(MAKE) -s -C $(SW_DIR) print-embench-subset)); do \
+		echo "=== Embench: $$b ==="; \
+		$(BUILD_DIR)/V$(TOPNAME) $(SW_DIR)/build/embench/$$b.bin | tee $(BUILD_DIR)/embench/$$b.log; \
+		if [ $${PIPESTATUS[0]} -ne 0 ]; then exit $${PIPESTATUS[0]}; fi; \
+	done
+
+embench-run-one: sim
+	@if [ -z "$(ALL)" ]; then echo "Set ALL=<benchmark>"; exit 1; fi
+	$(MAKE) -C $(SW_DIR) embench-build ALL="$(ALL)"
+	@mkdir -p $(BUILD_DIR)/embench
+	@echo "=== Embench: $(ALL) ==="
+	@set -o pipefail; $(BUILD_DIR)/V$(TOPNAME) $(SW_DIR)/build/embench/$(ALL).bin | tee $(BUILD_DIR)/embench/$(ALL).log
+
 branch_trace: sim
 	$(MAKE) -C $(SW_DIR) benchmark ITER=$(ITER)
 	@echo "=== Branch trace (ITER=$(ITER)) ==="
@@ -110,7 +128,7 @@ predictor_sim:
 	python3 tools/predictor_sim/predictor_sim.py --trace $(TRACE) --policy $(POLICY) $(ARGS)
 
 ifu_idu_backpressure:
-	$(VERILATOR) --top-module hcpu_ifu_idu_regs --cc --exe --build -Wno-fatal -Wno-style \
+	$(VERILATOR) --top-module hcpu_ifu_idu_regs --cc --exe --build -Wno-fatal -Wno-style $(EXTRA_VERILATOR_FLAGS) \
 		vsrc/cpu/ifu/ifu_idu_regs.v $(abspath $(SIM_DIR)/ifu_idu_regs_backpressure_tb.cpp) \
 		--Mdir $(BUILD_DIR)/ifu_idu_regs_tb \
 		-o $(abspath $(BUILD_DIR)/Vifu_idu_regs_tb)
@@ -155,21 +173,21 @@ commit_visible_ctrl:
 	@$(BUILD_DIR)/Vcommit_visible_ctrl_tb
 
 ifu_fetch_queue:
-	$(VERILATOR) --top-module hcpu_ifu_fetch_queue --cc --exe --build -Wno-fatal -Wno-style \
+	$(VERILATOR) --top-module hcpu_ifu_fetch_queue --cc --exe --build -Wno-fatal -Wno-style $(EXTRA_VERILATOR_FLAGS) \
 		vsrc/cpu/ifu/ifu_fetch_queue.v $(abspath $(SIM_DIR)/ifu_fetch_queue_tb.cpp) \
 		--Mdir $(BUILD_DIR)/ifu_fetch_queue_tb \
 		-o $(abspath $(BUILD_DIR)/Vifu_fetch_queue_tb)
 	@$(BUILD_DIR)/Vifu_fetch_queue_tb
 
 top_fetch_queue_flush: sim sw
-	$(VERILATOR) --top-module $(TOPNAME) +incdir+vsrc/cpu/include --cc --exe --build -O3 -Wno-fatal -Wno-style --timescale "1ns/1ns" --no-timing -j 8 \
+	$(VERILATOR) --top-module $(TOPNAME) +incdir+vsrc/cpu/include --cc --exe --build -O3 -Wno-fatal -Wno-style --timescale "1ns/1ns" --no-timing -j 8 $(EXTRA_VERILATOR_FLAGS) \
 		$(VSRCS) $(abspath $(SIM_DIR)/top_fetch_queue_flush_tb.cpp) \
 		--Mdir $(BUILD_DIR)/top_fetch_queue_flush_tb \
 		-o $(abspath $(BUILD_DIR)/Vtop_fetch_queue_flush_tb)
 	@$(BUILD_DIR)/Vtop_fetch_queue_flush_tb $(if $(IMG),$(IMG),$(SW_DIR)/build/scalar/btb-collision.bin)
 
 top_pc_update_flush: sim sw
-	$(VERILATOR) --top-module $(TOPNAME) +incdir+vsrc/cpu/include --cc --exe --build -O3 -Wno-fatal -Wno-style --timescale "1ns/1ns" --no-timing -j 8 \
+	$(VERILATOR) --top-module $(TOPNAME) +incdir+vsrc/cpu/include --cc --exe --build -O3 -Wno-fatal -Wno-style --timescale "1ns/1ns" --no-timing -j 8 $(EXTRA_VERILATOR_FLAGS) \
 		$(VSRCS) $(abspath $(SIM_DIR)/top_fetch_queue_flush_tb.cpp) \
 		--Mdir $(BUILD_DIR)/top_pc_update_flush_tb \
 		-o $(abspath $(BUILD_DIR)/Vtop_pc_update_flush_tb)
@@ -217,7 +235,18 @@ cop_vtype_kill:
 		-o $(abspath $(BUILD_DIR)/Vcop_backend_vtype_flush_tb)
 	@$(BUILD_DIR)/Vcop_backend_vtype_flush_tb
 
-backend_contract_checks: exu_wbu_flush exu_result_visibility cop_backend_flush idu_cop_regs commit_visible_ctrl ifu_idu_backpressure
+scalar_mem_pending_kill: sw
+	$(VERILATOR) --top-module scalar_mem_pending_kill_top +incdir+vsrc/cpu/include --cc --exe --build -Wno-fatal -Wno-style \
+		--timescale "1ns/1ns" --no-timing \
+		"+define+SCALAR_MEM_PENDING_KILL_TB" \
+		$(EXTRA_VERILATOR_FLAGS) \
+		$(SIM_DIR)/scalar_mem_pending_kill_top.v $(SIM_DIR)/axi_ram.v $(shell find -L vsrc -name "*.v" -o -name "*.sv" 2>/dev/null) \
+		$(abspath $(SIM_DIR)/scalar_mem_pending_kill_tb.cpp) \
+		--Mdir $(BUILD_DIR)/scalar_mem_pending_kill_tb \
+		-o $(abspath $(BUILD_DIR)/Vscalar_mem_pending_kill_tb)
+	@$(BUILD_DIR)/Vscalar_mem_pending_kill_tb $(SW_DIR)/build/scalar/load-repeat.bin
+
+backend_contract_checks: exu_wbu_flush exu_result_visibility cop_backend_flush idu_cop_regs commit_visible_ctrl ifu_idu_backpressure scalar_mem_pending_kill cop_vtype_kill
 
 # Wave for debugging
 wave:

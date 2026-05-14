@@ -82,4 +82,23 @@ end
 
 assign ins = icache_ins;
 
+`ifdef PROTOCOL_ASSERT
+reg        prev_blocked_fetch;
+reg [31:0] prev_pc_next;
+
+always @(posedge clock or negedge rst_n_sync) begin
+    if (~rst_n_sync) begin
+        prev_blocked_fetch <= 1'b0;
+        prev_pc_next <= 32'b0;
+    end else begin
+        if (prev_blocked_fetch && !exu_mispredict_flush && !i_pc_update && !(hit && i_post_ready)) begin
+            if (pc_next != prev_pc_next)
+                $fatal(1, "hcpu_IFU pc_next changed while fetch remained blocked");
+        end
+        prev_blocked_fetch <= hit && !i_post_ready;
+        prev_pc_next <= pc_next;
+    end
+end
+`endif
+
 endmodule

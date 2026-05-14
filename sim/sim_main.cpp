@@ -35,6 +35,8 @@ static uint64_t cnt_jal = 0;
 static uint64_t cnt_load = 0;
 static uint64_t cnt_store = 0;
 static uint64_t cnt_mul = 0;
+static uint64_t cnt_mul_low = 0;
+static uint64_t cnt_mul_high = 0;
 static uint64_t cnt_div = 0;
 static uint64_t cnt_cop = 0;
 static uint64_t cnt_alu = 0;
@@ -188,7 +190,7 @@ static void print_perf_summary() {
              cnt_stall_ifu_held_mul,
              100.0 * cnt_stall_ifu_held_mul / cnt_stall_ifu_held);
       if (cnt_stall_ifu_held_mul > 0) {
-        printf("│     │  ├─ MUL        : %10lu (%5.1f%%)            │\n",
+        printf("│     │  ├─ MUL-high   : %10lu (%5.1f%%)            │\n",
                cnt_stall_ifu_held_mul_only,
                100.0 * cnt_stall_ifu_held_mul_only / cnt_stall_ifu_held_mul);
         printf("│     │  ├─ DIV        : %10lu (%5.1f%%)            │\n",
@@ -237,7 +239,7 @@ static void print_perf_summary() {
     printf("│   MUL/DIV wait       : %10lu (%5.1f%%)            │\n",
            cnt_stall_mul, 100.0 * cnt_stall_mul / cnt_stall);
     if (cnt_stall_mul > 0) {
-      printf("│     ├─ MUL           : %10lu (%5.1f%%)            │\n",
+      printf("│     ├─ MUL-high      : %10lu (%5.1f%%)            │\n",
              cnt_stall_mul_only, 100.0 * cnt_stall_mul_only / cnt_stall_mul);
       printf("│     ├─ DIV           : %10lu (%5.1f%%)            │\n",
              cnt_stall_div, 100.0 * cnt_stall_div / cnt_stall_mul);
@@ -247,11 +249,11 @@ static void print_perf_summary() {
     printf("│   Control recovery   : %10lu (%5.1f%%)            │\n",
            cnt_stall_ctrl, 100.0 * cnt_stall_ctrl / cnt_stall);
     printf("│   Other blocked bknd : %10lu (%5.1f%%)            │\n",
-           cnt_stall_other, 100.0 * cnt_stall_other / cnt_stall);
+           cnt_stall_other_blocked, 100.0 * cnt_stall_other_blocked / cnt_stall);
     if (cnt_stall_other > 0) {
-      printf("│     ├─ blocked       : %10lu (%5.1f%%)            │\n",
-             cnt_stall_other_blocked,
-             100.0 * cnt_stall_other_blocked / cnt_stall_other);
+      printf("│     ├─ residual total: %10lu (%5.1f%%)            │\n",
+             cnt_stall_other,
+             100.0 * cnt_stall_other / cnt_stall);
     }
   }
   if (cnt_backend_pipe_occ > 0) {
@@ -290,6 +292,12 @@ static void print_perf_summary() {
            100.0 * cnt_store / cnt_inst);
     printf("│   Multiplies        : %10lu (%5.1f%%)            │\n", cnt_mul,
            100.0 * cnt_mul / cnt_inst);
+    if (cnt_mul > 0) {
+      printf("│     ├─ MUL-low      : %10lu (%5.1f%%)            │\n",
+             cnt_mul_low, 100.0 * cnt_mul_low / cnt_mul);
+      printf("│     ├─ MUL-high     : %10lu (%5.1f%%)            │\n",
+             cnt_mul_high, 100.0 * cnt_mul_high / cnt_mul);
+    }
     printf("│   Divides           : %10lu (%5.1f%%)            │\n", cnt_div,
            100.0 * cnt_div / cnt_inst);
     printf("│   COP custom ops    : %10lu (%5.1f%%)            │\n", cnt_cop,
@@ -438,6 +446,8 @@ extern "C" void jal_cnt_dpic() { cnt_jal++; }
 extern "C" void load_dpic() { cnt_load++; }
 extern "C" void store_dpic() { cnt_store++; }
 extern "C" void mul_cnt_dpic() { cnt_mul++; }
+extern "C" void mul_low_cnt_dpic() { cnt_mul_low++; }
+extern "C" void mul_high_cnt_dpic() { cnt_mul_high++; }
 extern "C" void div_cnt_dpic() { cnt_div++; }
 extern "C" void cop_cnt_dpic() { cnt_cop++; }
 extern "C" void alu_cnt_dpic() { cnt_alu++; }

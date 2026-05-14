@@ -131,7 +131,7 @@ Next work under the same ROI rule:
 
 ### B-Task-8: redirect recovery 3 -> 2 cycles
 
-Current status: **implemented and validated on frontend branch**
+Current status: **implemented and validated on mainline**
 
 Validated branch point: `codex/b-line-predictor-rtl` fast-forwarded to `41b0734`, then patched to remove redundant WBU redirect on branch/JALR mispredicts.
 
@@ -180,6 +180,12 @@ Current validation:
 - `make run ALL=pc-update-ecall`: PASS
 - `make run ALL=btb-collision`: PASS
 - `make run ALL=sum`: PASS
+- `make ifu_idu_backpressure EXTRA_VERILATOR_FLAGS="+define+PROTOCOL_ASSERT"`: PASS
+- `make ifu_fetch_queue EXTRA_VERILATOR_FLAGS="+define+PROTOCOL_ASSERT"`: PASS
+- `make top_fetch_queue_flush EXTRA_VERILATOR_FLAGS="+define+PROTOCOL_ASSERT"`: PASS
+- `make top_pc_update_flush EXTRA_VERILATOR_FLAGS="+define+PROTOCOL_ASSERT"`: PASS
+- `make run EXTRA_VERILATOR_FLAGS="+define+PROTOCOL_ASSERT"`: PASS, `55 passed, 0 failed`
+- `make bench_only ITER=100 EXTRA_VERILATOR_FLAGS="+define+PROTOCOL_ASSERT"`: PASS, `CoreMark/MHz = 3.032`, simulator `32982676` cycles, `IPC = 0.928`
 - `make bench_only ITER=100`: PASS, `CoreMark/MHz = 3.032`, simulator `32982676` cycles, `IPC = 0.928`
 
 Redirect-owner coverage proof:
@@ -192,6 +198,34 @@ Checkpoint verdict:
 
 - This is the current recommended mainline candidate checkpoint for `2-wide` preparation.
 - It improves verification confidence rather than throughput: no new performance uplift is claimed beyond the already landed `2-cycle` redirect recovery.
+- The queue-aware boundary now also has a default-off `PROTOCOL_ASSERT` closure in mainline-owned boundary files, so future handshake changes can be checked without changing default performance paths.
+
+Assertion closure in this checkpoint:
+
+- `vsrc/cpu/ifu/ifu.v`: blocked fetch keeps `pc_next` stable until redirect, `pc_update`, or a real dequeue event.
+- `vsrc/cpu/ifu/ifu_fetch_queue.v`: dequeue stall keeps `pc/ins/predict_*` stable until `ready` or `flush`.
+- `vsrc/cpu/idu/idu_exu_regs.v`: `o_pre_ready` remains pure pass-through from `i_post_ready`, and stalled downstream keeps the full payload stable.
+
+Next B-line contract target:
+
+- Define the first decode/predecode bundle before any real dual-decode RTL starts.
+- Keep `ins` as the canonical truth source.
+- Limit predecode fields to instruction-local decode outputs only.
+- Keep operand reads, CSR data selection, and issue/arbitration state out of the first predecode contract.
+
+Current landed RTL slice:
+
+- `vsrc/cpu/ifu/ifu_fetch_queue.v` now stores a minimal hazard-oriented predecode sidecar with each fetch entry.
+- Current stored fields are instruction-local only: `rd`, `rs1_addr`, `rs2_addr`, `wen`, `csr_wen`, `load`, `store`, `brch`, `jal`, `jalr`, `fence_i`, `muldiv`, `is_cop_insn`, `ecall`, `mret`, `ebreak`.
+- The sidecar does not change execution semantics yet; dequeue still feeds the existing single-issue decode / register-read path.
+- Queue-level directed validation and top-level smoke regressions now cover this structure.
+
+Current pairing/hazard draft direction:
+
+- Near-term real slice stays `2-wide fetch/predecode` with single issue preserved.
+- First issue-capable prototype rejects `RAW`, `WAW`, and shared exclusive-backend pairs by default.
+- Until writeback bandwidth changes, treat two normal writers in one cycle as out of scope.
+- The only future pairing candidate worth studying first is `simple ALU + branch`.
 
 ### B-Task-1: IFU/IDU pass-through protocol specification document
 

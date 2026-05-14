@@ -168,6 +168,15 @@ Future vector memory access and RVV migration will require CPU-side decode, LSU 
 Current CoreMark ITER=100 stall picture:
 
 Current counter semantics print `True stall cycles` separately from `Backend pipe occ`, so normal EXU->WBU occupancy is no longer presented as backend stall.
+Current multiply reporting also distinguishes immediate `MUL-low` from multi-cycle `MUL-high`, so multiply behavior no longer needs to be inferred from the old `Other backend` bucket.
+
+Current backend contract semantics use three layers consistently:
+
+- `accept`: payload enters backend ownership
+- `done`: backend function completes
+- `commit-visible`: result may enter shared WBU / architectural side effects
+
+Killed or stale completions are filtered before `commit-visible`.
 
 | Source | Cycles | % of stalls | Owner |
 |--------|--------|-------------|-------|

@@ -237,3 +237,24 @@ Current focused regression entry points:
 - `make backend_contract_checks`
 
 That is enough to move the backend from “implicitly safe under single-issue assumptions” to “partially explicit and regression-checked,” which is a reasonable A-line stabilization point before adding new behavior.
+
+## Cleanup Pass 3
+
+The next cleanup pass stays deliberately small and focuses on semantic alignment instead of a structural rewrite:
+
+1. scalar EXU now expresses its local completion boundary as `backend_done` and `backend_commit_visible`
+2. COP backend now uses the same internal `accept -> done -> commit-visible` naming pattern
+3. scalar LSU stale completion filtering is extended with pending-kill state so delayed memory completion can be absorbed before becoming commit-visible
+4. a system-level scalar directed check now drives a test-only flush around a real scalar load response and verifies stale completion is drained but never becomes visible
+
+This still does not add queueing or multi-request overlap. It only makes the backend contract easier to read and reuse:
+
+- `accept`, `done`, and `commit-visible` now mean the same thing on both scalar and COP result paths
+- delayed scalar LSU completion is treated like a killed response, not an automatically visible one
+- performance reporting now keeps `Other blocked backend` aligned with true residual blocked cycles instead of the broader historical bucket name
+- multiply reporting now separates `MUL-low` and `MUL-high`, so `mul-high` no longer hides inside `Other backend` interpretation
+
+Current focused regression entry points now additionally include:
+
+- `make scalar_mem_pending_kill`
+- `make backend_contract_checks`

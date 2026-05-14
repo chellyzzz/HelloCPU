@@ -80,6 +80,15 @@ module hcpu
     output                              tb_cop_mem_r_fire          ,
     output             [  31:0]         tb_cop_mem_addr
 `endif
+`ifdef SCALAR_MEM_PENDING_KILL_TB
+    ,input                              tb_scalar_flush            ,
+    output                              tb_scalar_mem_req_valid    ,
+    output                              tb_scalar_mem_resp_valid   ,
+    output                              tb_scalar_mem_kill_pending ,
+    output                              tb_scalar_mem_ar_fire      ,
+    output                              tb_scalar_mem_r_fire       ,
+    output             [  31:0]         tb_scalar_mem_addr
+`endif
 
 );
 /*****************para************************/
@@ -180,19 +189,30 @@ wire                   [  31:0]         scalar_mem_req_wdata      ;
 wire                   [   2:0]         scalar_mem_req_size       ;
 wire                                    scalar_mem_resp_valid     ;
 wire                   [  31:0]         scalar_mem_resp_rdata     ;
+wire                                    scalar_mem_service_req_valid;
+wire                                    scalar_mem_service_req_store;
+wire                   [  31:0]         scalar_mem_service_req_addr;
+wire                   [  31:0]         scalar_mem_service_req_wdata;
+wire                   [   2:0]         scalar_mem_service_req_size;
+wire                                    scalar_mem_service_resp_valid;
+wire                   [  31:0]         scalar_mem_service_resp_rdata;
 wire                                    mem_owner_scalar_active   ;
 wire                                    mem_owner_cop_active      ;
-wire                                    mem_owner_req_valid       ;
-wire                                    mem_owner_req_store       ;
-wire                   [  31:0]         mem_owner_req_addr        ;
-wire                   [  31:0]         mem_owner_req_wdata       ;
-wire                   [   2:0]         mem_owner_req_size        ;
-wire                                    mem_owner_resp_valid      ;
-wire                   [  31:0]         mem_owner_resp_rdata      ;
+wire                                    mem_service_req_valid     ;
+wire                                    mem_service_req_store     ;
+wire                   [  31:0]         mem_service_req_addr      ;
+wire                   [  31:0]         mem_service_req_wdata     ;
+wire                   [   2:0]         mem_service_req_size      ;
+wire                                    mem_service_resp_valid    ;
+wire                   [  31:0]         mem_service_resp_rdata    ;
 wire                                    scalar_exu2wbu_valid       ;
 wire                                    scalar_exu2idu_ready       ;
 wire                                    cop_exu2wbu_valid          ;
 wire                                    cop_exu2idu_ready          ;
+wire                                    scalar_backend_commit_visible;
+wire                                    cop_backend_commit_visible ;
+wire                                    cop_backend_resp_fire      ;
+wire                                    cop_backend_commit_fire    ;
 //cache 
 wire                   [ISA_WIDTH-1:0]  icache_ins                 ;
 wire                   [ISA_WIDTH-1:0]  ifu_req_addr               ;
@@ -312,6 +332,22 @@ wire [31:0] ifu2idu_pc;
 wire        ifu2idu_predict_taken;
 wire [31:2] ifu2idu_predict_target;
 wire        ifu2idu_predict_btb_hit;
+wire [4:0] ifu2idu_predecode_rd;
+wire [4:0] ifu2idu_predecode_rs1_addr;
+wire [4:0] ifu2idu_predecode_rs2_addr;
+wire       ifu2idu_predecode_wen;
+wire       ifu2idu_predecode_csr_wen;
+wire       ifu2idu_predecode_load;
+wire       ifu2idu_predecode_store;
+wire       ifu2idu_predecode_brch;
+wire       ifu2idu_predecode_jal;
+wire       ifu2idu_predecode_jalr;
+wire       ifu2idu_predecode_fence_i;
+wire       ifu2idu_predecode_muldiv;
+wire       ifu2idu_predecode_is_cop_insn;
+wire       ifu2idu_predecode_ecall;
+wire       ifu2idu_predecode_mret;
+wire       ifu2idu_predecode_ebreak;
 
 hcpu_CSR_RegisterFile Csrs(
     .clock                             (clock                     ),
@@ -453,7 +489,23 @@ hcpu_ifu_fetch_queue ifu_fetch_queue(
     .o_ins                             (ifu2idu_ins               ),
     .o_predict_taken                   (ifu2idu_predict_taken     ),
     .o_predict_target                  (ifu2idu_predict_target    ),
-    .o_predict_btb_hit                 (ifu2idu_predict_btb_hit   )
+    .o_predict_btb_hit                 (ifu2idu_predict_btb_hit   ),
+    .o_predecode_rd                    (ifu2idu_predecode_rd      ),
+    .o_predecode_rs1_addr              (ifu2idu_predecode_rs1_addr),
+    .o_predecode_rs2_addr              (ifu2idu_predecode_rs2_addr),
+    .o_predecode_wen                   (ifu2idu_predecode_wen     ),
+    .o_predecode_csr_wen               (ifu2idu_predecode_csr_wen ),
+    .o_predecode_load                  (ifu2idu_predecode_load    ),
+    .o_predecode_store                 (ifu2idu_predecode_store   ),
+    .o_predecode_brch                  (ifu2idu_predecode_brch    ),
+    .o_predecode_jal                   (ifu2idu_predecode_jal     ),
+    .o_predecode_jalr                  (ifu2idu_predecode_jalr    ),
+    .o_predecode_fence_i               (ifu2idu_predecode_fence_i ),
+    .o_predecode_muldiv                (ifu2idu_predecode_muldiv  ),
+    .o_predecode_is_cop_insn           (ifu2idu_predecode_is_cop_insn),
+    .o_predecode_ecall                 (ifu2idu_predecode_ecall   ),
+    .o_predecode_mret                  (ifu2idu_predecode_mret    ),
+    .o_predecode_ebreak                (ifu2idu_predecode_ebreak  )
 );
 
 hcpu_IDU idu1(
@@ -484,6 +536,45 @@ hcpu_IDU idu1(
     .o_muldiv                          (muldiv                    ),
     .o_is_cop_insn                     (is_cop_insn               )
 );
+
+`ifndef SYNTHESIS
+always @(*) begin
+    if (ifu2idu_valid) begin
+        if (ifu2idu_predecode_rd != idu_addr_rd)
+            $fatal(1, "hcpu predecode rd mismatch vs IDU decode");
+        if (ifu2idu_predecode_rs1_addr != idu_addr_rs1)
+            $fatal(1, "hcpu predecode rs1 mismatch vs IDU decode");
+        if (ifu2idu_predecode_rs2_addr != idu_addr_rs2)
+            $fatal(1, "hcpu predecode rs2 mismatch vs IDU decode");
+        if (ifu2idu_predecode_wen != idu_wen)
+            $fatal(1, "hcpu predecode wen mismatch vs IDU decode");
+        if (ifu2idu_predecode_csr_wen != csr_wen)
+            $fatal(1, "hcpu predecode csr_wen mismatch vs IDU decode");
+        if (ifu2idu_predecode_load != if_load)
+            $fatal(1, "hcpu predecode load mismatch vs IDU decode");
+        if (ifu2idu_predecode_store != if_store)
+            $fatal(1, "hcpu predecode store mismatch vs IDU decode");
+        if (ifu2idu_predecode_brch != brch)
+            $fatal(1, "hcpu predecode branch mismatch vs IDU decode");
+        if (ifu2idu_predecode_jal != jal)
+            $fatal(1, "hcpu predecode jal mismatch vs IDU decode");
+        if (ifu2idu_predecode_jalr != jalr)
+            $fatal(1, "hcpu predecode jalr mismatch vs IDU decode");
+        if (ifu2idu_predecode_fence_i != fence_i)
+            $fatal(1, "hcpu predecode fence.i mismatch vs IDU decode");
+        if (ifu2idu_predecode_muldiv != muldiv)
+            $fatal(1, "hcpu predecode muldiv mismatch vs IDU decode");
+        if (ifu2idu_predecode_is_cop_insn != is_cop_insn)
+            $fatal(1, "hcpu predecode cop mismatch vs IDU decode");
+        if (ifu2idu_predecode_ecall != ecall)
+            $fatal(1, "hcpu predecode ecall mismatch vs IDU decode");
+        if (ifu2idu_predecode_mret != mret)
+            $fatal(1, "hcpu predecode mret mismatch vs IDU decode");
+        if (ifu2idu_predecode_ebreak != ebreak)
+            $fatal(1, "hcpu predecode ebreak mismatch vs IDU decode");
+    end
+end
+`endif
 
 
 hcpu_idu_exu_regs idu2exu_regs(
@@ -589,25 +680,40 @@ wire                                    cop_inflight_wen           ;
 wire                                    cop_kill                   ;
 wire                                    cop_queue_dequeue          ;
 wire                                    cop_resp_fire              ;
+wire                                    scalar_flush_test          ;
 
 assign cop_decode_active = idu2exu_is_cop_insn;
+assign scalar_flush_test =
+`ifdef SCALAR_MEM_PENDING_KILL_TB
+                           tb_scalar_flush
+`else
+                           1'b0
+`endif
+                           ;
 assign cop_issue_valid = cop_decode_active && !cop_inflight && !cop_backend_busy;
 assign cop_issue_active = cop_decode_active;
 assign cop_commit_active = cop_inflight;
 assign cop_pipeline_active = cop_commit_active || cop_issue_active;
 assign cop_mem_bus_active = (cop_mem_state != 2'd0);
 assign cop_mem_resp_active = cop_mem_bus_active || cop_mem_done_r;
+assign scalar_mem_service_req_valid = scalar_mem_req_valid;
+assign scalar_mem_service_req_store = scalar_mem_req_store;
+assign scalar_mem_service_req_addr = scalar_mem_req_addr;
+assign scalar_mem_service_req_wdata = scalar_mem_req_wdata;
+assign scalar_mem_service_req_size = scalar_mem_req_size;
+assign scalar_mem_service_resp_valid = scalar_mem_resp_valid;
+assign scalar_mem_service_resp_rdata = scalar_mem_resp_rdata;
 assign mem_owner_cop_active = cop_mem_bus_active;
-assign mem_owner_scalar_active = !mem_owner_cop_active && scalar_mem_req_valid;
-assign mem_owner_req_valid = mem_owner_cop_active ? 1'b1 : scalar_mem_req_valid;
-assign mem_owner_req_store = mem_owner_cop_active ? cop_mem_wen_r : scalar_mem_req_store;
-assign mem_owner_req_addr = mem_owner_cop_active ? cop_mem_addr_r : scalar_mem_req_addr;
-assign mem_owner_req_wdata = mem_owner_cop_active ? cop_mem_wdata_r : scalar_mem_req_wdata;
-assign mem_owner_req_size = mem_owner_cop_active ? cop_mem_size_r : scalar_mem_req_size;
-assign mem_owner_resp_valid = cop_mem_resp_active ? (cop_mem_done_r && !cop_mem_killed_r) : scalar_mem_resp_valid;
-assign mem_owner_resp_rdata = cop_mem_resp_active ? cop_mem_rdata_r : scalar_mem_resp_rdata;
+assign mem_owner_scalar_active = !mem_owner_cop_active && scalar_mem_service_req_valid;
+assign mem_service_req_valid = mem_owner_cop_active ? 1'b1 : scalar_mem_service_req_valid;
+assign mem_service_req_store = mem_owner_cop_active ? cop_mem_wen_r : scalar_mem_service_req_store;
+assign mem_service_req_addr = mem_owner_cop_active ? cop_mem_addr_r : scalar_mem_service_req_addr;
+assign mem_service_req_wdata = mem_owner_cop_active ? cop_mem_wdata_r : scalar_mem_service_req_wdata;
+assign mem_service_req_size = mem_owner_cop_active ? cop_mem_size_r : scalar_mem_service_req_size;
+assign mem_service_resp_valid = cop_mem_resp_active ? (cop_mem_done_r && !cop_mem_killed_r) : scalar_mem_service_resp_valid;
+assign mem_service_resp_rdata = cop_mem_resp_active ? cop_mem_rdata_r : scalar_mem_service_resp_rdata;
 assign scalar_issue = idu2exu_valid && !idu2exu_is_cop_insn && !cop_pipeline_active;
-assign cop_refetch_flush = cop_resp_fire;
+assign cop_refetch_flush = cop_backend_commit_fire;
 assign cop_active_pc = cop_commit_active ? cop_inflight_pc : idu2exu_pc;
 assign exu_res = cop_pipeline_active ? cop_exu_res : scalar_exu_res;
 assign exu_brch = scalar_exu_brch;
@@ -624,16 +730,20 @@ assign exu_btb_update_taken = scalar_exu_btb_update_taken;
 assign exu_ras_push_en = scalar_exu_ras_push_en;
 assign exu_ras_push_data = scalar_exu_ras_push_data;
 assign exu_ras_pop_en = scalar_exu_ras_pop_en;
-assign exu2wbu_valid = cop_commit_active ? cop_exu2wbu_valid :
-                       idu2exu_is_cop_insn ? 1'b0 : scalar_exu2wbu_valid;
+assign scalar_backend_commit_visible = scalar_exu2wbu_valid;
+assign cop_backend_commit_visible = cop_exu2wbu_valid;
+assign exu2wbu_valid = cop_commit_active ? cop_backend_commit_visible :
+                       idu2exu_is_cop_insn ? 1'b0 : scalar_backend_commit_visible;
 assign exu2idu_ready = cop_pipeline_active ? 1'b0 : scalar_exu2idu_ready;
 assign cop_kill = idu2exu_fence_i || exu_mispredict_flush_r
 `ifdef COP_MEM_PENDING_KILL_TB
                 || tb_cop_kill
 `endif
                 ;
-assign cop_resp_fire = cop_exu2wbu_valid && wbu2exu_ready;
-assign cop_queue_dequeue = cop_resp_fire;
+assign cop_backend_resp_fire = cop_backend_commit_visible && wbu2exu_ready;
+assign cop_backend_commit_fire = cop_backend_resp_fire;
+assign cop_resp_fire = cop_backend_commit_fire;
+assign cop_queue_dequeue = cop_backend_commit_fire;
 assign frontend_flush = pc_update_en || idu2exu_fence_i || exu_mispredict_flush;
 
 hcpu_idu_cop_regs idu2cop_regs(
@@ -755,7 +865,7 @@ hcpu_EXU exu1(
     .i_post_ready                      (wbu2exu_ready             ),
     .o_post_valid                      (scalar_exu2wbu_valid      ),
     .o_pre_ready                       (scalar_exu2idu_ready      ),
-    .i_flush                           (exu_mispredict_flush_r     ) 
+    .i_flush                           (exu_mispredict_flush_r || scalar_flush_test) 
 );
 
 hcpu_cop_backend cop_backend1(
@@ -780,26 +890,26 @@ hcpu_cop_backend cop_backend1(
     .o_res                             (cop_exu_res               )
 );
 
-assign LSU_ARB_AXI_AWADDR  = cop_mem_bus_active ? mem_owner_req_addr : LSU_SRAM_AXI_AWADDR;
+assign LSU_ARB_AXI_AWADDR  = cop_mem_bus_active ? mem_service_req_addr : LSU_SRAM_AXI_AWADDR;
 assign LSU_ARB_AXI_AWVALID = (cop_mem_state == 2'd1) ? (cop_mem_wen_r && !cop_mem_aw_done) : LSU_SRAM_AXI_AWVALID;
 assign LSU_ARB_AXI_AWID    = cop_mem_bus_active ? 4'b0 : LSU_SRAM_AXI_AWID;
 assign LSU_ARB_AXI_AWLEN   = cop_mem_bus_active ? 8'b0 : LSU_SRAM_AXI_AWLEN;
-assign LSU_ARB_AXI_AWSIZE  = cop_mem_bus_active ? mem_owner_req_size : LSU_SRAM_AXI_AWSIZE;
+assign LSU_ARB_AXI_AWSIZE  = cop_mem_bus_active ? mem_service_req_size : LSU_SRAM_AXI_AWSIZE;
 assign LSU_ARB_AXI_AWBURST = cop_mem_bus_active ? 2'b00 : LSU_SRAM_AXI_AWBURST;
-assign LSU_ARB_AXI_WDATA   = cop_mem_bus_active ? mem_owner_req_wdata : LSU_SRAM_AXI_WDATA;
+assign LSU_ARB_AXI_WDATA   = cop_mem_bus_active ? mem_service_req_wdata : LSU_SRAM_AXI_WDATA;
 assign LSU_ARB_AXI_WSTRB   = cop_mem_bus_active ? 4'b0001 : LSU_SRAM_AXI_WSTRB;
 assign LSU_ARB_AXI_WVALID  = (cop_mem_state == 2'd1) ? (cop_mem_wen_r && !cop_mem_w_done) : LSU_SRAM_AXI_WVALID;
 assign LSU_ARB_AXI_WLAST   = cop_mem_bus_active ? 1'b1 : LSU_SRAM_AXI_WLAST;
 assign LSU_ARB_AXI_BREADY  = (cop_mem_state == 2'd2 || cop_mem_state == 2'd3) ? cop_mem_wen_r : LSU_SRAM_AXI_BREADY;
-assign LSU_ARB_AXI_ARADDR  = cop_mem_bus_active ? mem_owner_req_addr : LSU_SRAM_AXI_ARADDR;
+assign LSU_ARB_AXI_ARADDR  = cop_mem_bus_active ? mem_service_req_addr : LSU_SRAM_AXI_ARADDR;
 assign LSU_ARB_AXI_ARVALID = (cop_mem_state == 2'd1) ? !cop_mem_wen_r : LSU_SRAM_AXI_ARVALID;
 assign LSU_ARB_AXI_ARID    = cop_mem_bus_active ? 4'b0 : LSU_SRAM_AXI_ARID;
 assign LSU_ARB_AXI_ARLEN   = cop_mem_bus_active ? 8'b0 : LSU_SRAM_AXI_ARLEN;
-assign LSU_ARB_AXI_ARSIZE  = cop_mem_bus_active ? mem_owner_req_size : LSU_SRAM_AXI_ARSIZE;
+assign LSU_ARB_AXI_ARSIZE  = cop_mem_bus_active ? mem_service_req_size : LSU_SRAM_AXI_ARSIZE;
 assign LSU_ARB_AXI_ARBURST = cop_mem_bus_active ? 2'b00 : LSU_SRAM_AXI_ARBURST;
 assign LSU_ARB_AXI_RREADY  = (cop_mem_state == 2'd2 || cop_mem_state == 2'd3) ? !cop_mem_wen_r : LSU_SRAM_AXI_RREADY;
 assign COP_MEM_RESP_VALID  = cop_mem_done_r && !cop_mem_killed_r;
-assign COP_MEM_RDATA       = mem_owner_resp_rdata;
+assign COP_MEM_RDATA       = mem_service_resp_rdata;
 assign cop_mem_new_req     = COP_MEM_REQ_VALID && (cop_mem_state == 2'd0) && !cop_mem_done_r && !mem_owner_scalar_active;
 assign cop_mem_aw_fire     = LSU_ARB_AXI_AWVALID && LSU_SRAM_AXI_AWREADY;
 assign cop_mem_w_fire      = LSU_ARB_AXI_WVALID && LSU_SRAM_AXI_WREADY;
@@ -820,6 +930,15 @@ assign tb_cop_mem_b_fire = cop_mem_bus_active && cop_mem_b_fire;
 assign tb_cop_mem_ar_fire = cop_mem_bus_active && cop_mem_ar_fire;
 assign tb_cop_mem_r_fire = cop_mem_bus_active && cop_mem_r_fire;
 assign tb_cop_mem_addr = cop_mem_addr_r;
+`endif
+
+`ifdef SCALAR_MEM_PENDING_KILL_TB
+assign tb_scalar_mem_req_valid = scalar_mem_req_valid;
+assign tb_scalar_mem_resp_valid = scalar_mem_resp_valid;
+assign tb_scalar_mem_kill_pending = exu1.lsu_kill_pending;
+assign tb_scalar_mem_ar_fire = !cop_mem_bus_active && LSU_ARB_AXI_ARVALID && LSU_SRAM_AXI_ARREADY;
+assign tb_scalar_mem_r_fire = !cop_mem_resp_active && LSU_ARB_AXI_RREADY && LSU_SRAM_AXI_RVALID && LSU_SRAM_AXI_RLAST;
+assign tb_scalar_mem_addr = scalar_mem_req_addr;
 `endif
 
 always @(posedge clock or posedge reset) begin
@@ -966,6 +1085,7 @@ reg  idu2exu_cop_d;
 reg  idu2exu_fence_i_d;
 reg  idu2exu_brch_d;
 reg  idu2exu_is_div_d;
+reg  idu2exu_is_mul_low_d;
 
 always @(posedge clock or posedge reset) begin
   if (reset) begin
@@ -976,6 +1096,7 @@ always @(posedge clock or posedge reset) begin
     idu2exu_fence_i_d <= 1'b0;
     idu2exu_brch_d    <= 1'b0;
     idu2exu_is_div_d  <= 1'b0;
+    idu2exu_is_mul_low_d <= 1'b0;
   end else begin
     idu2exu_load_d    <= idu2exu_load;
     idu2exu_store_d   <= idu2exu_store;
@@ -984,6 +1105,7 @@ always @(posedge clock or posedge reset) begin
     idu2exu_fence_i_d <= idu2exu_fence_i;
     idu2exu_brch_d    <= idu2exu_brch;
     idu2exu_is_div_d  <= idu2exu_muldiv && idu2exu_exu_opt[2];
+    idu2exu_is_mul_low_d <= idu2exu_muldiv && !idu2exu_exu_opt[2] && (idu2exu_exu_opt[1:0] == 2'b00);
   end
 end
 
@@ -1037,7 +1159,7 @@ hcpu_exu_wbu_regs exu_wbu_regs (
     .o_valid                           (exu_wbu_valid             ),
     .i_post_ready                      (wbu2exu_ready             ),
     .o_post_valid                      (exu2wbu_valid             ),
-    .i_flush                            (exu_mispredict_flush_r     ) 
+    .i_flush                            (exu_mispredict_flush_r || scalar_flush_test) 
 );
 
 hcpu_WBU wbu1(
@@ -1248,6 +1370,8 @@ import "DPI-C" function void brch_tkn_dpic   ();
 import "DPI-C" function void load_dpic       ();
 import "DPI-C" function void store_dpic      ();
 import "DPI-C" function void mul_cnt_dpic    ();
+import "DPI-C" function void mul_low_cnt_dpic();
+import "DPI-C" function void mul_high_cnt_dpic();
 import "DPI-C" function void div_cnt_dpic    ();
 import "DPI-C" function void cop_cnt_dpic    ();
 import "DPI-C" function void alu_cnt_dpic    ();
@@ -1328,8 +1452,13 @@ always @(posedge clock) begin
     if (idu2exu_load_d)                load_dpic();
     if (idu2exu_store_d)               store_dpic();
     if (idu2exu_muldiv_d) begin
-      if (idu2exu_is_div_d)  div_cnt_dpic();
-      else                   mul_cnt_dpic();
+      if (idu2exu_is_div_d) begin
+        div_cnt_dpic();
+      end else begin
+        mul_cnt_dpic();
+        if (idu2exu_is_mul_low_d) mul_low_cnt_dpic();
+        else                      mul_high_cnt_dpic();
+      end
     end
     if (idu2exu_cop_d)                   cop_cnt_dpic();
     if (!idu2exu_load_d && !idu2exu_store_d && !idu2exu_muldiv_d && !idu2exu_cop_d &&

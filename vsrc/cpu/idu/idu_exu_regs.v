@@ -231,4 +231,61 @@ always @(posedge clock or posedge reset) begin
     end
 end
 
+`ifdef PROTOCOL_ASSERT
+wire [244:0] protocol_bundle = {
+    o_pc,
+    o_ins,
+    o_src1,
+    o_src2,
+    o_imm,
+    o_src_sel1,
+    o_src_sel2,
+    o_rd,
+    o_csr_addr,
+    o_exu_opt,
+    o_alu_opt,
+    o_wen,
+    o_csr_wen,
+    o_mret,
+    o_ecall,
+    o_load,
+    o_store,
+    o_brch,
+    o_jal,
+    o_ebreak,
+    o_fence_i,
+    o_muldiv,
+    o_jalr,
+    o_is_cop_insn,
+    o_predict_taken,
+    o_predict_target,
+    o_predict_btb_hit,
+    o_rs1_addr
+};
+
+reg         prev_post_stall;
+reg [244:0] prev_protocol_bundle;
+
+always @(*) begin
+    if (o_pre_ready != i_post_ready)
+        $fatal(1, "hcpu_idu_exu_regs o_pre_ready must follow i_post_ready");
+end
+
+always @(posedge clock or posedge reset) begin
+    if (reset) begin
+        prev_post_stall <= 1'b0;
+        prev_protocol_bundle <= 245'b0;
+    end else begin
+        if (prev_post_stall && !flush && !i_post_ready) begin
+            if (!o_post_valid)
+                $fatal(1, "hcpu_idu_exu_regs valid dropped while downstream remained stalled");
+            if (protocol_bundle != prev_protocol_bundle)
+                $fatal(1, "hcpu_idu_exu_regs payload changed while downstream remained stalled");
+        end
+        prev_post_stall <= o_post_valid && !i_post_ready;
+        prev_protocol_bundle <= protocol_bundle;
+    end
+end
+`endif
+
 endmodule
