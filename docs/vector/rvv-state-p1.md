@@ -179,6 +179,7 @@ P2 的第一步仍保持 COP-local，新增 custom COP `vsetivli_p` 作为标准
 - custom `vsetivli_p` 已证明 AVL 饱和和 `vtype` 配置路径可用。
 - 标准 RVV unsupported 行为已有设计文档，避免 silent wrong execution。
 - 标准 OP-V `vsetivli`、unmasked add/bitwise/move 最小 slice 已验证；进入其他 OP-V decode 前 CPU decode/trap/CSR interface review 仍需完成。
+- 标准 RVV directed tests 优先使用标准 move 初始化；custom VRF read/write 只保留为 legacy/debug harness。
 
 标准 decode review 草案见 `rvv-standard-decode-p2-review.md`。
 
