@@ -220,6 +220,12 @@ Deliverables:
 2. Single-owner arbitration policy
 3. Clear completion routing to scalar or COP/vector side
 
+Current status: landed.
+
+- `hcpu_memory_service` now owns the V1 single-owner scalar/COP selection.
+- `hcpu_memory_service` owns the COP memory completion state machine.
+- `hcpu_memory_service` also owns the concrete LSU AXI-side service mux for that V1 model.
+
 ### Phase 4: structural expansion
 
 Deliverables:
@@ -227,6 +233,12 @@ Deliverables:
 1. store buffer / request queue if needed
 2. tagged requests if needed
 3. vector memory scaling path
+
+Current stable point:
+
+- queueing and request tags are still intentionally absent in V1.
+- the ownership policy, completion routing, and AXI-side service mux now live in one reusable module.
+- future vector memory can extend `hcpu_memory_service` as another service client instead of re-opening top-level `hcpu.v` policy wiring.
 
 ## Non-Goals Right Now
 
