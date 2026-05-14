@@ -1,23 +1,23 @@
 #include "rvv_test_helpers.h"
 
 static inline void rvv_vadd_vi_v1_v0_3(void) {
-  asm volatile (".word 0x0201b2d7" ::: "memory");
+  asm volatile (".word 0x0201b0d7" ::: "memory");
 }
 
 static inline void rvv_vadd_vi_v1_v0_1(void) {
-  asm volatile (".word 0x0200b2d7" ::: "memory");
+  asm volatile (".word 0x0200b0d7" ::: "memory");
 }
 
 static inline void rvv_vand_vx_v1_v0(unsigned scalar) {
-  asm volatile (".insn r 0x57, 4, 19, x5, %0, x0" :: "r"(scalar) : "memory");
+  asm volatile (".insn r 0x57, 4, 19, x1, %0, x0" :: "r"(scalar) : "memory");
 }
 
 static inline void rvv_vor_vx_v1_v0(unsigned scalar) {
-  asm volatile (".insn r 0x57, 4, 21, x5, %0, x0" :: "r"(scalar) : "memory");
+  asm volatile (".insn r 0x57, 4, 21, x1, %0, x0" :: "r"(scalar) : "memory");
 }
 
 static inline void rvv_vxor_vx_v1_v0(unsigned scalar) {
-  asm volatile (".insn r 0x57, 4, 23, x5, %0, x0" :: "r"(scalar) : "memory");
+  asm volatile (".insn r 0x57, 4, 23, x1, %0, x0" :: "r"(scalar) : "memory");
 }
 
 int main() {

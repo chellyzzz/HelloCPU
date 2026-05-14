@@ -31,11 +31,11 @@ static inline unsigned cop_vrf_read(unsigned idx) {
 }
 
 static inline void rvv_vand_vv_v1_v0_v2(void) {
-  asm volatile (".word 0x260102d7" ::: "memory");
+  asm volatile (".word 0x262000d7" ::: "memory");
 }
 
 static inline void rvv_vxor_vv_v1_v0_v2(void) {
-  asm volatile (".word 0x2e0102d7" ::: "memory");
+  asm volatile (".word 0x2e2000d7" ::: "memory");
 }
 
 int main() {

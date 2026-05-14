@@ -1,7 +1,7 @@
 #include "rvv_test_helpers.h"
 
 static inline void rvv_vmv_v_v_v1_v2(void) {
-  asm volatile (".word 0x5e0102d7" ::: "memory");
+  asm volatile (".word 0x5e0100d7" ::: "memory");
 }
 
 int main() {
