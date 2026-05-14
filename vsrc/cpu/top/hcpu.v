@@ -196,6 +196,13 @@ wire                   [  31:0]         scalar_mem_service_req_wdata;
 wire                   [   2:0]         scalar_mem_service_req_size;
 wire                                    scalar_mem_service_resp_valid;
 wire                   [  31:0]         scalar_mem_service_resp_rdata;
+wire                                    cop_mem_service_req_valid   ;
+wire                                    cop_mem_service_req_store   ;
+wire                   [  31:0]         cop_mem_service_req_addr    ;
+wire                   [  31:0]         cop_mem_service_req_wdata   ;
+wire                   [   2:0]         cop_mem_service_req_size    ;
+wire                                    cop_mem_service_resp_valid  ;
+wire                   [  31:0]         cop_mem_service_resp_rdata  ;
 wire                                    mem_owner_scalar_active   ;
 wire                                    mem_owner_cop_active      ;
 wire                                    mem_service_req_valid     ;
@@ -703,6 +710,13 @@ assign scalar_mem_service_req_wdata = scalar_mem_req_wdata;
 assign scalar_mem_service_req_size = scalar_mem_req_size;
 assign scalar_mem_service_resp_valid = scalar_mem_resp_valid;
 assign scalar_mem_service_resp_rdata = scalar_mem_resp_rdata;
+assign cop_mem_service_req_valid = COP_MEM_REQ_VALID;
+assign cop_mem_service_req_store = COP_MEM_REQ_STORE;
+assign cop_mem_service_req_addr = COP_MEM_ADDR;
+assign cop_mem_service_req_wdata = COP_MEM_WDATA;
+assign cop_mem_service_req_size = COP_MEM_SIZE;
+assign cop_mem_service_resp_valid = cop_mem_done_r && !cop_mem_killed_r;
+assign cop_mem_service_resp_rdata = cop_mem_rdata_r;
 assign mem_owner_cop_active = cop_mem_bus_active;
 assign mem_owner_scalar_active = !mem_owner_cop_active && scalar_mem_service_req_valid;
 assign mem_service_req_valid = mem_owner_cop_active ? 1'b1 : scalar_mem_service_req_valid;
@@ -710,8 +724,8 @@ assign mem_service_req_store = mem_owner_cop_active ? cop_mem_wen_r : scalar_mem
 assign mem_service_req_addr = mem_owner_cop_active ? cop_mem_addr_r : scalar_mem_service_req_addr;
 assign mem_service_req_wdata = mem_owner_cop_active ? cop_mem_wdata_r : scalar_mem_service_req_wdata;
 assign mem_service_req_size = mem_owner_cop_active ? cop_mem_size_r : scalar_mem_service_req_size;
-assign mem_service_resp_valid = cop_mem_resp_active ? (cop_mem_done_r && !cop_mem_killed_r) : scalar_mem_service_resp_valid;
-assign mem_service_resp_rdata = cop_mem_resp_active ? cop_mem_rdata_r : scalar_mem_service_resp_rdata;
+assign mem_service_resp_valid = cop_mem_resp_active ? cop_mem_service_resp_valid : scalar_mem_service_resp_valid;
+assign mem_service_resp_rdata = cop_mem_resp_active ? cop_mem_service_resp_rdata : scalar_mem_service_resp_rdata;
 assign scalar_issue = idu2exu_valid && !idu2exu_is_cop_insn && !cop_pipeline_active;
 assign cop_refetch_flush = cop_backend_commit_fire;
 assign cop_active_pc = cop_commit_active ? cop_inflight_pc : idu2exu_pc;
@@ -882,8 +896,8 @@ hcpu_cop_backend cop_backend1(
     .o_cop_mem_req_addr                (COP_MEM_ADDR              ),
     .o_cop_mem_req_wdata               (COP_MEM_WDATA             ),
     .o_cop_mem_req_size                (COP_MEM_SIZE              ),
-    .i_cop_mem_resp_valid              (COP_MEM_RESP_VALID        ),
-    .i_cop_mem_resp_rdata              (COP_MEM_RDATA             ),
+    .i_cop_mem_resp_valid              (cop_mem_service_resp_valid),
+    .i_cop_mem_resp_rdata              (cop_mem_service_resp_rdata),
     .o_pre_ready                       (cop_exu2idu_ready         ),
     .o_post_valid                      (cop_exu2wbu_valid         ),
     .o_busy                            (cop_backend_busy          ),
@@ -908,9 +922,9 @@ assign LSU_ARB_AXI_ARLEN   = cop_mem_bus_active ? 8'b0 : LSU_SRAM_AXI_ARLEN;
 assign LSU_ARB_AXI_ARSIZE  = cop_mem_bus_active ? mem_service_req_size : LSU_SRAM_AXI_ARSIZE;
 assign LSU_ARB_AXI_ARBURST = cop_mem_bus_active ? 2'b00 : LSU_SRAM_AXI_ARBURST;
 assign LSU_ARB_AXI_RREADY  = (cop_mem_state == 2'd2 || cop_mem_state == 2'd3) ? !cop_mem_wen_r : LSU_SRAM_AXI_RREADY;
-assign COP_MEM_RESP_VALID  = cop_mem_done_r && !cop_mem_killed_r;
-assign COP_MEM_RDATA       = mem_service_resp_rdata;
-assign cop_mem_new_req     = COP_MEM_REQ_VALID && (cop_mem_state == 2'd0) && !cop_mem_done_r && !mem_owner_scalar_active;
+assign COP_MEM_RESP_VALID  = cop_mem_service_resp_valid;
+assign COP_MEM_RDATA       = cop_mem_service_resp_rdata;
+assign cop_mem_new_req     = cop_mem_service_req_valid && (cop_mem_state == 2'd0) && !cop_mem_done_r && !mem_owner_scalar_active;
 assign cop_mem_aw_fire     = LSU_ARB_AXI_AWVALID && LSU_SRAM_AXI_AWREADY;
 assign cop_mem_w_fire      = LSU_ARB_AXI_WVALID && LSU_SRAM_AXI_WREADY;
 assign cop_mem_b_fire      = LSU_ARB_AXI_BREADY && LSU_SRAM_AXI_BVALID;
@@ -921,7 +935,7 @@ assign cop_mem_r_fire      = LSU_ARB_AXI_RREADY && LSU_SRAM_AXI_RVALID && LSU_SR
 assign tb_cop_mem_bus_active = cop_mem_bus_active;
 assign tb_cop_mem_done = cop_mem_done_r;
 assign tb_cop_mem_killed = cop_mem_killed_r;
-assign tb_cop_mem_resp_valid = COP_MEM_RESP_VALID;
+assign tb_cop_mem_resp_valid = cop_mem_service_resp_valid;
 assign tb_cop_mem_state = cop_mem_state;
 assign tb_cop_mem_store = cop_mem_wen_r;
 assign tb_cop_mem_aw_fire = cop_mem_bus_active && cop_mem_aw_fire;
@@ -989,13 +1003,13 @@ always @(posedge clock or posedge reset) begin
             2'd0: begin
                 if (cop_mem_new_req) begin
                     cop_mem_state   <= 2'd1;
-                    cop_mem_wen_r   <= COP_MEM_REQ_STORE;
+                    cop_mem_wen_r   <= cop_mem_service_req_store;
                     cop_mem_aw_done <= 1'b0;
                     cop_mem_w_done  <= 1'b0;
                     cop_mem_killed_r <= 1'b0;
-                    cop_mem_addr_r  <= COP_MEM_ADDR;
-                    cop_mem_wdata_r <= COP_MEM_WDATA;
-                    cop_mem_size_r  <= COP_MEM_SIZE;
+                    cop_mem_addr_r  <= cop_mem_service_req_addr;
+                    cop_mem_wdata_r <= cop_mem_service_req_wdata;
+                    cop_mem_size_r  <= cop_mem_service_req_size;
                 end
             end
             2'd1: begin
