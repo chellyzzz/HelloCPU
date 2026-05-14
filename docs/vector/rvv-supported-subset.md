@@ -150,6 +150,8 @@
 | RVV load/store directed | unsupported | planned |
 | RVV load/compute/store program | unsupported | planned |
 
+标准 RVV directed tests 应优先使用标准 `vsetivli` 和 `vmv.v.x` 做配置/初始化。`custom-0` VRF read/write 只作为 legacy/debug harness，用于结果读回、unsupported state guard 和尚无标准 init path 的旧测试。
+
 ## 十二、第一批支持声明草案
 
 第一批 RVV 支持完成后，支持声明应接近以下范围：
@@ -163,5 +165,6 @@
 - `vle8.v`/`vse8.v` 或 `vle32.v`/`vse32.v`。
 - `vm=1` 全使能。
 - unsupported 指令和配置不执行近似语义。
+- 标准测试短期只把 custom VRF read/write 当 legacy/debug harness；新测试优先用标准 move 初始化，直到标准 load/store 或更完整 VRF observable path 可用。
 
 任何超出以上范围的 RVV 功能，在 RTL 合入前都应先更新本文档。
