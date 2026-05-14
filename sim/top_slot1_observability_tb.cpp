@@ -180,6 +180,11 @@ struct Slot1Coverage {
   uint64_t shadow_capture_blocked_events = 0;
   uint64_t shadow_hold_cycles = 0;
   uint64_t shadow_flush_clear_events = 0;
+  uint64_t endpoint_capture_events = 0;
+  uint64_t endpoint_capture_fireable_events = 0;
+  uint64_t endpoint_capture_blocked_events = 0;
+  uint64_t endpoint_hold_cycles = 0;
+  uint64_t endpoint_flush_clear_events = 0;
 };
 
 int main(int argc, char **argv) {
@@ -220,6 +225,7 @@ int main(int argc, char **argv) {
     const bool pre_slot1_valid = root->sim_top__DOT__cpu__DOT__decode_slot1_valid;
     const bool pre_frontend_flush = root->sim_top__DOT__cpu__DOT__frontend_flush;
     const bool pre_allow_second = root->sim_top__DOT__cpu__DOT__decode_pair_allow_second;
+    const bool pre_slot1_endpoint_accept = root->sim_top__DOT__cpu__DOT__slot1_endpoint_accept;
     const uint32_t pre_slot1_pc = root->sim_top__DOT__cpu__DOT__decode_slot1_pc;
     const uint32_t pre_slot1_ins = root->sim_top__DOT__cpu__DOT__decode_slot1_ins;
     const uint32_t pre_slot1_imm = root->sim_top__DOT__cpu__DOT__decode_slot1_imm;
@@ -276,6 +282,35 @@ int main(int argc, char **argv) {
     const bool pre_shadow_predict_taken = root->sim_top__DOT__cpu__DOT__slot1_shadow_predict_taken;
     const uint32_t pre_shadow_predict_target = root->sim_top__DOT__cpu__DOT__slot1_shadow_predict_target;
     const bool pre_shadow_predict_btb_hit = root->sim_top__DOT__cpu__DOT__slot1_shadow_predict_btb_hit;
+    const bool pre_endpoint_valid = root->sim_top__DOT__cpu__DOT__slot1_endpoint_valid;
+    const uint32_t pre_endpoint_pc = root->sim_top__DOT__cpu__DOT__slot1_endpoint_pc;
+    const uint32_t pre_endpoint_ins = root->sim_top__DOT__cpu__DOT__slot1_endpoint_ins;
+    const uint32_t pre_endpoint_imm = root->sim_top__DOT__cpu__DOT__slot1_endpoint_imm;
+    const uint32_t pre_endpoint_rd = root->sim_top__DOT__cpu__DOT__slot1_endpoint_rd;
+    const uint32_t pre_endpoint_rs1 = root->sim_top__DOT__cpu__DOT__slot1_endpoint_rs1;
+    const uint32_t pre_endpoint_rs2 = root->sim_top__DOT__cpu__DOT__slot1_endpoint_rs2;
+    const uint32_t pre_endpoint_csr_addr = root->sim_top__DOT__cpu__DOT__slot1_endpoint_csr_addr;
+    const uint32_t pre_endpoint_exu_opt = root->sim_top__DOT__cpu__DOT__slot1_endpoint_exu_opt;
+    const uint32_t pre_endpoint_alu_opt = root->sim_top__DOT__cpu__DOT__slot1_endpoint_alu_opt;
+    const uint32_t pre_endpoint_src_sel1 = root->sim_top__DOT__cpu__DOT__slot1_endpoint_src_sel1;
+    const uint32_t pre_endpoint_src_sel2 = root->sim_top__DOT__cpu__DOT__slot1_endpoint_src_sel2;
+    const bool pre_endpoint_wen = root->sim_top__DOT__cpu__DOT__slot1_endpoint_wen;
+    const bool pre_endpoint_brch = root->sim_top__DOT__cpu__DOT__slot1_endpoint_brch;
+    const bool pre_endpoint_csr_wen = root->sim_top__DOT__cpu__DOT__slot1_endpoint_csr_wen;
+    const bool pre_endpoint_load = root->sim_top__DOT__cpu__DOT__slot1_endpoint_load;
+    const bool pre_endpoint_store = root->sim_top__DOT__cpu__DOT__slot1_endpoint_store;
+    const bool pre_endpoint_jal = root->sim_top__DOT__cpu__DOT__slot1_endpoint_jal;
+    const bool pre_endpoint_jalr = root->sim_top__DOT__cpu__DOT__slot1_endpoint_jalr;
+    const bool pre_endpoint_fence_i = root->sim_top__DOT__cpu__DOT__slot1_endpoint_fence_i;
+    const bool pre_endpoint_muldiv = root->sim_top__DOT__cpu__DOT__slot1_endpoint_muldiv;
+    const bool pre_endpoint_is_cop_insn = root->sim_top__DOT__cpu__DOT__slot1_endpoint_is_cop_insn;
+    const bool pre_endpoint_ecall = root->sim_top__DOT__cpu__DOT__slot1_endpoint_ecall;
+    const bool pre_endpoint_mret = root->sim_top__DOT__cpu__DOT__slot1_endpoint_mret;
+    const bool pre_endpoint_ebreak = root->sim_top__DOT__cpu__DOT__slot1_endpoint_ebreak;
+    const bool pre_endpoint_fireable = root->sim_top__DOT__cpu__DOT__slot1_endpoint_fireable;
+    const bool pre_endpoint_predict_taken = root->sim_top__DOT__cpu__DOT__slot1_endpoint_predict_taken;
+    const uint32_t pre_endpoint_predict_target = root->sim_top__DOT__cpu__DOT__slot1_endpoint_predict_target;
+    const bool pre_endpoint_predict_btb_hit = root->sim_top__DOT__cpu__DOT__slot1_endpoint_predict_btb_hit;
 
     top->clock = 1;
     top->eval();
@@ -505,6 +540,139 @@ int main(int argc, char **argv) {
                      "shadow transport holds btb_hit stable");
     }
 
+    if (pre_frontend_flush) {
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_valid == 0,
+                     "frontend flush clears the slot1 endpoint surface");
+      if (pre_endpoint_valid || pre_slot1_valid || pre_shadow_valid) {
+        coverage.endpoint_flush_clear_events++;
+      }
+    } else if (pre_slot1_endpoint_accept) {
+      coverage.endpoint_capture_events++;
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_valid == 1,
+                     "visible slot1 is accepted by the shadow endpoint");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_pc == pre_slot1_pc,
+                     "endpoint captures slot1 pc");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_ins == pre_slot1_ins,
+                     "endpoint captures slot1 instruction");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_imm == pre_slot1_imm,
+                     "endpoint captures slot1 immediate");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_rd == pre_slot1_rd,
+                     "endpoint captures slot1 rd");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_rs1 == pre_slot1_rs1,
+                     "endpoint captures slot1 rs1");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_rs2 == pre_slot1_rs2,
+                     "endpoint captures slot1 rs2");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_csr_addr == pre_slot1_csr_addr,
+                     "endpoint captures slot1 csr_addr");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_exu_opt == pre_slot1_exu_opt,
+                     "endpoint captures slot1 exu_opt");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_alu_opt == pre_slot1_alu_opt,
+                     "endpoint captures slot1 alu_opt");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_src_sel1 == pre_slot1_src_sel1,
+                     "endpoint captures slot1 src_sel1");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_src_sel2 == pre_slot1_src_sel2,
+                     "endpoint captures slot1 src_sel2");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_wen == pre_slot1_wen,
+                     "endpoint captures slot1 wen");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_brch == pre_slot1_brch,
+                     "endpoint captures slot1 branch class");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_csr_wen == pre_slot1_csr_wen,
+                     "endpoint captures slot1 csr_wen");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_load == pre_slot1_load,
+                     "endpoint captures slot1 load class");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_store == pre_slot1_store,
+                     "endpoint captures slot1 store class");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_jal == pre_slot1_jal,
+                     "endpoint captures slot1 jal class");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_jalr == pre_slot1_jalr,
+                     "endpoint captures slot1 jalr class");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_fence_i == pre_slot1_fence_i,
+                     "endpoint captures slot1 fence_i class");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_muldiv == pre_slot1_muldiv,
+                     "endpoint captures slot1 muldiv class");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_is_cop_insn == pre_slot1_is_cop_insn,
+                     "endpoint captures slot1 cop class");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_ecall == pre_slot1_ecall,
+                     "endpoint captures slot1 ecall class");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_mret == pre_slot1_mret,
+                     "endpoint captures slot1 mret class");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_ebreak == pre_slot1_ebreak,
+                     "endpoint captures slot1 ebreak class");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_fireable == pre_allow_second,
+                     "endpoint captures slot1 fireable state");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_predict_taken == pre_pair_younger_predict_taken,
+                     "endpoint captures younger predict_taken");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_predict_target == pre_pair_younger_predict_target,
+                     "endpoint captures younger predict_target");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_predict_btb_hit == pre_pair_younger_predict_btb_hit,
+                     "endpoint captures younger btb_hit");
+      if (pre_allow_second) {
+        coverage.endpoint_capture_fireable_events++;
+      } else {
+        coverage.endpoint_capture_blocked_events++;
+      }
+    } else if (pre_endpoint_valid) {
+      coverage.endpoint_hold_cycles++;
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_valid == 1,
+                     "endpoint holds valid without flush");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_pc == pre_endpoint_pc,
+                     "endpoint holds pc stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_ins == pre_endpoint_ins,
+                     "endpoint holds instruction stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_imm == pre_endpoint_imm,
+                     "endpoint holds immediate stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_rd == pre_endpoint_rd,
+                     "endpoint holds rd stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_rs1 == pre_endpoint_rs1,
+                     "endpoint holds rs1 stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_rs2 == pre_endpoint_rs2,
+                     "endpoint holds rs2 stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_csr_addr == pre_endpoint_csr_addr,
+                     "endpoint holds csr_addr stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_exu_opt == pre_endpoint_exu_opt,
+                     "endpoint holds exu_opt stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_alu_opt == pre_endpoint_alu_opt,
+                     "endpoint holds alu_opt stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_src_sel1 == pre_endpoint_src_sel1,
+                     "endpoint holds src_sel1 stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_src_sel2 == pre_endpoint_src_sel2,
+                     "endpoint holds src_sel2 stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_wen == pre_endpoint_wen,
+                     "endpoint holds wen stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_brch == pre_endpoint_brch,
+                     "endpoint holds branch class stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_csr_wen == pre_endpoint_csr_wen,
+                     "endpoint holds csr_wen stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_load == pre_endpoint_load,
+                     "endpoint holds load class stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_store == pre_endpoint_store,
+                     "endpoint holds store class stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_jal == pre_endpoint_jal,
+                     "endpoint holds jal class stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_jalr == pre_endpoint_jalr,
+                     "endpoint holds jalr class stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_fence_i == pre_endpoint_fence_i,
+                     "endpoint holds fence_i class stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_muldiv == pre_endpoint_muldiv,
+                     "endpoint holds muldiv class stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_is_cop_insn == pre_endpoint_is_cop_insn,
+                     "endpoint holds cop class stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_ecall == pre_endpoint_ecall,
+                     "endpoint holds ecall class stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_mret == pre_endpoint_mret,
+                     "endpoint holds mret class stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_ebreak == pre_endpoint_ebreak,
+                     "endpoint holds ebreak class stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_fireable == pre_endpoint_fireable,
+                     "endpoint holds fireable state stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_predict_taken == pre_endpoint_predict_taken,
+                     "endpoint holds predict_taken stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_predict_target == pre_endpoint_predict_target,
+                     "endpoint holds predict_target stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__slot1_endpoint_predict_btb_hit == pre_endpoint_predict_btb_hit,
+                     "endpoint holds btb_hit stable");
+    }
+
     top->clock = 0;
     top->eval();
     main_time++;
@@ -533,6 +701,16 @@ int main(int argc, char **argv) {
                  "slot1 shadow transport holds a captured payload across at least one cycle");
   fail |= expect(coverage.shadow_flush_clear_events > 0,
                  "slot1 shadow transport is cleared by at least one flush event");
+  fail |= expect(coverage.endpoint_capture_events > 0,
+                 "slot1 endpoint accepts at least one visible slot1 payload");
+  fail |= expect(coverage.endpoint_capture_fireable_events > 0,
+                 "slot1 endpoint accepts at least one fireable slot1 payload");
+  fail |= expect(coverage.endpoint_capture_blocked_events > 0,
+                 "slot1 endpoint accepts at least one blocked slot1 payload");
+  fail |= expect(coverage.endpoint_hold_cycles > 0,
+                 "slot1 endpoint holds an accepted payload across at least one cycle");
+  fail |= expect(coverage.endpoint_flush_clear_events > 0,
+                 "slot1 endpoint is cleared by at least one flush event");
 
   delete top;
 
@@ -541,7 +719,7 @@ int main(int argc, char **argv) {
   }
 
   std::printf("PASS: top-level slot1 observability remains non-binding and branch-only "
-              "(slot1-events=%llu, fireable=%llu, blocked=%llu, blocked-nonflush=%llu, flushed=%llu, shadow-captures=%llu, shadow-fireable=%llu, shadow-blocked=%llu, shadow-hold=%llu, shadow-flush-clear=%llu)\n",
+              "(slot1-events=%llu, fireable=%llu, blocked=%llu, blocked-nonflush=%llu, flushed=%llu, shadow-captures=%llu, shadow-fireable=%llu, shadow-blocked=%llu, shadow-hold=%llu, shadow-flush-clear=%llu, endpoint-captures=%llu, endpoint-fireable=%llu, endpoint-blocked=%llu, endpoint-hold=%llu, endpoint-flush-clear=%llu)\n",
               static_cast<unsigned long long>(coverage.slot1_visible_events),
               static_cast<unsigned long long>(coverage.slot1_fireable_events),
               static_cast<unsigned long long>(coverage.slot1_blocked_events),
@@ -551,6 +729,11 @@ int main(int argc, char **argv) {
               static_cast<unsigned long long>(coverage.shadow_capture_fireable_events),
               static_cast<unsigned long long>(coverage.shadow_capture_blocked_events),
               static_cast<unsigned long long>(coverage.shadow_hold_cycles),
-              static_cast<unsigned long long>(coverage.shadow_flush_clear_events));
+              static_cast<unsigned long long>(coverage.shadow_flush_clear_events),
+              static_cast<unsigned long long>(coverage.endpoint_capture_events),
+              static_cast<unsigned long long>(coverage.endpoint_capture_fireable_events),
+              static_cast<unsigned long long>(coverage.endpoint_capture_blocked_events),
+              static_cast<unsigned long long>(coverage.endpoint_hold_cycles),
+              static_cast<unsigned long long>(coverage.endpoint_flush_clear_events));
   return 0;
 }

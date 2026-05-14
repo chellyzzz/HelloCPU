@@ -624,6 +624,18 @@ Current slot1 shadow transport refinement:
 3. top-level regression now checks shadow capture, hold, and flush-clear behavior, making this the first non-binding transport checkpoint for lane 1
 4. the younger sidecar and shadow lane now preserve the remaining branch-only class bits as explicit negatives, so lane-1 transport cannot silently drift into `load/store`, `jump`, `system`, `muldiv`, or `COP` classes
 
+Current slot1 shadow endpoint refinement:
+
+1. the top level now includes an always-ready, non-executing endpoint stub that accepts every visible lane-1 transport event
+2. this endpoint captures the same payload as the shadow transport source, holds it when no new event arrives, and clears on `frontend_flush`
+3. top-level regression now checks endpoint capture, hold, and flush-clear behavior, so the non-binding lane-1 path has both a source-side and sink-side executable contract
+
+Current fetch-queue contract refinement:
+
+1. dequeue-stall assertions still lock the visible dequeue payload and predictor metadata
+2. full-queue stall assertions now also lock the pair-screen result, younger predict metadata, and younger predecode bundle
+3. this makes the fetch queue a more explicit frontend truth source for future lane packing and lane-1 transport work
+
 This keeps the policy executable while preserving the current single-issue machine behavior.
 
 ## Immediate Follow-Up

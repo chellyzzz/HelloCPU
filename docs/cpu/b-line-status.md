@@ -275,6 +275,17 @@ Current slot1 shadow transport surface:
 - The younger sidecar and the shadow lane now also keep the remaining branch-only class bits explicit: `csr_wen`, `load`, `store`, `jal`, `jalr`, `fence_i`, `muldiv`, `is_cop_insn`, `ecall`, `mret`, `ebreak`, and zero `csr_addr`.
 - Top-level coverage now requires shadow capture, shadow hold, and shadow flush-clear events in addition to the visible/fireable/blocked/flushed observability states.
 
+Current slot1 shadow endpoint surface:
+
+- `hcpu` now also exposes an always-ready, non-executing slot-1 endpoint stub that accepts every visible shadow-transport event without adding backpressure.
+- The endpoint captures the same branch-only payload as the shadow lane, holds it across idle cycles, and clears on `frontend_flush`.
+- Top-level coverage now requires endpoint capture, endpoint hold, and endpoint flush-clear behavior, so lane 1 has both a source-side shadow surface and a sink-side endpoint surface.
+
+Current fetch-queue contract refinement:
+
+- Under `PROTOCOL_ASSERT`, a full stalled fetch queue must now keep the full pair-screen result, younger predict metadata, and younger predecode bundle stable until dequeue or flush.
+- The directed fetch-queue regression now checks that a blocked overwrite attempt leaves the younger truth source unchanged.
+
 Current pairing/hazard draft direction:
 
 - Near-term real slice stays `2-wide fetch/predecode` with single issue preserved.

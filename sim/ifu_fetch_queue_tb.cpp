@@ -234,6 +234,12 @@ int main(int argc, char **argv) {
 
   fail |= expect(top->o_pc == pc_a, "full queue rejects overwrite without dequeue");
   fail |= expect(top->o_ins == ins_a, "full queue keeps oldest instruction without dequeue");
+  fail |= expect_pair_screen(top, true, true, false, false, false, false, false, true, false,
+                             "full stalled queue preserves pair screen truth source");
+  fail |= expect_pair_younger(top, true, pc_b, ins_b, false, target_b, false,
+                              8, 1, 2, false, false, false, false, true,
+                              false, false, false, false, false, false, false, false,
+                              "full stalled queue preserves younger sidecar truth source");
 
   top->i_pc = pc_c;
   top->i_ins = ins_c;

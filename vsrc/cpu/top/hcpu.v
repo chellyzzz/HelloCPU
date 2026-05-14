@@ -421,6 +421,8 @@ wire [31:0] decode_slot0_pc /* verilator public_flat */;
 wire      decode_slot1_valid /* verilator public_flat */;
 wire [31:0] decode_slot1_pc /* verilator public_flat */;
 wire [31:0] decode_slot1_ins /* verilator public_flat */;
+wire      slot1_shadow_capture /* verilator public_flat */;
+wire      slot1_endpoint_accept /* verilator public_flat */;
 wire      decode_slot1_is_branch /* verilator public_flat */;
 wire      decode_slot1_wen /* verilator public_flat */;
 wire      decode_slot1_brch /* verilator public_flat */;
@@ -473,6 +475,35 @@ reg       slot1_shadow_fireable /* verilator public_flat */;
 reg       slot1_shadow_predict_taken /* verilator public_flat */;
 reg [29:0] slot1_shadow_predict_target /* verilator public_flat */;
 reg       slot1_shadow_predict_btb_hit /* verilator public_flat */;
+reg       slot1_endpoint_valid /* verilator public_flat */;
+reg [31:0] slot1_endpoint_pc /* verilator public_flat */;
+reg [31:0] slot1_endpoint_ins /* verilator public_flat */;
+reg [31:0] slot1_endpoint_imm /* verilator public_flat */;
+reg [4:0] slot1_endpoint_rd /* verilator public_flat */;
+reg [4:0] slot1_endpoint_rs1 /* verilator public_flat */;
+reg [4:0] slot1_endpoint_rs2 /* verilator public_flat */;
+reg [2:0] slot1_endpoint_exu_opt /* verilator public_flat */;
+reg [9:0] slot1_endpoint_alu_opt /* verilator public_flat */;
+reg [1:0] slot1_endpoint_src_sel1 /* verilator public_flat */;
+reg [2:0] slot1_endpoint_src_sel2 /* verilator public_flat */;
+reg       slot1_endpoint_wen /* verilator public_flat */;
+reg       slot1_endpoint_brch /* verilator public_flat */;
+reg       slot1_endpoint_csr_wen /* verilator public_flat */;
+reg       slot1_endpoint_load /* verilator public_flat */;
+reg       slot1_endpoint_store /* verilator public_flat */;
+reg       slot1_endpoint_jal /* verilator public_flat */;
+reg       slot1_endpoint_jalr /* verilator public_flat */;
+reg       slot1_endpoint_fence_i /* verilator public_flat */;
+reg       slot1_endpoint_muldiv /* verilator public_flat */;
+reg       slot1_endpoint_is_cop_insn /* verilator public_flat */;
+reg       slot1_endpoint_ecall /* verilator public_flat */;
+reg       slot1_endpoint_mret /* verilator public_flat */;
+reg       slot1_endpoint_ebreak /* verilator public_flat */;
+reg [11:0] slot1_endpoint_csr_addr /* verilator public_flat */;
+reg       slot1_endpoint_fireable /* verilator public_flat */;
+reg       slot1_endpoint_predict_taken /* verilator public_flat */;
+reg [29:0] slot1_endpoint_predict_target /* verilator public_flat */;
+reg       slot1_endpoint_predict_btb_hit /* verilator public_flat */;
 
 hcpu_CSR_RegisterFile Csrs(
     .clock                             (clock                     ),
@@ -988,8 +1019,10 @@ assign decode_slot0_pc = ifu2idu_pc;
 assign decode_slot1_valid = decode_pair_select_slot1_youngest && ifu_pair_younger_valid;
 assign decode_slot1_pc = decode_slot1_valid ? ifu_pair_younger_pc : 32'b0;
 assign decode_slot1_ins = decode_slot1_valid ? ifu_pair_younger_ins : 32'b0;
+assign slot1_shadow_capture = decode_slot1_valid && !frontend_flush;
+assign slot1_endpoint_accept = slot1_shadow_capture;
 assign decode_slot1_is_branch = decode_slot1_valid && decode_pair_select_slot1_branch &&
-                               ifu_pair_younger_predecode_brch;
+                                ifu_pair_younger_predecode_brch;
 
 hcpu_IDU idu_slot1(
     .clock                             (clock                     ),
@@ -1053,7 +1086,7 @@ always @(posedge clock or posedge reset) begin
     end else if (frontend_flush) begin
         slot1_shadow_valid <= 1'b0;
         slot1_shadow_fireable <= 1'b0;
-    end else if (decode_slot1_valid) begin
+    end else if (slot1_shadow_capture) begin
         slot1_shadow_valid <= 1'b1;
         slot1_shadow_pc <= decode_slot1_pc;
         slot1_shadow_ins <= decode_slot1_ins;
@@ -1083,6 +1116,73 @@ always @(posedge clock or posedge reset) begin
         slot1_shadow_predict_taken <= ifu_pair_younger_predict_taken;
         slot1_shadow_predict_target <= ifu_pair_younger_predict_target;
         slot1_shadow_predict_btb_hit <= ifu_pair_younger_predict_btb_hit;
+    end
+end
+
+always @(posedge clock or posedge reset) begin
+    if (reset) begin
+        slot1_endpoint_valid <= 1'b0;
+        slot1_endpoint_pc <= 32'b0;
+        slot1_endpoint_ins <= 32'b0;
+        slot1_endpoint_imm <= 32'b0;
+        slot1_endpoint_rd <= 5'b0;
+        slot1_endpoint_rs1 <= 5'b0;
+        slot1_endpoint_rs2 <= 5'b0;
+        slot1_endpoint_exu_opt <= 3'b0;
+        slot1_endpoint_alu_opt <= 10'b0;
+        slot1_endpoint_src_sel1 <= 2'b0;
+        slot1_endpoint_src_sel2 <= 3'b0;
+        slot1_endpoint_wen <= 1'b0;
+        slot1_endpoint_brch <= 1'b0;
+        slot1_endpoint_csr_wen <= 1'b0;
+        slot1_endpoint_load <= 1'b0;
+        slot1_endpoint_store <= 1'b0;
+        slot1_endpoint_jal <= 1'b0;
+        slot1_endpoint_jalr <= 1'b0;
+        slot1_endpoint_fence_i <= 1'b0;
+        slot1_endpoint_muldiv <= 1'b0;
+        slot1_endpoint_is_cop_insn <= 1'b0;
+        slot1_endpoint_ecall <= 1'b0;
+        slot1_endpoint_mret <= 1'b0;
+        slot1_endpoint_ebreak <= 1'b0;
+        slot1_endpoint_csr_addr <= 12'b0;
+        slot1_endpoint_fireable <= 1'b0;
+        slot1_endpoint_predict_taken <= 1'b0;
+        slot1_endpoint_predict_target <= 30'b0;
+        slot1_endpoint_predict_btb_hit <= 1'b0;
+    end else if (frontend_flush) begin
+        slot1_endpoint_valid <= 1'b0;
+        slot1_endpoint_fireable <= 1'b0;
+    end else if (slot1_endpoint_accept) begin
+        slot1_endpoint_valid <= 1'b1;
+        slot1_endpoint_pc <= decode_slot1_pc;
+        slot1_endpoint_ins <= decode_slot1_ins;
+        slot1_endpoint_imm <= decode_slot1_imm;
+        slot1_endpoint_rd <= decode_slot1_rd;
+        slot1_endpoint_rs1 <= decode_slot1_rs1;
+        slot1_endpoint_rs2 <= decode_slot1_rs2;
+        slot1_endpoint_exu_opt <= decode_slot1_exu_opt;
+        slot1_endpoint_alu_opt <= decode_slot1_alu_opt;
+        slot1_endpoint_src_sel1 <= decode_slot1_src_sel1;
+        slot1_endpoint_src_sel2 <= decode_slot1_src_sel2;
+        slot1_endpoint_wen <= decode_slot1_wen;
+        slot1_endpoint_brch <= decode_slot1_brch;
+        slot1_endpoint_csr_wen <= decode_slot1_csr_wen;
+        slot1_endpoint_load <= decode_slot1_load;
+        slot1_endpoint_store <= decode_slot1_store;
+        slot1_endpoint_jal <= decode_slot1_jal;
+        slot1_endpoint_jalr <= decode_slot1_jalr;
+        slot1_endpoint_fence_i <= decode_slot1_fence_i;
+        slot1_endpoint_muldiv <= decode_slot1_muldiv;
+        slot1_endpoint_is_cop_insn <= decode_slot1_is_cop_insn;
+        slot1_endpoint_ecall <= decode_slot1_ecall;
+        slot1_endpoint_mret <= decode_slot1_mret;
+        slot1_endpoint_ebreak <= decode_slot1_ebreak;
+        slot1_endpoint_csr_addr <= decode_slot1_csr_addr;
+        slot1_endpoint_fireable <= decode_pair_allow_second;
+        slot1_endpoint_predict_taken <= ifu_pair_younger_predict_taken;
+        slot1_endpoint_predict_target <= ifu_pair_younger_predict_target;
+        slot1_endpoint_predict_btb_hit <= ifu_pair_younger_predict_btb_hit;
     end
 end
 
@@ -1148,6 +1248,24 @@ always @(*) begin
         $fatal(1, "hcpu slot1 shadow transport incorrectly became an exclusive-backend op");
     if (slot1_shadow_valid && (slot1_shadow_csr_addr != 12'b0))
         $fatal(1, "hcpu slot1 shadow transport unexpectedly preserved csr_addr metadata");
+    if (slot1_endpoint_accept && !decode_slot1_valid)
+        $fatal(1, "hcpu slot1 endpoint accepted without a visible slot1 source");
+    if (slot1_endpoint_valid && !slot1_endpoint_brch)
+        $fatal(1, "hcpu slot1 endpoint lost branch classification");
+    if (slot1_endpoint_valid && slot1_endpoint_wen)
+        $fatal(1, "hcpu slot1 endpoint incorrectly became writable");
+    if (slot1_endpoint_valid && slot1_endpoint_csr_wen)
+        $fatal(1, "hcpu slot1 endpoint incorrectly became csr-writing");
+    if (slot1_endpoint_valid && (slot1_endpoint_load || slot1_endpoint_store))
+        $fatal(1, "hcpu slot1 endpoint incorrectly became a memory op");
+    if (slot1_endpoint_valid && (slot1_endpoint_jal || slot1_endpoint_jalr))
+        $fatal(1, "hcpu slot1 endpoint incorrectly became a jump op");
+    if (slot1_endpoint_valid && (slot1_endpoint_fence_i || slot1_endpoint_ecall || slot1_endpoint_mret || slot1_endpoint_ebreak))
+        $fatal(1, "hcpu slot1 endpoint incorrectly became a system redirect op");
+    if (slot1_endpoint_valid && (slot1_endpoint_muldiv || slot1_endpoint_is_cop_insn))
+        $fatal(1, "hcpu slot1 endpoint incorrectly became an exclusive-backend op");
+    if (slot1_endpoint_valid && (slot1_endpoint_csr_addr != 12'b0))
+        $fatal(1, "hcpu slot1 endpoint unexpectedly preserved csr_addr metadata");
 end
 `endif
 

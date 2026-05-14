@@ -399,6 +399,22 @@ reg [31:0] prev_o_ins;
 reg        prev_o_predict_taken;
 reg [29:0] prev_o_predict_target;
 reg        prev_o_predict_btb_hit;
+reg        prev_pair_stall;
+reg        prev_o_pair_valid;
+reg        prev_o_pair_candidate_alu_branch;
+reg        prev_o_pair_has_raw;
+reg        prev_o_pair_has_waw;
+reg        prev_o_pair_has_dual_writeback;
+reg        prev_o_pair_has_exclusive_backend;
+reg        prev_o_pair_has_redirect_control;
+reg        prev_o_pair_order_alu_then_branch;
+reg        prev_o_pair_order_branch_then_alu;
+reg [31:0] prev_o_pair_younger_pc;
+reg [31:0] prev_o_pair_younger_ins;
+reg        prev_o_pair_younger_predict_taken;
+reg [29:0] prev_o_pair_younger_predict_target;
+reg        prev_o_pair_younger_predict_btb_hit;
+reg [PREDECODE_WIDTH-1:0] prev_o_pair_younger_predecode_bundle;
 
 always @(posedge clock or posedge reset) begin
     if (reset) begin
@@ -408,6 +424,22 @@ always @(posedge clock or posedge reset) begin
         prev_o_predict_taken <= 1'b0;
         prev_o_predict_target <= 30'b0;
         prev_o_predict_btb_hit <= 1'b0;
+        prev_pair_stall <= 1'b0;
+        prev_o_pair_valid <= 1'b0;
+        prev_o_pair_candidate_alu_branch <= 1'b0;
+        prev_o_pair_has_raw <= 1'b0;
+        prev_o_pair_has_waw <= 1'b0;
+        prev_o_pair_has_dual_writeback <= 1'b0;
+        prev_o_pair_has_exclusive_backend <= 1'b0;
+        prev_o_pair_has_redirect_control <= 1'b0;
+        prev_o_pair_order_alu_then_branch <= 1'b0;
+        prev_o_pair_order_branch_then_alu <= 1'b0;
+        prev_o_pair_younger_pc <= 32'b0;
+        prev_o_pair_younger_ins <= 32'b0;
+        prev_o_pair_younger_predict_taken <= 1'b0;
+        prev_o_pair_younger_predict_target <= 30'b0;
+        prev_o_pair_younger_predict_btb_hit <= 1'b0;
+        prev_o_pair_younger_predecode_bundle <= {PREDECODE_WIDTH{1'b0}};
     end else begin
         if (prev_deq_stall && !flush && !i_deq_ready) begin
             if (o_pc != prev_o_pc)
@@ -421,12 +453,94 @@ always @(posedge clock or posedge reset) begin
             if (o_predict_btb_hit != prev_o_predict_btb_hit)
                 $fatal(1, "ifu_fetch_queue predict_btb_hit changed while dequeue remained stalled");
         end
+        if (prev_pair_stall && !flush && !i_deq_ready) begin
+            if (o_pair_valid != prev_o_pair_valid)
+                $fatal(1, "ifu_fetch_queue pair_valid changed while full queue remained stalled");
+            if (o_pair_candidate_alu_branch != prev_o_pair_candidate_alu_branch)
+                $fatal(1, "ifu_fetch_queue pair candidate changed while full queue remained stalled");
+            if (o_pair_has_raw != prev_o_pair_has_raw)
+                $fatal(1, "ifu_fetch_queue pair raw flag changed while full queue remained stalled");
+            if (o_pair_has_waw != prev_o_pair_has_waw)
+                $fatal(1, "ifu_fetch_queue pair waw flag changed while full queue remained stalled");
+            if (o_pair_has_dual_writeback != prev_o_pair_has_dual_writeback)
+                $fatal(1, "ifu_fetch_queue pair dual-writeback flag changed while full queue remained stalled");
+            if (o_pair_has_exclusive_backend != prev_o_pair_has_exclusive_backend)
+                $fatal(1, "ifu_fetch_queue pair exclusive-backend flag changed while full queue remained stalled");
+            if (o_pair_has_redirect_control != prev_o_pair_has_redirect_control)
+                $fatal(1, "ifu_fetch_queue pair redirect-control flag changed while full queue remained stalled");
+            if (o_pair_order_alu_then_branch != prev_o_pair_order_alu_then_branch)
+                $fatal(1, "ifu_fetch_queue pair order alu-then-branch changed while full queue remained stalled");
+            if (o_pair_order_branch_then_alu != prev_o_pair_order_branch_then_alu)
+                $fatal(1, "ifu_fetch_queue pair order branch-then-alu changed while full queue remained stalled");
+            if (o_pair_younger_pc != prev_o_pair_younger_pc)
+                $fatal(1, "ifu_fetch_queue younger pc changed while full queue remained stalled");
+            if (o_pair_younger_ins != prev_o_pair_younger_ins)
+                $fatal(1, "ifu_fetch_queue younger instruction changed while full queue remained stalled");
+            if (o_pair_younger_predict_taken != prev_o_pair_younger_predict_taken)
+                $fatal(1, "ifu_fetch_queue younger predict_taken changed while full queue remained stalled");
+            if (o_pair_younger_predict_target != prev_o_pair_younger_predict_target)
+                $fatal(1, "ifu_fetch_queue younger predict_target changed while full queue remained stalled");
+            if (o_pair_younger_predict_btb_hit != prev_o_pair_younger_predict_btb_hit)
+                $fatal(1, "ifu_fetch_queue younger predict_btb_hit changed while full queue remained stalled");
+            if ({
+                o_pair_younger_predecode_rd,
+                o_pair_younger_predecode_rs1_addr,
+                o_pair_younger_predecode_rs2_addr,
+                o_pair_younger_predecode_wen,
+                o_pair_younger_predecode_csr_wen,
+                o_pair_younger_predecode_load,
+                o_pair_younger_predecode_store,
+                o_pair_younger_predecode_brch,
+                o_pair_younger_predecode_jal,
+                o_pair_younger_predecode_jalr,
+                o_pair_younger_predecode_fence_i,
+                o_pair_younger_predecode_muldiv,
+                o_pair_younger_predecode_is_cop_insn,
+                o_pair_younger_predecode_ecall,
+                o_pair_younger_predecode_mret,
+                o_pair_younger_predecode_ebreak
+            } != prev_o_pair_younger_predecode_bundle)
+                $fatal(1, "ifu_fetch_queue younger predecode bundle changed while full queue remained stalled");
+        end
         prev_deq_stall <= o_deq_valid && !i_deq_ready;
         prev_o_pc <= o_pc;
         prev_o_ins <= o_ins;
         prev_o_predict_taken <= o_predict_taken;
         prev_o_predict_target <= o_predict_target;
         prev_o_predict_btb_hit <= o_predict_btb_hit;
+        prev_pair_stall <= o_pair_valid && !i_deq_ready;
+        prev_o_pair_valid <= o_pair_valid;
+        prev_o_pair_candidate_alu_branch <= o_pair_candidate_alu_branch;
+        prev_o_pair_has_raw <= o_pair_has_raw;
+        prev_o_pair_has_waw <= o_pair_has_waw;
+        prev_o_pair_has_dual_writeback <= o_pair_has_dual_writeback;
+        prev_o_pair_has_exclusive_backend <= o_pair_has_exclusive_backend;
+        prev_o_pair_has_redirect_control <= o_pair_has_redirect_control;
+        prev_o_pair_order_alu_then_branch <= o_pair_order_alu_then_branch;
+        prev_o_pair_order_branch_then_alu <= o_pair_order_branch_then_alu;
+        prev_o_pair_younger_pc <= o_pair_younger_pc;
+        prev_o_pair_younger_ins <= o_pair_younger_ins;
+        prev_o_pair_younger_predict_taken <= o_pair_younger_predict_taken;
+        prev_o_pair_younger_predict_target <= o_pair_younger_predict_target;
+        prev_o_pair_younger_predict_btb_hit <= o_pair_younger_predict_btb_hit;
+        prev_o_pair_younger_predecode_bundle <= {
+            o_pair_younger_predecode_rd,
+            o_pair_younger_predecode_rs1_addr,
+            o_pair_younger_predecode_rs2_addr,
+            o_pair_younger_predecode_wen,
+            o_pair_younger_predecode_csr_wen,
+            o_pair_younger_predecode_load,
+            o_pair_younger_predecode_store,
+            o_pair_younger_predecode_brch,
+            o_pair_younger_predecode_jal,
+            o_pair_younger_predecode_jalr,
+            o_pair_younger_predecode_fence_i,
+            o_pair_younger_predecode_muldiv,
+            o_pair_younger_predecode_is_cop_insn,
+            o_pair_younger_predecode_ecall,
+            o_pair_younger_predecode_mret,
+            o_pair_younger_predecode_ebreak
+        };
     end
 end
 `endif
