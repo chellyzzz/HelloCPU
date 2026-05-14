@@ -174,6 +174,16 @@ Phase 4 落地最小 `vle8.v/vse8.v`：
 - 继续复用现有 CPU memory owner/kill boundary，不新增独立 vector memory side channel。
 - 标准 memory tests 使用 static initialized data；stack/scalar-store 后立刻 COP load 仍不是已声明 coherent path。
 
+## 十五、Phase 5 execute 扩展自审决策
+
+Phase 5 扩展仍限定在无 memory、无 CSR/trap、无 mask 的 execute-class：
+
+- 新增 `vsub.vv/vx`、`vsll.vv/vx`、`vsrl.vv/vx`、`vsra.vv/vx`、`vand.vi/vor.vi/vxor.vi`。
+- 所有 Phase 5 op 只支持 `vm=1`、`SEW=8/32`、`LMUL=m1`、`vstart=0`、COP-local VRF/state。
+- VV 指令不读取 scalar `rs1`；VX 指令读取 scalar GPR `rs1`；VI 指令使用 `imm[4:0]`。
+- `SEW=8` 按 byte lanes 执行并受 `vl` gating；`SEW=32` 按单 32-bit element 执行。
+- `vill=1` 下不写 VRF；unsupported OP-V 继续 fail closed。
+
 ## 十、bitwise VV 自审决策
 
 `vand.vv`、`vor.vv`、`vxor.vv` 作为一个稳定 execute-class 点一起落地：

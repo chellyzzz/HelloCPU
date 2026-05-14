@@ -17,6 +17,28 @@ module hcpu_dummy_coprocessor(
     input      [31:0]   i_cop_mem_resp_rdata
 );
 
+function [7:0] arshift8;
+    input [7:0] value;
+    input [2:0] amount;
+    reg signed [15:0] extended;
+    reg signed [15:0] shifted;
+    begin
+        extended = { {8{value[7]}}, value };
+        shifted = extended >>> amount;
+        arshift8 = shifted[7:0];
+    end
+endfunction
+
+function [31:0] arshift32;
+    input [31:0] value;
+    input [4:0] amount;
+    reg signed [31:0] signed_value;
+    begin
+        signed_value = value;
+        arshift32 = signed_value >>> amount;
+    end
+endfunction
+
 reg         busy;
 reg [1:0]   countdown;
 reg [31:0]  latched_res;
@@ -66,6 +88,17 @@ wire        vxor_vv_standard;
 wire        vand_vx_standard;
 wire        vor_vx_standard;
 wire        vxor_vx_standard;
+wire        vand_vi_standard;
+wire        vor_vi_standard;
+wire        vxor_vi_standard;
+wire        vsub_vv_standard;
+wire        vsub_vx_standard;
+wire        vsll_vv_standard;
+wire        vsll_vx_standard;
+wire        vsrl_vv_standard;
+wire        vsrl_vx_standard;
+wire        vsra_vv_standard;
+wire        vsra_vx_standard;
 wire        vmv_v_v_standard;
 wire        vmv_v_x_standard;
 wire        vle8_v_standard;
@@ -84,6 +117,14 @@ wire [31:0] vbit_vv_raw_result;
 wire [31:0] vbit_vv_result;
 wire [31:0] vbit_vx_raw_result;
 wire [31:0] vbit_vx_result;
+wire [31:0] vbit_vi_raw_result;
+wire [31:0] vbit_vi_result;
+wire [31:0] vsub_vv_result;
+wire [31:0] vsub_vx_result;
+wire [31:0] vshift_vv_raw_result;
+wire [31:0] vshift_vv_result;
+wire [31:0] vshift_vx_raw_result;
+wire [31:0] vshift_vx_result;
 wire [31:0] vmv_result;
 
 hcpu_vector_cop_decode u_cop_decode(
@@ -112,6 +153,17 @@ hcpu_vector_cop_decode u_cop_decode(
     .o_vand_vx_standard(vand_vx_standard),
     .o_vor_vx_standard(vor_vx_standard),
     .o_vxor_vx_standard(vxor_vx_standard),
+    .o_vand_vi_standard(vand_vi_standard),
+    .o_vor_vi_standard(vor_vi_standard),
+    .o_vxor_vi_standard(vxor_vi_standard),
+    .o_vsub_vv_standard(vsub_vv_standard),
+    .o_vsub_vx_standard(vsub_vx_standard),
+    .o_vsll_vv_standard(vsll_vv_standard),
+    .o_vsll_vx_standard(vsll_vx_standard),
+    .o_vsrl_vv_standard(vsrl_vv_standard),
+    .o_vsrl_vx_standard(vsrl_vx_standard),
+    .o_vsra_vv_standard(vsra_vv_standard),
+    .o_vsra_vx_standard(vsra_vx_standard),
     .o_vmv_v_v_standard(vmv_v_v_standard),
     .o_vmv_v_x_standard(vmv_v_x_standard),
     .o_vle8_v_standard(vle8_v_standard),
@@ -182,6 +234,22 @@ assign vadd_vi_result = vtype[31] ? 32'h80000000 :
                             (vlen > 32'd1) ? (vrf[vadd_vs2][15:8]  + vadd_i_byte) : 8'b0,
                             (vlen > 32'd0) ? (vrf[vadd_vs2][7:0]   + vadd_i_byte) : 8'b0
                         } : 32'h80000000;
+assign vsub_vv_result = vtype[31] ? 32'h80000000 :
+                        (vtype[2:0] == 3'd2) ? ((vlen == 32'b0) ? 32'b0 : (vrf[vadd_vs2] - vrf[vadd_vs1])) :
+                        (vtype[2:0] == 3'd0) ? {
+                            (vlen > 32'd3) ? (vrf[vadd_vs2][31:24] - vrf[vadd_vs1][31:24]) : 8'b0,
+                            (vlen > 32'd2) ? (vrf[vadd_vs2][23:16] - vrf[vadd_vs1][23:16]) : 8'b0,
+                            (vlen > 32'd1) ? (vrf[vadd_vs2][15:8]  - vrf[vadd_vs1][15:8])  : 8'b0,
+                            (vlen > 32'd0) ? (vrf[vadd_vs2][7:0]   - vrf[vadd_vs1][7:0])   : 8'b0
+                        } : 32'h80000000;
+assign vsub_vx_result = vtype[31] ? 32'h80000000 :
+                        (vtype[2:0] == 3'd2) ? ((vlen == 32'b0) ? 32'b0 : (vrf[vadd_vs2] - i_src1)) :
+                        (vtype[2:0] == 3'd0) ? {
+                            (vlen > 32'd3) ? (vrf[vadd_vs2][31:24] - vadd_x_byte) : 8'b0,
+                            (vlen > 32'd2) ? (vrf[vadd_vs2][23:16] - vadd_x_byte) : 8'b0,
+                            (vlen > 32'd1) ? (vrf[vadd_vs2][15:8]  - vadd_x_byte) : 8'b0,
+                            (vlen > 32'd0) ? (vrf[vadd_vs2][7:0]   - vadd_x_byte) : 8'b0
+                        } : 32'h80000000;
 wire vbit_vv_standard = vand_vv_standard || vor_vv_standard || vxor_vv_standard;
 assign vbit_vv_raw_result = vand_vv_standard ? (vrf[vadd_vs2] & vrf[vadd_vs1]) :
                             vor_vv_standard ? (vrf[vadd_vs2] | vrf[vadd_vs1]) :
@@ -206,6 +274,48 @@ assign vbit_vx_result = vtype[31] ? 32'h80000000 :
                             (vlen > 32'd1) ? vbit_vx_raw_result[15:8]  : 8'b0,
                             (vlen > 32'd0) ? vbit_vx_raw_result[7:0]   : 8'b0
                         } : 32'h80000000;
+wire vbit_vi_standard = vand_vi_standard || vor_vi_standard || vxor_vi_standard;
+wire [31:0] vbit_i_value = {27'b0, i_ins[19:15]};
+wire [7:0] vbit_i_byte = {3'b0, i_ins[19:15]};
+assign vbit_vi_raw_result = vand_vi_standard ? (vrf[vadd_vs2] & vbit_i_value) :
+                            vor_vi_standard ? (vrf[vadd_vs2] | vbit_i_value) :
+                            (vrf[vadd_vs2] ^ vbit_i_value);
+assign vbit_vi_result = vtype[31] ? 32'h80000000 :
+                        (vtype[2:0] == 3'd2) ? ((vlen == 32'b0) ? 32'b0 : vbit_vi_raw_result) :
+                        (vtype[2:0] == 3'd0) ? {
+                            (vlen > 32'd3) ? ((vand_vi_standard ? (vrf[vadd_vs2][31:24] & vbit_i_byte) : vor_vi_standard ? (vrf[vadd_vs2][31:24] | vbit_i_byte) : (vrf[vadd_vs2][31:24] ^ vbit_i_byte))) : 8'b0,
+                            (vlen > 32'd2) ? ((vand_vi_standard ? (vrf[vadd_vs2][23:16] & vbit_i_byte) : vor_vi_standard ? (vrf[vadd_vs2][23:16] | vbit_i_byte) : (vrf[vadd_vs2][23:16] ^ vbit_i_byte))) : 8'b0,
+                            (vlen > 32'd1) ? ((vand_vi_standard ? (vrf[vadd_vs2][15:8]  & vbit_i_byte) : vor_vi_standard ? (vrf[vadd_vs2][15:8]  | vbit_i_byte) : (vrf[vadd_vs2][15:8]  ^ vbit_i_byte))) : 8'b0,
+                            (vlen > 32'd0) ? ((vand_vi_standard ? (vrf[vadd_vs2][7:0]   & vbit_i_byte) : vor_vi_standard ? (vrf[vadd_vs2][7:0]   | vbit_i_byte) : (vrf[vadd_vs2][7:0]   ^ vbit_i_byte))) : 8'b0
+                        } : 32'h80000000;
+wire vshift_vv_standard = vsll_vv_standard || vsrl_vv_standard || vsra_vv_standard;
+wire vshift_vx_standard = vsll_vx_standard || vsrl_vx_standard || vsra_vx_standard;
+wire [4:0] vshift_vv_amount32 = vrf[vadd_vs1][4:0];
+wire [4:0] vshift_vx_amount32 = i_src1[4:0];
+wire [2:0] vshift_vv_amount8 = vrf[vadd_vs1][2:0];
+wire [2:0] vshift_vx_amount8 = i_src1[2:0];
+assign vshift_vv_raw_result = vsll_vv_standard ? (vrf[vadd_vs2] << vshift_vv_amount32) :
+                              vsrl_vv_standard ? (vrf[vadd_vs2] >> vshift_vv_amount32) :
+                              arshift32(vrf[vadd_vs2], vshift_vv_amount32);
+assign vshift_vv_result = vtype[31] ? 32'h80000000 :
+                          (vtype[2:0] == 3'd2) ? ((vlen == 32'b0) ? 32'b0 : vshift_vv_raw_result) :
+                          (vtype[2:0] == 3'd0) ? {
+                              (vlen > 32'd3) ? (vsll_vv_standard ? (vrf[vadd_vs2][31:24] << vshift_vv_amount8) : vsrl_vv_standard ? (vrf[vadd_vs2][31:24] >> vshift_vv_amount8) : arshift8(vrf[vadd_vs2][31:24], vshift_vv_amount8)) : 8'b0,
+                              (vlen > 32'd2) ? (vsll_vv_standard ? (vrf[vadd_vs2][23:16] << vshift_vv_amount8) : vsrl_vv_standard ? (vrf[vadd_vs2][23:16] >> vshift_vv_amount8) : arshift8(vrf[vadd_vs2][23:16], vshift_vv_amount8)) : 8'b0,
+                              (vlen > 32'd1) ? (vsll_vv_standard ? (vrf[vadd_vs2][15:8]  << vshift_vv_amount8) : vsrl_vv_standard ? (vrf[vadd_vs2][15:8]  >> vshift_vv_amount8) : arshift8(vrf[vadd_vs2][15:8], vshift_vv_amount8)) : 8'b0,
+                              (vlen > 32'd0) ? (vsll_vv_standard ? (vrf[vadd_vs2][7:0]   << vshift_vv_amount8) : vsrl_vv_standard ? (vrf[vadd_vs2][7:0]   >> vshift_vv_amount8) : arshift8(vrf[vadd_vs2][7:0], vshift_vv_amount8)) : 8'b0
+                          } : 32'h80000000;
+assign vshift_vx_raw_result = vsll_vx_standard ? (vrf[vadd_vs2] << vshift_vx_amount32) :
+                              vsrl_vx_standard ? (vrf[vadd_vs2] >> vshift_vx_amount32) :
+                              arshift32(vrf[vadd_vs2], vshift_vx_amount32);
+assign vshift_vx_result = vtype[31] ? 32'h80000000 :
+                          (vtype[2:0] == 3'd2) ? ((vlen == 32'b0) ? 32'b0 : vshift_vx_raw_result) :
+                          (vtype[2:0] == 3'd0) ? {
+                              (vlen > 32'd3) ? (vsll_vx_standard ? (vrf[vadd_vs2][31:24] << vshift_vx_amount8) : vsrl_vx_standard ? (vrf[vadd_vs2][31:24] >> vshift_vx_amount8) : arshift8(vrf[vadd_vs2][31:24], vshift_vx_amount8)) : 8'b0,
+                              (vlen > 32'd2) ? (vsll_vx_standard ? (vrf[vadd_vs2][23:16] << vshift_vx_amount8) : vsrl_vx_standard ? (vrf[vadd_vs2][23:16] >> vshift_vx_amount8) : arshift8(vrf[vadd_vs2][23:16], vshift_vx_amount8)) : 8'b0,
+                              (vlen > 32'd1) ? (vsll_vx_standard ? (vrf[vadd_vs2][15:8]  << vshift_vx_amount8) : vsrl_vx_standard ? (vrf[vadd_vs2][15:8]  >> vshift_vx_amount8) : arshift8(vrf[vadd_vs2][15:8], vshift_vx_amount8)) : 8'b0,
+                              (vlen > 32'd0) ? (vsll_vx_standard ? (vrf[vadd_vs2][7:0]   << vshift_vx_amount8) : vsrl_vx_standard ? (vrf[vadd_vs2][7:0]   >> vshift_vx_amount8) : arshift8(vrf[vadd_vs2][7:0], vshift_vx_amount8)) : 8'b0
+                          } : 32'h80000000;
 wire vmv_standard = vmv_v_v_standard || vmv_v_x_standard;
 wire [31:0] vmv_raw_result = vmv_v_x_standard ? i_src1 : vrf[vadd_vs1];
 assign vmv_result = vtype[31] ? 32'h80000000 :
@@ -235,8 +345,13 @@ wire [31:0] cop_result = vsetivli_any ? vlen_next_value :
                           vadd_vv_standard ? vadd_vv_result :
                           vadd_vx_standard ? vadd_vx_result :
                           vadd_vi_standard ? vadd_vi_result :
+                          vsub_vv_standard ? vsub_vv_result :
+                          vsub_vx_standard ? vsub_vx_result :
                           vbit_vv_standard ? vbit_vv_result :
                           vbit_vx_standard ? vbit_vx_result :
+                          vbit_vi_standard ? vbit_vi_result :
+                          vshift_vv_standard ? vshift_vv_result :
+                          vshift_vx_standard ? vshift_vx_result :
                           vmv_standard ? vmv_result :
                           (cop_funct3 == 3'b001) ? scalar_lane_result :
                           (cop_funct3 == 3'b010) ? scalar_lane_result :
@@ -252,7 +367,8 @@ wire [31:0] cop_result = vsetivli_any ? vlen_next_value :
                           is_vrf_op  ? vrf[vrf_idx] :
                           scalar_op;
 wire        standard_vrf_write = vadd_vv_standard || vadd_vx_standard || vadd_vi_standard ||
-                                 vbit_vv_standard || vbit_vx_standard || vmv_standard || standard_mem_zero_load;
+                                 vsub_vv_standard || vsub_vx_standard || vbit_vv_standard || vbit_vx_standard ||
+                                 vbit_vi_standard || vshift_vv_standard || vshift_vx_standard || vmv_standard || standard_mem_zero_load;
 wire        vrf_write     = (is_vrf_op && (cop_funct7 != 7'd4)) || (standard_vrf_write && !vtype[31]);
 wire [1:0]  vrf_write_idx = standard_mem_zero_load ? i_ins[8:7] :
                             standard_vrf_write ? vadd_vd :
@@ -260,8 +376,13 @@ wire [1:0]  vrf_write_idx = standard_mem_zero_load ? i_ins[8:7] :
 wire [31:0] vrf_write_value = vadd_vv_standard ? vadd_vv_result :
                               vadd_vx_standard ? vadd_vx_result :
                               vadd_vi_standard ? vadd_vi_result :
+                              vsub_vv_standard ? vsub_vv_result :
+                              vsub_vx_standard ? vsub_vx_result :
                               vbit_vv_standard ? vbit_vv_result :
                               vbit_vx_standard ? vbit_vx_result :
+                              vbit_vi_standard ? vbit_vi_result :
+                              vshift_vv_standard ? vshift_vv_result :
+                              vshift_vx_standard ? vshift_vx_result :
                               vmv_standard ? vmv_result :
                               standard_mem_zero_load ? 32'b0 :
                               is_vrf_lane ? vrf_op_result : i_src1;
