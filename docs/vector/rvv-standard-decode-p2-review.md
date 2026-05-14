@@ -162,6 +162,18 @@ Phase 3 明确不做：CSR file 集成、illegal instruction trap、mask registe
 
 Phase 4 可在此 contract 下只做最小 standard memory slice：单请求在飞、`vm=1`、`SEW=8`、`LMUL=m1`、`vstart=0`、COP-local VRF/state，并沿用现有 COP memory owner/kill tests 作为 safety gate。
 
+## 十四、Phase 4 standard memory 自审决策
+
+Phase 4 落地最小 `vle8.v/vse8.v`：
+
+- 只识别 unit-stride `vle8.v/vse8.v`，`vm=1`、`width=000`、`mop=00`、`mew=0`、`nf=0`。
+- `rs1` 来自 scalar GPR base address；`vd/vs3` 当前映射到 COP-local VRF 低两位。
+- 只支持 `SEW=8`、`LMUL=m1`、`vstart=0`、`vill=0`。
+- `vl=0` 时 load 写 0、store 不访问 memory。
+- `0<vl<4` 时只发起 active byte lanes 的 memory request，load inactive bytes 写 0。
+- 继续复用现有 CPU memory owner/kill boundary，不新增独立 vector memory side channel。
+- 标准 memory tests 使用 static initialized data；stack/scalar-store 后立刻 COP load 仍不是已声明 coherent path。
+
 ## 十、bitwise VV 自审决策
 
 `vand.vv`、`vor.vv`、`vxor.vv` 作为一个稳定 execute-class 点一起落地：
