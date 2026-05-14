@@ -384,11 +384,25 @@ wire       ifu_pair_order_branch_then_alu;
 wire      ifu_pair_younger_valid /* verilator public_flat */;
 wire [31:0] ifu_pair_younger_pc /* verilator public_flat */;
 wire [31:0] ifu_pair_younger_ins /* verilator public_flat */;
+wire      ifu_pair_younger_predict_taken /* verilator public_flat */;
+wire [29:0] ifu_pair_younger_predict_target /* verilator public_flat */;
+wire      ifu_pair_younger_predict_btb_hit /* verilator public_flat */;
 wire [4:0] ifu_pair_younger_predecode_rd /* verilator public_flat */;
 wire [4:0] ifu_pair_younger_predecode_rs1_addr /* verilator public_flat */;
 wire [4:0] ifu_pair_younger_predecode_rs2_addr /* verilator public_flat */;
 wire      ifu_pair_younger_predecode_wen /* verilator public_flat */;
-wire       ifu_pair_younger_predecode_brch;
+wire      ifu_pair_younger_predecode_csr_wen /* verilator public_flat */;
+wire      ifu_pair_younger_predecode_load /* verilator public_flat */;
+wire      ifu_pair_younger_predecode_store /* verilator public_flat */;
+wire      ifu_pair_younger_predecode_brch /* verilator public_flat */;
+wire      ifu_pair_younger_predecode_jal /* verilator public_flat */;
+wire      ifu_pair_younger_predecode_jalr /* verilator public_flat */;
+wire      ifu_pair_younger_predecode_fence_i /* verilator public_flat */;
+wire      ifu_pair_younger_predecode_muldiv /* verilator public_flat */;
+wire      ifu_pair_younger_predecode_is_cop_insn /* verilator public_flat */;
+wire      ifu_pair_younger_predecode_ecall /* verilator public_flat */;
+wire      ifu_pair_younger_predecode_mret /* verilator public_flat */;
+wire      ifu_pair_younger_predecode_ebreak /* verilator public_flat */;
 wire       decode_pair_visible;
 wire      decode_pair_allow_second /* verilator public_flat */;
 wire       decode_pair_select_slot1_youngest;
@@ -410,11 +424,55 @@ wire [31:0] decode_slot1_ins /* verilator public_flat */;
 wire      decode_slot1_is_branch /* verilator public_flat */;
 wire      decode_slot1_wen /* verilator public_flat */;
 wire      decode_slot1_brch /* verilator public_flat */;
+wire      decode_slot1_csr_wen /* verilator public_flat */;
+wire      decode_slot1_load /* verilator public_flat */;
+wire      decode_slot1_store /* verilator public_flat */;
+wire      decode_slot1_jal /* verilator public_flat */;
+wire      decode_slot1_jalr /* verilator public_flat */;
+wire      decode_slot1_fence_i /* verilator public_flat */;
+wire      decode_slot1_muldiv /* verilator public_flat */;
+wire      decode_slot1_is_cop_insn /* verilator public_flat */;
+wire      decode_slot1_ecall /* verilator public_flat */;
+wire      decode_slot1_mret /* verilator public_flat */;
+wire      decode_slot1_ebreak /* verilator public_flat */;
 wire [31:0] decode_slot1_imm /* verilator public_flat */;
 wire [4:0] decode_slot1_rd /* verilator public_flat */;
 wire [4:0] decode_slot1_rs1 /* verilator public_flat */;
 wire [4:0] decode_slot1_rs2 /* verilator public_flat */;
+wire [11:0] decode_slot1_csr_addr /* verilator public_flat */;
 wire [2:0] decode_slot1_exu_opt /* verilator public_flat */;
+wire [9:0] decode_slot1_alu_opt /* verilator public_flat */;
+wire [1:0] decode_slot1_src_sel1 /* verilator public_flat */;
+wire [2:0] decode_slot1_src_sel2 /* verilator public_flat */;
+reg       slot1_shadow_valid /* verilator public_flat */;
+reg [31:0] slot1_shadow_pc /* verilator public_flat */;
+reg [31:0] slot1_shadow_ins /* verilator public_flat */;
+reg [31:0] slot1_shadow_imm /* verilator public_flat */;
+reg [4:0] slot1_shadow_rd /* verilator public_flat */;
+reg [4:0] slot1_shadow_rs1 /* verilator public_flat */;
+reg [4:0] slot1_shadow_rs2 /* verilator public_flat */;
+reg [2:0] slot1_shadow_exu_opt /* verilator public_flat */;
+reg [9:0] slot1_shadow_alu_opt /* verilator public_flat */;
+reg [1:0] slot1_shadow_src_sel1 /* verilator public_flat */;
+reg [2:0] slot1_shadow_src_sel2 /* verilator public_flat */;
+reg       slot1_shadow_wen /* verilator public_flat */;
+reg       slot1_shadow_brch /* verilator public_flat */;
+reg       slot1_shadow_csr_wen /* verilator public_flat */;
+reg       slot1_shadow_load /* verilator public_flat */;
+reg       slot1_shadow_store /* verilator public_flat */;
+reg       slot1_shadow_jal /* verilator public_flat */;
+reg       slot1_shadow_jalr /* verilator public_flat */;
+reg       slot1_shadow_fence_i /* verilator public_flat */;
+reg       slot1_shadow_muldiv /* verilator public_flat */;
+reg       slot1_shadow_is_cop_insn /* verilator public_flat */;
+reg       slot1_shadow_ecall /* verilator public_flat */;
+reg       slot1_shadow_mret /* verilator public_flat */;
+reg       slot1_shadow_ebreak /* verilator public_flat */;
+reg [11:0] slot1_shadow_csr_addr /* verilator public_flat */;
+reg       slot1_shadow_fireable /* verilator public_flat */;
+reg       slot1_shadow_predict_taken /* verilator public_flat */;
+reg [29:0] slot1_shadow_predict_target /* verilator public_flat */;
+reg       slot1_shadow_predict_btb_hit /* verilator public_flat */;
 
 hcpu_CSR_RegisterFile Csrs(
     .clock                             (clock                     ),
@@ -585,11 +643,25 @@ hcpu_ifu_fetch_queue ifu_fetch_queue(
     .o_pair_younger_valid              (ifu_pair_younger_valid),
     .o_pair_younger_pc                 (ifu_pair_younger_pc),
     .o_pair_younger_ins                (ifu_pair_younger_ins),
+    .o_pair_younger_predict_taken      (ifu_pair_younger_predict_taken),
+    .o_pair_younger_predict_target     (ifu_pair_younger_predict_target),
+    .o_pair_younger_predict_btb_hit    (ifu_pair_younger_predict_btb_hit),
     .o_pair_younger_predecode_rd       (ifu_pair_younger_predecode_rd),
     .o_pair_younger_predecode_rs1_addr (ifu_pair_younger_predecode_rs1_addr),
     .o_pair_younger_predecode_rs2_addr (ifu_pair_younger_predecode_rs2_addr),
     .o_pair_younger_predecode_wen      (ifu_pair_younger_predecode_wen),
-    .o_pair_younger_predecode_brch     (ifu_pair_younger_predecode_brch)
+    .o_pair_younger_predecode_csr_wen  (ifu_pair_younger_predecode_csr_wen),
+    .o_pair_younger_predecode_load     (ifu_pair_younger_predecode_load),
+    .o_pair_younger_predecode_store    (ifu_pair_younger_predecode_store),
+    .o_pair_younger_predecode_brch     (ifu_pair_younger_predecode_brch),
+    .o_pair_younger_predecode_jal      (ifu_pair_younger_predecode_jal),
+    .o_pair_younger_predecode_jalr     (ifu_pair_younger_predecode_jalr),
+    .o_pair_younger_predecode_fence_i  (ifu_pair_younger_predecode_fence_i),
+    .o_pair_younger_predecode_muldiv   (ifu_pair_younger_predecode_muldiv),
+    .o_pair_younger_predecode_is_cop_insn(ifu_pair_younger_predecode_is_cop_insn),
+    .o_pair_younger_predecode_ecall    (ifu_pair_younger_predecode_ecall),
+    .o_pair_younger_predecode_mret     (ifu_pair_younger_predecode_mret),
+    .o_pair_younger_predecode_ebreak   (ifu_pair_younger_predecode_ebreak)
 );
 
 hcpu_IDU idu1(
@@ -927,25 +999,92 @@ hcpu_IDU idu_slot1(
     .o_rd                              (decode_slot1_rd           ),
     .o_rs1                             (decode_slot1_rs1          ),
     .o_rs2                             (decode_slot1_rs2          ),
-    .o_csr_addr                        (                          ),
+    .o_csr_addr                        (decode_slot1_csr_addr     ),
     .o_exu_opt                         (decode_slot1_exu_opt      ),
-    .o_alu_opt                         (                          ),
+    .o_alu_opt                         (decode_slot1_alu_opt      ),
     .o_wen                             (decode_slot1_wen          ),
-    .o_csr_wen                         (                          ),
-    .o_src_sel1                        (                          ),
-    .o_src_sel2                        (                          ),
-    .o_mret                            (                          ),
-    .o_ecall                           (                          ),
-    .o_load                            (                          ),
-    .o_store                           (                          ),
+    .o_csr_wen                         (decode_slot1_csr_wen      ),
+    .o_src_sel1                        (decode_slot1_src_sel1     ),
+    .o_src_sel2                        (decode_slot1_src_sel2     ),
+    .o_mret                            (decode_slot1_mret         ),
+    .o_ecall                           (decode_slot1_ecall        ),
+    .o_load                            (decode_slot1_load         ),
+    .o_store                           (decode_slot1_store        ),
     .o_brch                            (decode_slot1_brch         ),
-    .o_jal                             (                          ),
-    .o_jalr                            (                          ),
-    .o_ebreak                          (                          ),
-    .o_fence_i                         (                          ),
-    .o_muldiv                          (                          ),
-    .o_is_cop_insn                     (                          )
+    .o_jal                             (decode_slot1_jal          ),
+    .o_jalr                            (decode_slot1_jalr         ),
+    .o_ebreak                          (decode_slot1_ebreak       ),
+    .o_fence_i                         (decode_slot1_fence_i      ),
+    .o_muldiv                          (decode_slot1_muldiv       ),
+    .o_is_cop_insn                     (decode_slot1_is_cop_insn  )
 );
+
+always @(posedge clock or posedge reset) begin
+    if (reset) begin
+        slot1_shadow_valid <= 1'b0;
+        slot1_shadow_pc <= 32'b0;
+        slot1_shadow_ins <= 32'b0;
+        slot1_shadow_imm <= 32'b0;
+        slot1_shadow_rd <= 5'b0;
+        slot1_shadow_rs1 <= 5'b0;
+        slot1_shadow_rs2 <= 5'b0;
+        slot1_shadow_exu_opt <= 3'b0;
+        slot1_shadow_alu_opt <= 10'b0;
+        slot1_shadow_src_sel1 <= 2'b0;
+        slot1_shadow_src_sel2 <= 3'b0;
+        slot1_shadow_wen <= 1'b0;
+        slot1_shadow_brch <= 1'b0;
+        slot1_shadow_csr_wen <= 1'b0;
+        slot1_shadow_load <= 1'b0;
+        slot1_shadow_store <= 1'b0;
+        slot1_shadow_jal <= 1'b0;
+        slot1_shadow_jalr <= 1'b0;
+        slot1_shadow_fence_i <= 1'b0;
+        slot1_shadow_muldiv <= 1'b0;
+        slot1_shadow_is_cop_insn <= 1'b0;
+        slot1_shadow_ecall <= 1'b0;
+        slot1_shadow_mret <= 1'b0;
+        slot1_shadow_ebreak <= 1'b0;
+        slot1_shadow_csr_addr <= 12'b0;
+        slot1_shadow_fireable <= 1'b0;
+        slot1_shadow_predict_taken <= 1'b0;
+        slot1_shadow_predict_target <= 30'b0;
+        slot1_shadow_predict_btb_hit <= 1'b0;
+    end else if (frontend_flush) begin
+        slot1_shadow_valid <= 1'b0;
+        slot1_shadow_fireable <= 1'b0;
+    end else if (decode_slot1_valid) begin
+        slot1_shadow_valid <= 1'b1;
+        slot1_shadow_pc <= decode_slot1_pc;
+        slot1_shadow_ins <= decode_slot1_ins;
+        slot1_shadow_imm <= decode_slot1_imm;
+        slot1_shadow_rd <= decode_slot1_rd;
+        slot1_shadow_rs1 <= decode_slot1_rs1;
+        slot1_shadow_rs2 <= decode_slot1_rs2;
+        slot1_shadow_exu_opt <= decode_slot1_exu_opt;
+        slot1_shadow_alu_opt <= decode_slot1_alu_opt;
+        slot1_shadow_src_sel1 <= decode_slot1_src_sel1;
+        slot1_shadow_src_sel2 <= decode_slot1_src_sel2;
+        slot1_shadow_wen <= decode_slot1_wen;
+        slot1_shadow_brch <= decode_slot1_brch;
+        slot1_shadow_csr_wen <= decode_slot1_csr_wen;
+        slot1_shadow_load <= decode_slot1_load;
+        slot1_shadow_store <= decode_slot1_store;
+        slot1_shadow_jal <= decode_slot1_jal;
+        slot1_shadow_jalr <= decode_slot1_jalr;
+        slot1_shadow_fence_i <= decode_slot1_fence_i;
+        slot1_shadow_muldiv <= decode_slot1_muldiv;
+        slot1_shadow_is_cop_insn <= decode_slot1_is_cop_insn;
+        slot1_shadow_ecall <= decode_slot1_ecall;
+        slot1_shadow_mret <= decode_slot1_mret;
+        slot1_shadow_ebreak <= decode_slot1_ebreak;
+        slot1_shadow_csr_addr <= decode_slot1_csr_addr;
+        slot1_shadow_fireable <= decode_pair_allow_second;
+        slot1_shadow_predict_taken <= ifu_pair_younger_predict_taken;
+        slot1_shadow_predict_target <= ifu_pair_younger_predict_target;
+        slot1_shadow_predict_btb_hit <= ifu_pair_younger_predict_btb_hit;
+    end
+end
 
 `ifndef SYNTHESIS
 always @(*) begin
@@ -967,6 +1106,48 @@ always @(*) begin
         $fatal(1, "hcpu slot1 rs2 metadata diverged from younger sidecar");
     if (decode_slot1_valid && (decode_slot1_wen != ifu_pair_younger_predecode_wen))
         $fatal(1, "hcpu slot1 wen metadata diverged from younger sidecar");
+    if (decode_slot1_valid && (decode_slot1_csr_wen != ifu_pair_younger_predecode_csr_wen))
+        $fatal(1, "hcpu slot1 csr_wen metadata diverged from younger sidecar");
+    if (decode_slot1_valid && (decode_slot1_load != ifu_pair_younger_predecode_load))
+        $fatal(1, "hcpu slot1 load metadata diverged from younger sidecar");
+    if (decode_slot1_valid && (decode_slot1_store != ifu_pair_younger_predecode_store))
+        $fatal(1, "hcpu slot1 store metadata diverged from younger sidecar");
+    if (decode_slot1_valid && (decode_slot1_brch != ifu_pair_younger_predecode_brch))
+        $fatal(1, "hcpu slot1 brch metadata diverged from younger sidecar");
+    if (decode_slot1_valid && (decode_slot1_jal != ifu_pair_younger_predecode_jal))
+        $fatal(1, "hcpu slot1 jal metadata diverged from younger sidecar");
+    if (decode_slot1_valid && (decode_slot1_jalr != ifu_pair_younger_predecode_jalr))
+        $fatal(1, "hcpu slot1 jalr metadata diverged from younger sidecar");
+    if (decode_slot1_valid && (decode_slot1_fence_i != ifu_pair_younger_predecode_fence_i))
+        $fatal(1, "hcpu slot1 fence_i metadata diverged from younger sidecar");
+    if (decode_slot1_valid && (decode_slot1_muldiv != ifu_pair_younger_predecode_muldiv))
+        $fatal(1, "hcpu slot1 muldiv metadata diverged from younger sidecar");
+    if (decode_slot1_valid && (decode_slot1_is_cop_insn != ifu_pair_younger_predecode_is_cop_insn))
+        $fatal(1, "hcpu slot1 cop metadata diverged from younger sidecar");
+    if (decode_slot1_valid && (decode_slot1_ecall != ifu_pair_younger_predecode_ecall))
+        $fatal(1, "hcpu slot1 ecall metadata diverged from younger sidecar");
+    if (decode_slot1_valid && (decode_slot1_mret != ifu_pair_younger_predecode_mret))
+        $fatal(1, "hcpu slot1 mret metadata diverged from younger sidecar");
+    if (decode_slot1_valid && (decode_slot1_ebreak != ifu_pair_younger_predecode_ebreak))
+        $fatal(1, "hcpu slot1 ebreak metadata diverged from younger sidecar");
+    if (decode_slot1_valid && (decode_slot1_csr_addr != 12'b0))
+        $fatal(1, "hcpu slot1 branch decode unexpectedly produced csr_addr metadata");
+    if (slot1_shadow_valid && !slot1_shadow_brch)
+        $fatal(1, "hcpu slot1 shadow transport lost branch classification");
+    if (slot1_shadow_valid && slot1_shadow_wen)
+        $fatal(1, "hcpu slot1 shadow transport incorrectly became writable");
+    if (slot1_shadow_valid && slot1_shadow_csr_wen)
+        $fatal(1, "hcpu slot1 shadow transport incorrectly became csr-writing");
+    if (slot1_shadow_valid && (slot1_shadow_load || slot1_shadow_store))
+        $fatal(1, "hcpu slot1 shadow transport incorrectly became a memory op");
+    if (slot1_shadow_valid && (slot1_shadow_jal || slot1_shadow_jalr))
+        $fatal(1, "hcpu slot1 shadow transport incorrectly became a jump op");
+    if (slot1_shadow_valid && (slot1_shadow_fence_i || slot1_shadow_ecall || slot1_shadow_mret || slot1_shadow_ebreak))
+        $fatal(1, "hcpu slot1 shadow transport incorrectly became a system redirect op");
+    if (slot1_shadow_valid && (slot1_shadow_muldiv || slot1_shadow_is_cop_insn))
+        $fatal(1, "hcpu slot1 shadow transport incorrectly became an exclusive-backend op");
+    if (slot1_shadow_valid && (slot1_shadow_csr_addr != 12'b0))
+        $fatal(1, "hcpu slot1 shadow transport unexpectedly preserved csr_addr metadata");
 end
 `endif
 

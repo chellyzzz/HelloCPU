@@ -157,6 +157,7 @@ Current preferred first slice:
 - another intermediate safe step is allowed: keep slot-1 observability visible under non-fireable conditions, as long as `allow_second` remains the stricter execution gate
 - another intermediate safe step is allowed: expand slot-1 observability to richer decode metadata as long as it remains checked against queue sidecar state and does not feed execution
 - another intermediate safe step is allowed: require top-level coverage for `visible + fireable`, `visible + blocked`, and `visible + flushed` slot-1 states before attempting any real second-lane transport
+- another intermediate safe step is allowed: capture visible slot-1 metadata into a shadow transport register surface, as long as it clears on flush, never adds backpressure, and never reaches execute/commit
 
 Done when:
 

@@ -617,6 +617,13 @@ Current top-level coverage refinement:
 2. the regression also checks that blocked accounting decomposes cleanly into flush and non-flush cases
 3. this turns slot-1 observability from a one-cycle spot check into a repeatable coverage contract over control-flow and backpressure transitions
 
+Current slot1 shadow transport refinement:
+
+1. visible slot-1 metadata is now captured into a shadow register surface that accepts every non-flushed visible candidate without adding backpressure
+2. that shadow surface is cleared by `frontend_flush`, holds its payload when no new visible slot arrives, and never feeds the live execute path
+3. top-level regression now checks shadow capture, hold, and flush-clear behavior, making this the first non-binding transport checkpoint for lane 1
+4. the younger sidecar and shadow lane now preserve the remaining branch-only class bits as explicit negatives, so lane-1 transport cannot silently drift into `load/store`, `jump`, `system`, `muldiv`, or `COP` classes
+
 This keeps the policy executable while preserving the current single-issue machine behavior.
 
 ## Immediate Follow-Up

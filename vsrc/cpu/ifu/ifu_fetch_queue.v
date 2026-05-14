@@ -117,11 +117,25 @@ module hcpu_ifu_fetch_queue (
     output                              o_pair_younger_valid,
     output             [31:0]           o_pair_younger_pc,
     output             [31:0]           o_pair_younger_ins,
+    output                              o_pair_younger_predict_taken,
+    output             [31:2]           o_pair_younger_predict_target,
+    output                              o_pair_younger_predict_btb_hit,
     output             [4:0]            o_pair_younger_predecode_rd,
     output             [4:0]            o_pair_younger_predecode_rs1_addr,
     output             [4:0]            o_pair_younger_predecode_rs2_addr,
     output                              o_pair_younger_predecode_wen,
-    output                              o_pair_younger_predecode_brch
+    output                              o_pair_younger_predecode_csr_wen,
+    output                              o_pair_younger_predecode_load,
+    output                              o_pair_younger_predecode_store,
+    output                              o_pair_younger_predecode_brch,
+    output                              o_pair_younger_predecode_jal,
+    output                              o_pair_younger_predecode_jalr,
+    output                              o_pair_younger_predecode_fence_i,
+    output                              o_pair_younger_predecode_muldiv,
+    output                              o_pair_younger_predecode_is_cop_insn,
+    output                              o_pair_younger_predecode_ecall,
+    output                              o_pair_younger_predecode_mret,
+    output                              o_pair_younger_predecode_ebreak
 );
 
 localparam DEPTH = 2;
@@ -294,11 +308,25 @@ assign o_pair_order_branch_then_alu = o_pair_valid && pair_order_branch_then_alu
 assign o_pair_younger_valid = o_pair_valid;
 assign o_pair_younger_pc = o_pair_younger_valid ? pc_q[next_head] : 32'b0;
 assign o_pair_younger_ins = o_pair_younger_valid ? ins_q[next_head] : 32'b0;
+assign o_pair_younger_predict_taken = o_pair_younger_valid && predict_taken_q[next_head];
+assign o_pair_younger_predict_target = o_pair_younger_valid ? predict_target_q[next_head] : 30'b0;
+assign o_pair_younger_predict_btb_hit = o_pair_younger_valid && predict_btb_hit_q[next_head];
 assign o_pair_younger_predecode_rd = o_pair_younger_valid ? pair1_rd : 5'b0;
 assign o_pair_younger_predecode_rs1_addr = o_pair_younger_valid ? pair1_rs1_addr : 5'b0;
 assign o_pair_younger_predecode_rs2_addr = o_pair_younger_valid ? pair1_rs2_addr : 5'b0;
 assign o_pair_younger_predecode_wen = o_pair_younger_valid && pair1_wen;
+assign o_pair_younger_predecode_csr_wen = o_pair_younger_valid && pair1_csr_wen;
+assign o_pair_younger_predecode_load = o_pair_younger_valid && pair1_load;
+assign o_pair_younger_predecode_store = o_pair_younger_valid && pair1_store;
 assign o_pair_younger_predecode_brch = o_pair_younger_valid && pair1_brch;
+assign o_pair_younger_predecode_jal = o_pair_younger_valid && pair1_jal;
+assign o_pair_younger_predecode_jalr = o_pair_younger_valid && pair1_jalr;
+assign o_pair_younger_predecode_fence_i = o_pair_younger_valid && pair1_fence_i;
+assign o_pair_younger_predecode_muldiv = o_pair_younger_valid && pair1_muldiv;
+assign o_pair_younger_predecode_is_cop_insn = o_pair_younger_valid && pair1_is_cop_insn;
+assign o_pair_younger_predecode_ecall = o_pair_younger_valid && pair1_ecall;
+assign o_pair_younger_predecode_mret = o_pair_younger_valid && pair1_mret;
+assign o_pair_younger_predecode_ebreak = o_pair_younger_valid && pair1_ebreak;
 
 integer i;
 always @(posedge clock or posedge reset) begin

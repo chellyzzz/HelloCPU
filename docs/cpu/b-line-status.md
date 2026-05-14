@@ -268,6 +268,13 @@ Current top-level coverage stable point:
 - The coverage test also checks that blocked accounting is self-consistent and that flush-time visibility still never upgrades into a real second-lane fire.
 - This is the first top-level regression point that exercises slot-1 observability as a state machine surface rather than only as a structural decode snapshot.
 
+Current slot1 shadow transport surface:
+
+- `hcpu` now captures visible slot-1 metadata into a non-binding shadow register surface that is cleared by `frontend_flush` and never participates in execute or commit.
+- The shadow surface now carries `pc`, `ins`, `imm`, `rd`, `rs1`, `rs2`, `exu_opt`, `alu_opt`, `src_sel1`, `src_sel2`, `wen`, `brch`, and younger branch prediction metadata.
+- The younger sidecar and the shadow lane now also keep the remaining branch-only class bits explicit: `csr_wen`, `load`, `store`, `jal`, `jalr`, `fence_i`, `muldiv`, `is_cop_insn`, `ecall`, `mret`, `ebreak`, and zero `csr_addr`.
+- Top-level coverage now requires shadow capture, shadow hold, and shadow flush-clear events in addition to the visible/fireable/blocked/flushed observability states.
+
 Current pairing/hazard draft direction:
 
 - Near-term real slice stays `2-wide fetch/predecode` with single issue preserved.
