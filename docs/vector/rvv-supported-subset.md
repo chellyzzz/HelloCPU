@@ -15,7 +15,7 @@
 
 ## 二、当前结论
 
-当前 HelloCPU 只声明支持标准 OP-V `vsetivli` 的最小 decode slice。其他 RVV 能力仍属于 `custom-0` COP prototype，用于验证 CPU/COP issue、kill、VRF、memory owner 和 pending-kill 语义。
+当前 HelloCPU 只声明支持标准 OP-V `vsetivli` 和 unmasked `vadd.vv` 的最小 slice。其他 RVV 能力仍属于 `custom-0` COP prototype，用于验证 CPU/COP issue、kill、VRF、memory owner 和 pending-kill 语义。
 
 标准 OP-V `vsetivli` 进入 RTL 前的 interface review 草案见 `rvv-standard-decode-p2-review.md`。
 
@@ -65,7 +65,7 @@
 
 | 指令 | 当前状态 | 第一批 RVV 目标 | 备注 |
 |------|----------|-----------------|------|
-| `vadd.vv` | prototype | planned | P1C `vstate_add` 已验证 `vl/vtype` consumer 行为，但不是标准编码 |
+| `vadd.vv` | supported | planned | 只支持 unmasked `vm=1`、`SEW=8/32`、`LMUL=m1`、COP-local VRF |
 | `vadd.vx` | prototype | planned | 可复用 GPR source path |
 | `vadd.vi` | unsupported | deferred | immediate decode 可后置 |
 | `vsub.vv` | prototype | planned | 当前 VRF lane sub 可作为基础 |
@@ -139,7 +139,8 @@
 | custom COP `vsetivli_p` | supported by prototype tests | 标准 `vsetivli` 前的低风险 prototype |
 | RVV `vsetivli` | supported by focused tests | 当前只支持最小 OP-V `vsetivli` |
 | other RVV `vset*` | unsupported | planned |
-| RVV ALU directed | unsupported | planned |
+| RVV `vadd.vv` directed | supported by focused tests | 当前只支持 unmasked `vadd.vv` |
+| other RVV ALU directed | unsupported | planned |
 | RVV load/store directed | unsupported | planned |
 | RVV load/compute/store program | unsupported | planned |
 
@@ -152,7 +153,7 @@
 - `SEW=8` 和/或 `SEW=32`。
 - `LMUL=m1`。
 - `vsetivli` 最小 slice。
-- `vadd.vv`、`vadd.vx`、`vand.vv`、`vor.vv`、`vxor.vv`、基础 move。
+- `vadd.vv`；后续再扩展 `vadd.vx`、`vand.vv`、`vor.vv`、`vxor.vv`、基础 move。
 - `vle8.v`/`vse8.v` 或 `vle32.v`/`vse32.v`。
 - `vm=1` 全使能。
 - unsupported 指令和配置不执行近似语义。

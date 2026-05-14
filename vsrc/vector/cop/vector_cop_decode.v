@@ -14,7 +14,8 @@ module hcpu_vector_cop_decode(
     output            o_vtype_read,
     output            o_vstate_add,
     output            o_vsetivli_proto,
-    output            o_vsetivli_standard
+    output            o_vsetivli_standard,
+    output            o_vadd_vv_standard
 );
 
 localparam LANE_OP_ADD8 = 4'd0;
@@ -55,5 +56,6 @@ assign o_vtype_read    = (o_funct3 == 3'b000) && (o_funct7 == 7'd17);
 assign o_vstate_add    = (o_funct3 == 3'b000) && (o_funct7 == 7'd18);
 assign o_vsetivli_proto = (o_funct3 == 3'b000) && (o_funct7 == 7'd19);
 assign o_vsetivli_standard = (i_ins[6:0] == 7'b1010111) && (o_funct3 == 3'b111) && (i_ins[31] == 1'b0);
+assign o_vadd_vv_standard = (i_ins[6:0] == 7'b1010111) && (o_funct3 == 3'b000) && (i_ins[31:26] == 6'b000000) && (i_ins[25] == 1'b1);
 
 endmodule
