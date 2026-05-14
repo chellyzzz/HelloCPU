@@ -262,6 +262,12 @@ Current slot1 decode metadata surface:
 - The non-binding slot-1 decode surface now exposes `imm`, `rd`, `rs1`, `rs2`, and `exu_opt` in addition to `pc`, `ins`, `brch`, and `wen`.
 - Top-level assertions and regression coverage now check that slot-1 decode metadata matches the younger queue sidecar while remaining non-binding.
 
+Current top-level coverage stable point:
+
+- `top_slot1_observability` now requires three live categories on `if-else.bin`: `visible + fireable`, `visible + blocked`, and `visible + flushed`.
+- The coverage test also checks that blocked accounting is self-consistent and that flush-time visibility still never upgrades into a real second-lane fire.
+- This is the first top-level regression point that exercises slot-1 observability as a state machine surface rather than only as a structural decode snapshot.
+
 Current pairing/hazard draft direction:
 
 - Near-term real slice stays `2-wide fetch/predecode` with single issue preserved.

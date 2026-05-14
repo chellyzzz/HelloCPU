@@ -611,6 +611,12 @@ Current slot1 metadata refinement:
 2. the top-level slot-1 decode surface now exports `imm`, `rd`, `rs1`, `rs2`, and `exu_opt` for observability
 3. non-synthesis assertions now lock the slot-1 decode metadata to the younger sidecar so this surface stays executable but non-binding
 
+Current top-level coverage refinement:
+
+1. top-level regression now requires `slot1 visible + fireable`, `slot1 visible + blocked`, and `slot1 visible + flushed` to all occur on a stable scalar workload
+2. the regression also checks that blocked accounting decomposes cleanly into flush and non-flush cases
+3. this turns slot-1 observability from a one-cycle spot check into a repeatable coverage contract over control-flow and backpressure transitions
+
 This keeps the policy executable while preserving the current single-issue machine behavior.
 
 ## Immediate Follow-Up

@@ -173,6 +173,8 @@ struct Slot1Coverage {
   uint64_t slot1_visible_events = 0;
   uint64_t slot1_fireable_events = 0;
   uint64_t slot1_blocked_events = 0;
+  uint64_t slot1_blocked_nonflush_events = 0;
+  uint64_t slot1_flushed_events = 0;
 };
 
 int main(int argc, char **argv) {
@@ -257,6 +259,11 @@ int main(int argc, char **argv) {
         coverage.slot1_fireable_events++;
       } else {
         coverage.slot1_blocked_events++;
+        if (frontend_flush) {
+          coverage.slot1_flushed_events++;
+        } else {
+          coverage.slot1_blocked_nonflush_events++;
+        }
       }
     }
 
@@ -274,6 +281,15 @@ int main(int argc, char **argv) {
   fail |= expect(exit_code == 0, "test program exits cleanly");
   fail |= expect(coverage.slot1_visible_events > 0,
                  "slot1 observability becomes visible at least once");
+  fail |= expect(coverage.slot1_fireable_events > 0,
+                 "slot1 observability becomes fireable at least once");
+  fail |= expect(coverage.slot1_blocked_nonflush_events > 0,
+                 "slot1 observability becomes blocked without flush at least once");
+  fail |= expect(coverage.slot1_flushed_events > 0,
+                 "slot1 observability remains visible across at least one flush-blocked cycle");
+  fail |= expect(coverage.slot1_blocked_events ==
+                     (coverage.slot1_blocked_nonflush_events + coverage.slot1_flushed_events),
+                 "slot1 blocked coverage accounting stays self-consistent");
 
   delete top;
 
@@ -282,9 +298,11 @@ int main(int argc, char **argv) {
   }
 
   std::printf("PASS: top-level slot1 observability remains non-binding and branch-only "
-              "(slot1-events=%llu, fireable=%llu, blocked=%llu)\n",
+              "(slot1-events=%llu, fireable=%llu, blocked=%llu, blocked-nonflush=%llu, flushed=%llu)\n",
               static_cast<unsigned long long>(coverage.slot1_visible_events),
               static_cast<unsigned long long>(coverage.slot1_fireable_events),
-              static_cast<unsigned long long>(coverage.slot1_blocked_events));
+              static_cast<unsigned long long>(coverage.slot1_blocked_events),
+              static_cast<unsigned long long>(coverage.slot1_blocked_nonflush_events),
+              static_cast<unsigned long long>(coverage.slot1_flushed_events));
   return 0;
 }
