@@ -5,10 +5,15 @@ module scalar_mem_pending_kill_top(
     input         tb_hold_read_resp,
     output        tb_scalar_mem_req_valid,
     output        tb_scalar_mem_resp_valid,
+    output        tb_scalar_mem_service_req_valid,
     output        tb_scalar_mem_kill_pending,
+    output        tb_mem_owner_scalar_active,
+    output        tb_mem_service_req_valid,
+    output        tb_mem_service_resp_valid,
     output        tb_scalar_mem_ar_fire,
     output        tb_scalar_mem_r_fire,
     output [31:0] tb_scalar_mem_addr,
+    output [31:0] tb_mem_service_addr,
     output [31:0] tb_araddr
 );
 
@@ -107,10 +112,15 @@ module scalar_mem_pending_kill_top(
         .tb_scalar_flush    (tb_scalar_flush),
         .tb_scalar_mem_req_valid(tb_scalar_mem_req_valid),
         .tb_scalar_mem_resp_valid(tb_scalar_mem_resp_valid),
+        .tb_scalar_mem_service_req_valid(tb_scalar_mem_service_req_valid),
         .tb_scalar_mem_kill_pending(tb_scalar_mem_kill_pending),
+        .tb_mem_owner_scalar_active(tb_mem_owner_scalar_active),
+        .tb_mem_service_req_valid(tb_mem_service_req_valid),
+        .tb_mem_service_resp_valid(tb_mem_service_resp_valid),
         .tb_scalar_mem_ar_fire(tb_scalar_mem_ar_fire),
         .tb_scalar_mem_r_fire(tb_scalar_mem_r_fire),
-        .tb_scalar_mem_addr (tb_scalar_mem_addr)
+        .tb_scalar_mem_addr (tb_scalar_mem_addr),
+        .tb_mem_service_addr(tb_mem_service_addr)
     );
 
     assign m_rvalid = tb_hold_read_resp ? 1'b0 : ram_rvalid;

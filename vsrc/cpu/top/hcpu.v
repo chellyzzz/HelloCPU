@@ -68,9 +68,13 @@ module hcpu
 `ifdef COP_MEM_PENDING_KILL_TB
     ,input                              tb_cop_kill                ,
     output                              tb_cop_mem_bus_active      ,
+    output                              tb_cop_mem_service_req_valid,
     output                              tb_cop_mem_done            ,
     output                              tb_cop_mem_killed          ,
     output                              tb_cop_mem_resp_valid      ,
+    output                              tb_mem_owner_cop_active    ,
+    output                              tb_mem_service_req_valid   ,
+    output                              tb_mem_service_resp_valid  ,
     output             [   1:0]         tb_cop_mem_state           ,
     output                              tb_cop_mem_store           ,
     output                              tb_cop_mem_aw_fire         ,
@@ -78,16 +82,22 @@ module hcpu
     output                              tb_cop_mem_b_fire          ,
     output                              tb_cop_mem_ar_fire         ,
     output                              tb_cop_mem_r_fire          ,
-    output             [  31:0]         tb_cop_mem_addr
+    output             [  31:0]         tb_cop_mem_addr            ,
+    output             [  31:0]         tb_mem_service_addr
 `endif
 `ifdef SCALAR_MEM_PENDING_KILL_TB
     ,input                              tb_scalar_flush            ,
     output                              tb_scalar_mem_req_valid    ,
     output                              tb_scalar_mem_resp_valid   ,
+    output                              tb_scalar_mem_service_req_valid,
     output                              tb_scalar_mem_kill_pending ,
+    output                              tb_mem_owner_scalar_active ,
+    output                              tb_mem_service_req_valid   ,
+    output                              tb_mem_service_resp_valid  ,
     output                              tb_scalar_mem_ar_fire      ,
     output                              tb_scalar_mem_r_fire       ,
-    output             [  31:0]         tb_scalar_mem_addr
+    output             [  31:0]         tb_scalar_mem_addr         ,
+    output             [  31:0]         tb_mem_service_addr
 `endif
 
 );
@@ -933,9 +943,13 @@ assign cop_mem_r_fire      = LSU_ARB_AXI_RREADY && LSU_SRAM_AXI_RVALID && LSU_SR
 
 `ifdef COP_MEM_PENDING_KILL_TB
 assign tb_cop_mem_bus_active = cop_mem_bus_active;
+assign tb_cop_mem_service_req_valid = cop_mem_service_req_valid;
 assign tb_cop_mem_done = cop_mem_done_r;
 assign tb_cop_mem_killed = cop_mem_killed_r;
 assign tb_cop_mem_resp_valid = cop_mem_service_resp_valid;
+assign tb_mem_owner_cop_active = mem_owner_cop_active;
+assign tb_mem_service_req_valid = mem_service_req_valid;
+assign tb_mem_service_resp_valid = mem_service_resp_valid;
 assign tb_cop_mem_state = cop_mem_state;
 assign tb_cop_mem_store = cop_mem_wen_r;
 assign tb_cop_mem_aw_fire = cop_mem_bus_active && cop_mem_aw_fire;
@@ -944,15 +958,21 @@ assign tb_cop_mem_b_fire = cop_mem_bus_active && cop_mem_b_fire;
 assign tb_cop_mem_ar_fire = cop_mem_bus_active && cop_mem_ar_fire;
 assign tb_cop_mem_r_fire = cop_mem_bus_active && cop_mem_r_fire;
 assign tb_cop_mem_addr = cop_mem_addr_r;
+assign tb_mem_service_addr = mem_service_req_addr;
 `endif
 
 `ifdef SCALAR_MEM_PENDING_KILL_TB
 assign tb_scalar_mem_req_valid = scalar_mem_req_valid;
 assign tb_scalar_mem_resp_valid = scalar_mem_resp_valid;
+assign tb_scalar_mem_service_req_valid = scalar_mem_service_req_valid;
 assign tb_scalar_mem_kill_pending = exu1.lsu_kill_pending;
+assign tb_mem_owner_scalar_active = mem_owner_scalar_active;
+assign tb_mem_service_req_valid = mem_service_req_valid;
+assign tb_mem_service_resp_valid = mem_service_resp_valid;
 assign tb_scalar_mem_ar_fire = !cop_mem_bus_active && LSU_ARB_AXI_ARVALID && LSU_SRAM_AXI_ARREADY;
 assign tb_scalar_mem_r_fire = !cop_mem_resp_active && LSU_ARB_AXI_RREADY && LSU_SRAM_AXI_RVALID && LSU_SRAM_AXI_RLAST;
 assign tb_scalar_mem_addr = scalar_mem_req_addr;
+assign tb_mem_service_addr = mem_service_req_addr;
 `endif
 
 always @(posedge clock or posedge reset) begin

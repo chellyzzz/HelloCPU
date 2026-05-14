@@ -148,6 +148,12 @@ Current A-3 preparation in `vsrc/cpu/top/hcpu.v` now makes one more boundary exp
 
 This is still V1 single-owner behavior. The value is not more overlap yet; it is that later scalar LSU evolution can target a clearer service boundary without first untangling ownership naming.
 
+The current regression protection for this boundary now covers both behavior and mapping:
+
+- `make scalar_mem_pending_kill` checks scalar request ownership, stale-completion filtering, and `scalar_mem_service_* -> mem_service_*` request/response visibility.
+- `make cop_mem_pending_kill` checks killed COP read drain behavior and `cop_mem_service_* -> mem_service_*` response visibility.
+- `make cop_mem_store_directed` and `make cop_mem_store_kill` check COP store owner routing and pre-accept kill behavior through the same service boundary.
+
 ### COP memory tomorrow
 
 For the first COP memory prototype, the safest rule is:
@@ -187,6 +193,8 @@ Deliverables:
 2. Distinguish normal backend occupancy from true memory stall in counters
 3. Keep current scalar LSU RTL stable
 
+Current status: landed and regression-protected.
+
 ### Phase 2: top-level service boundary
 
 Deliverables:
@@ -196,6 +204,13 @@ Deliverables:
 3. Identify where future COP memory would plug into it
 
 No queueing yet. No dual ownership yet.
+
+Current status: landed in V1 form.
+
+- scalar LSU attaches through `scalar_mem_service_*`
+- COP memory attaches through `cop_mem_service_*`
+- top-level single-owner selection is expressed as `mem_service_*`
+- directed regressions now verify both owner selection and response visibility at that boundary
 
 ### Phase 3: first reusable ownership model
 
@@ -231,7 +246,7 @@ The next A-line step is:
 
 1. keep `accept / done / commit-visible` semantics aligned across scalar LSU and COP memory-facing backends
 2. preserve `true stall` vs `normal backend occupancy` as the only performance-facing counter split
-3. prepare for later scalar LSU service-model evolution without breaking the current single-owner V1 rule
+3. move from phase-1/2 boundary cleanup into phase-3 ownership-model design without breaking the current single-owner V1 rule
 
 ## Summary
 

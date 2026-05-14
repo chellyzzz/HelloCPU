@@ -5,9 +5,13 @@ module cop_mem_pending_kill_top(
     input         tb_hold_read_resp,
     input         tb_hold_write_req,
     output        tb_cop_mem_bus_active,
+    output        tb_cop_mem_service_req_valid,
     output        tb_cop_mem_done,
     output        tb_cop_mem_killed,
     output        tb_cop_mem_resp_valid,
+    output        tb_mem_owner_cop_active,
+    output        tb_mem_service_req_valid,
+    output        tb_mem_service_resp_valid,
     output [1:0]  tb_cop_mem_state,
     output        tb_cop_mem_store,
     output        tb_cop_mem_aw_fire,
@@ -16,6 +20,7 @@ module cop_mem_pending_kill_top(
     output        tb_cop_mem_ar_fire,
     output        tb_cop_mem_r_fire,
     output [31:0] tb_cop_mem_addr,
+    output [31:0] tb_mem_service_addr,
     output [31:0] tb_awaddr,
     output reg    tb_ar_fire,
     output reg    tb_r_fire,
@@ -118,9 +123,13 @@ module cop_mem_pending_kill_top(
         .io_slave_rid       (),
         .tb_cop_kill        (tb_cop_kill),
         .tb_cop_mem_bus_active(tb_cop_mem_bus_active),
+        .tb_cop_mem_service_req_valid(tb_cop_mem_service_req_valid),
         .tb_cop_mem_done    (tb_cop_mem_done),
         .tb_cop_mem_killed  (tb_cop_mem_killed),
         .tb_cop_mem_resp_valid(tb_cop_mem_resp_valid),
+        .tb_mem_owner_cop_active(tb_mem_owner_cop_active),
+        .tb_mem_service_req_valid(tb_mem_service_req_valid),
+        .tb_mem_service_resp_valid(tb_mem_service_resp_valid),
         .tb_cop_mem_state   (tb_cop_mem_state),
         .tb_cop_mem_store   (tb_cop_mem_store),
         .tb_cop_mem_aw_fire (tb_cop_mem_aw_fire),
@@ -128,7 +137,8 @@ module cop_mem_pending_kill_top(
         .tb_cop_mem_b_fire  (tb_cop_mem_b_fire),
         .tb_cop_mem_ar_fire (tb_cop_mem_ar_fire),
         .tb_cop_mem_r_fire  (tb_cop_mem_r_fire),
-        .tb_cop_mem_addr    (tb_cop_mem_addr)
+        .tb_cop_mem_addr    (tb_cop_mem_addr),
+        .tb_mem_service_addr(tb_mem_service_addr)
     );
 
     assign m_awready = tb_hold_write_req ? 1'b0 : ram_awready;
