@@ -145,6 +145,23 @@ Phase 2 不扩大 RTL scope，只收敛测试和文档边界：
 - custom memory prototype 仍只用于现有 memory owner/kill coverage，不声明为 standard vector memory。
 - 后续新增标准 RVV tests 需要先尝试标准 `vsetivli` + move init；只有不可观测或不可初始化时才使用 `rvv_debug_*` helper。
 
+## 十三、Phase 3 mask/CSR/trap 前置决策
+
+Phase 3 是边界冻结，不扩大 RTL scope。当前实现继续采用以下阶段性 contract：
+
+- `vl/vtype` 仍为 COP-local architectural state，CPU CSR file 不提供 `vl/vtype/vstart/vcsr` 可见读写。
+- `vstart` 固定等价为 0；任何未来 `vstart!=0` 语义进入前必须先补 CSR/trap review。
+- `vm=0` masked OP-V 继续 unsupported fail closed，不进入 COP execute，不静默当作 unmasked 执行。
+- unsupported execute-class OP-V 继续在 CPU decode/predecode 阶段 fail closed；在当前无完整 trap path 阶段，不新增 architectural trap side effect。
+- unsupported `vtypei` 对 `vsetivli` 继续设置 COP-local `vill=1` 并完成，不触发 illegal instruction trap。
+- `vill=1` 下已支持 execute-class op 不写 VRF，维持现有 debug response sentinel 行为。
+- killed COP work 不提交 `vl/vtype`、VRF 或 memory-visible side effect；response/state visibility 仍以 current WBU/commit-visible fire 为边界。
+- 标准 vector memory 进入前必须复用 CPU-owned memory service 边界，不能新增绕过 kill/owner 的 memory side channel。
+
+Phase 3 明确不做：CSR file 集成、illegal instruction trap、mask register state、`vstart` restart、tail/mask policy CSR、完整 VRF/LMUL 行为。
+
+Phase 4 可在此 contract 下只做最小 standard memory slice：单请求在飞、`vm=1`、`SEW=8`、`LMUL=m1`、`vstart=0`、COP-local VRF/state，并沿用现有 COP memory owner/kill tests 作为 safety gate。
+
 ## 十、bitwise VV 自审决策
 
 `vand.vv`、`vor.vv`、`vxor.vv` 作为一个稳定 execute-class 点一起落地：

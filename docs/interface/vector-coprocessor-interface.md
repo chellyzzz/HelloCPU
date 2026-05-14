@@ -87,3 +87,15 @@ cop_kill = pc_update_en || idu2exu_fence_i || exu_mispredict_flush_r || cop_refe
 5. response fire 同拍新 issue 与 refetch/kill 的精确定义。
 
 其中 CPU 侧 memory request/response 的总边界，以 `docs/interface/cpu-memory-service-model.md` 为当前主参考；本文件只描述当前已经落地的 COP issue/response/kill 语义。
+
+## Phase 3 RVV 边界冻结
+
+标准 RVV execute-class 扩展在完整 CSR/trap 接入前采用以下共享边界：
+
+1. `vl/vtype` 继续由 COP-local state 持有，不通过 CPU CSR file 暴露。
+2. `vstart` 等价固定为 0；任何可写 `vstart` 或 restart 语义都需要新的 CPU/COP review。
+3. masked `vm=0` 标准 OP-V 不进入 COP execute path，不当作 unmasked 近似执行。
+4. unsupported OP-V 在 decode/predecode fail closed；当前阶段不新增 trap-visible architectural side effect。
+5. `vill=1` 由 COP-local `vsetivli` state 管理，已支持 execute-class op 在该状态下不得写 VRF。
+6. 所有 COP/RVV architectural visibility 仍由现有 response/WBU commit-visible fire 约束。
+7. 标准 vector memory 第一版必须沿用 CPU-owned memory service/owner/kill 语义，不能绕过现有 memory boundary。
