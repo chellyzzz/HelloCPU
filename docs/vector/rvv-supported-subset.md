@@ -68,16 +68,23 @@
 | `vadd.vv` | supported | planned | 只支持 unmasked `vm=1`、`SEW=8/32`、`LMUL=m1`、COP-local VRF |
 | `vadd.vx` | supported | planned | 只支持 unmasked `vm=1`、`SEW=8/32`、`LMUL=m1`、COP-local VRF + scalar GPR rs1 |
 | `vadd.vi` | supported | planned | 只支持 unmasked `vm=1`、`SEW=8/32`、`LMUL=m1`、COP-local VRF |
-| `vsub.vv` | prototype | planned | 当前 VRF lane sub 可作为基础 |
+| `vsub.vv` | supported | planned | 只支持 unmasked `vm=1`、`SEW=8/32`、`LMUL=m1`、COP-local VRF |
+| `vsub.vx` | supported | planned | 只支持 unmasked `vm=1`、`SEW=8/32`、`LMUL=m1`、COP-local VRF + scalar GPR rs1 |
 | `vand.vv` | supported | planned | 只支持 unmasked `vm=1`、`SEW=8/32`、`LMUL=m1`、COP-local VRF |
 | `vor.vv` | supported | planned | 只支持 unmasked `vm=1`、`SEW=8/32`、`LMUL=m1`、COP-local VRF |
 | `vxor.vv` | supported | planned | 只支持 unmasked `vm=1`、`SEW=8/32`、`LMUL=m1`、COP-local VRF |
 | `vand.vx` | supported | planned | 只支持 unmasked `vm=1`、`SEW=8/32`、`LMUL=m1`、COP-local VRF + scalar GPR rs1 |
 | `vor.vx` | supported | planned | 只支持 unmasked `vm=1`、`SEW=8/32`、`LMUL=m1`、COP-local VRF + scalar GPR rs1 |
 | `vxor.vx` | supported | planned | 只支持 unmasked `vm=1`、`SEW=8/32`、`LMUL=m1`、COP-local VRF + scalar GPR rs1 |
-| `vsll.vv` | prototype | deferred | 当前原型有 shift，第一批可后置 |
-| `vsrl.vv` | prototype | deferred | 当前原型有 shift，第一批可后置 |
-| `vsra.vv` | prototype | deferred | 当前原型有 shift，第一批可后置 |
+| `vand.vi` | supported | planned | 只支持 unmasked `vm=1`、`SEW=8/32`、`LMUL=m1`、COP-local VRF |
+| `vor.vi` | supported | planned | 只支持 unmasked `vm=1`、`SEW=8/32`、`LMUL=m1`、COP-local VRF |
+| `vxor.vi` | supported | planned | 只支持 unmasked `vm=1`、`SEW=8/32`、`LMUL=m1`、COP-local VRF |
+| `vsll.vv` | supported | planned | 只支持 unmasked `vm=1`、`SEW=8/32`、`LMUL=m1`、COP-local VRF |
+| `vsll.vx` | supported | planned | 只支持 unmasked `vm=1`、`SEW=8/32`、`LMUL=m1`、COP-local VRF + scalar GPR rs1 |
+| `vsrl.vv` | supported | planned | 只支持 unmasked `vm=1`、`SEW=8/32`、`LMUL=m1`、COP-local VRF |
+| `vsrl.vx` | supported | planned | 只支持 unmasked `vm=1`、`SEW=8/32`、`LMUL=m1`、COP-local VRF + scalar GPR rs1 |
+| `vsra.vv` | supported | planned | 只支持 unmasked `vm=1`、`SEW=8/32`、`LMUL=m1`、COP-local VRF |
+| `vsra.vx` | supported | planned | 只支持 unmasked `vm=1`、`SEW=8/32`、`LMUL=m1`、COP-local VRF + scalar GPR rs1 |
 | `vmul.vv` | prototype | deferred | 先不进第一批 RVV 子集 |
 | divide/remainder | unsupported | unsupported | 第一批不支持 |
 | reduction | unsupported | deferred | 需要额外 datapath/state |
@@ -149,6 +156,7 @@ Phase 3 阶段性边界：`vl/vtype` 继续 COP-local，`vstart` 固定等价为
 | RVV bitwise VV directed | supported by focused tests | 当前支持 unmasked `vand.vv/vor.vv/vxor.vv` |
 | RVV Phase 1 ALU/move | supported by focused tests | `vadd.vi`、bitwise VX、`vmv.v.v/vmv.v.x` |
 | RVV Phase 4 memory | supported by focused tests | `vle8.v/vse8.v` unit-stride through CPU memory owner boundary |
+| RVV Phase 5 execute | supported by focused tests | `vsub.vv/vx`、`vsll/vsrl/vsra.vv/vx`、bitwise VI |
 | other RVV ALU directed | unsupported | planned |
 | RVV load/store directed | unsupported | planned |
 | RVV load/compute/store program | unsupported | planned |
@@ -164,7 +172,7 @@ Phase 3 阶段性边界：`vl/vtype` 继续 COP-local，`vstart` 固定等价为
 - `SEW=8` 和/或 `SEW=32`。
 - `LMUL=m1`。
 - `vsetivli` 最小 slice。
-- `vadd.vv`、`vadd.vx`、`vadd.vi`、`vand.vv/vx`、`vor.vv/vx`、`vxor.vv/vx`、`vmv.v.v`、`vmv.v.x`。
+- `vadd.vv`、`vadd.vx`、`vadd.vi`、`vsub.vv/vx`、`vand/vor/vxor.vv/vx/vi`、`vsll/vsrl/vsra.vv/vx`、`vmv.v.v`、`vmv.v.x`。
 - `vle8.v`/`vse8.v` unit-stride 8-bit memory slice。
 - `vm=1` 全使能。
 - unsupported 指令和配置不执行近似语义。

@@ -110,13 +110,22 @@ wire TYPEVBITVV = (opcode == TYPE_OPV) && (func3 == 3'b000) && (ins[25] == 1'b1)
                   ((ins[31:26] == 6'b001001) || (ins[31:26] == 6'b001010) || (ins[31:26] == 6'b001011));
 wire TYPEVBITVX = (opcode == TYPE_OPV) && (func3 == 3'b100) && (ins[25] == 1'b1) &&
                   ((ins[31:26] == 6'b001001) || (ins[31:26] == 6'b001010) || (ins[31:26] == 6'b001011));
+wire TYPEVBITVI = (opcode == TYPE_OPV) && (func3 == 3'b011) && (ins[25] == 1'b1) &&
+                  ((ins[31:26] == 6'b001001) || (ins[31:26] == 6'b001010) || (ins[31:26] == 6'b001011));
+wire TYPEVSUBVV = (opcode == TYPE_OPV) && (func3 == 3'b000) && (ins[31:26] == 6'b000010) && (ins[25] == 1'b1);
+wire TYPEVSUBVX = (opcode == TYPE_OPV) && (func3 == 3'b100) && (ins[31:26] == 6'b000010) && (ins[25] == 1'b1);
+wire TYPEVSHIFTVV = (opcode == TYPE_OPV) && (func3 == 3'b000) && (ins[25] == 1'b1) &&
+                    ((ins[31:26] == 6'b100101) || (ins[31:26] == 6'b101000) || (ins[31:26] == 6'b101001));
+wire TYPEVSHIFTVX = (opcode == TYPE_OPV) && (func3 == 3'b100) && (ins[25] == 1'b1) &&
+                    ((ins[31:26] == 6'b100101) || (ins[31:26] == 6'b101000) || (ins[31:26] == 6'b101001));
 wire TYPEVMVVV = (opcode == TYPE_OPV) && (func3 == 3'b000) && (ins[31:26] == 6'b010111) && (ins[25] == 1'b1);
 wire TYPEVMVVX = (opcode == TYPE_OPV) && (func3 == 3'b100) && (ins[31:26] == 6'b010111) && (ins[25] == 1'b1);
 wire TYPEVLE8V = (opcode == TYPE_VLOAD) && (func3 == 3'b000) && (ins[31:20] == 12'b000000100000);
 wire TYPEVSE8V = (opcode == TYPE_VSTORE) && (func3 == 3'b000) && (ins[31:25] == 7'b0000001) && (ins[24:20] == 5'b00000);
 wire valid_ins  = TYPEI || TYPEI_LOAD || TYPER || TYPELUI || TYPEAUIPC ||
                   TYPEJAL || TYPEJALR || TYPES || TYPEB || TYPEEBRK || TYPECOP || TYPEVSETIVLI ||
-                  TYPEVADDVV || TYPEVADDVX || TYPEVADDVI || TYPEVBITVV || TYPEVBITVX || TYPEVMVVV || TYPEVMVVX ||
+                  TYPEVADDVV || TYPEVADDVX || TYPEVADDVI || TYPEVBITVV || TYPEVBITVX || TYPEVBITVI ||
+                  TYPEVSUBVV || TYPEVSUBVX || TYPEVSHIFTVV || TYPEVSHIFTVX || TYPEVMVVV || TYPEVMVVX ||
                   TYPEVLE8V || TYPEVSE8V ||
                   (opcode == TYPE_FENCE);
 
@@ -137,7 +146,8 @@ assign o_imm =
 // Register addresses
 // ========================================================================
 assign o_rd  = rd;
-assign o_rs1 = (TYPEAUIPC || TYPELUI || TYPEJAL || TYPEVADDVV || TYPEVADDVI || TYPEVBITVV || TYPEVMVVV) ? 5'b0 : rs1;
+assign o_rs1 = (TYPEAUIPC || TYPELUI || TYPEJAL || TYPEVADDVV || TYPEVADDVI || TYPEVBITVV || TYPEVBITVI ||
+                TYPEVSUBVV || TYPEVSHIFTVV || TYPEVMVVV) ? 5'b0 : rs1;
 assign o_rs2 = (TYPER || TYPEB || TYPES || TYPECOP) ? rs2 : 5'b0;
 
 // ========================================================================
@@ -150,6 +160,7 @@ assign o_csr_addr = TYPEEBRK ? ins[31:20] : 12'b0;
 // ========================================================================
 assign o_wen     = valid_ins && !(TYPES || TYPEB || opcode == TYPE_FENCE || TYPEVADDVV || TYPEVADDVX ||
                                   TYPEVADDVI || TYPEVBITVV || TYPEVBITVX || TYPEVMVVV || TYPEVMVVX ||
+                                  TYPEVBITVI || TYPEVSUBVV || TYPEVSUBVX || TYPEVSHIFTVV || TYPEVSHIFTVX ||
                                   TYPEVLE8V || TYPEVSE8V);
 assign o_csr_wen = (TYPEEBRK && |func3);
 
@@ -219,7 +230,8 @@ assign o_src_sel2 =
 // ========================================================================
 assign o_muldiv = TYPEM;
 assign o_is_cop_insn = TYPECOP || TYPEVSETIVLI || TYPEVADDVV || TYPEVADDVX || TYPEVADDVI ||
-                       TYPEVBITVV || TYPEVBITVX || TYPEVMVVV || TYPEVMVVX || TYPEVLE8V || TYPEVSE8V;
+                       TYPEVBITVV || TYPEVBITVX || TYPEVBITVI || TYPEVSUBVV || TYPEVSUBVX ||
+                       TYPEVSHIFTVV || TYPEVSHIFTVX || TYPEVMVVV || TYPEVMVVX || TYPEVLE8V || TYPEVSE8V;
 
 // ========================================================================
 // Boolean control signals
