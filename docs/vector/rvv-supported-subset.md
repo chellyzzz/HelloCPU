@@ -118,12 +118,12 @@
 | 项目 | 当前状态 | 第一批 RVV 目标 | 备注 |
 |------|----------|-----------------|------|
 | `vm=1` 全使能 | prototype | planned | 第一批默认路径 |
-| `vm=0` masked execution | unsupported | deferred | Phase 3 决定继续 fail closed，不当作 unmasked 执行 |
-| `v0` mask register | unsupported | deferred | 需要 element mask read path |
+| `vm=0` masked execution | supported | planned | Phase 7 支持 execute-class，masked-off lanes 保持旧 `vd` |
+| `v0` mask register | supported | planned | 当前使用 COP-local `v0` 作为 execute-class mask source |
 | mask load/store skip | unsupported | deferred | 必须保证 inactive address 不访问 |
 | tail agnostic | unsupported | planned | 可固定一种 policy，但必须文档化 |
 | tail undisturbed | unsupported | deferred | 需要读改写或保持旧值 |
-| mask agnostic/undisturbed | unsupported | deferred | 等 mask 支持后再定 |
+| mask agnostic/undisturbed | supported | planned | 当前 masked-off lanes 采用 undisturbed 策略 |
 
 ## 十、异常与 Illegal 行为
 
@@ -158,6 +158,7 @@ Phase 3 阶段性边界：`vl/vtype` 继续 COP-local，`vstart` 固定等价为
 | RVV Phase 4 memory | supported by focused tests | `vle8.v/vse8.v` unit-stride through CPU memory owner boundary |
 | RVV Phase 5 execute | supported by focused tests | `vsub.vv/vx`、`vsll/vsrl/vsra.vv/vx`、bitwise VI |
 | RVV Phase 6 memory | supported by focused tests | `vle32.v/vse32.v` unit-stride byte-serial memory requests |
+| RVV Phase 7 mask | supported by focused tests | execute-class `vm=0`，`v0` mask，masked-off lane undisturbed |
 | other RVV ALU directed | unsupported | planned |
 | RVV load/store directed | unsupported | planned |
 | RVV load/compute/store program | unsupported | planned |
@@ -175,6 +176,7 @@ Phase 3 阶段性边界：`vl/vtype` 继续 COP-local，`vstart` 固定等价为
 - `vsetivli` 最小 slice。
 - `vadd.vv`、`vadd.vx`、`vadd.vi`、`vsub.vv/vx`、`vand/vor/vxor.vv/vx/vi`、`vsll/vsrl/vsra.vv/vx`、`vmv.v.v`、`vmv.v.x`。
 - `vle8.v`/`vse8.v` 和 `vle32.v`/`vse32.v` unit-stride memory slice。
+- execute-class `vm=0` masked execution，mask bits 来自 COP-local `v0`，masked-off lanes 保持旧 `vd`。
 - `vm=1` 全使能。
 - unsupported 指令和配置不执行近似语义。
 - 标准测试短期只把 custom VRF read/write 当 legacy/debug harness；新测试优先用标准 move 初始化，直到标准 load/store 或更完整 VRF observable path 可用。

@@ -39,6 +39,28 @@ function [31:0] arshift32;
     end
 endfunction
 
+function [31:0] merge_masked_result;
+    input [31:0] computed;
+    input [31:0] old_value;
+    input [31:0] mask_value;
+    input [31:0] active_vl;
+    input [2:0] sew;
+    input       unmasked;
+    begin
+        merge_masked_result = computed;
+        if (!unmasked && (sew == 3'd2) && (active_vl > 32'd0) && !mask_value[0]) begin
+            merge_masked_result = old_value;
+        end else if (!unmasked && (sew == 3'd0)) begin
+            merge_masked_result = {
+                ((active_vl > 32'd3) && !mask_value[3]) ? old_value[31:24] : computed[31:24],
+                ((active_vl > 32'd2) && !mask_value[2]) ? old_value[23:16] : computed[23:16],
+                ((active_vl > 32'd1) && !mask_value[1]) ? old_value[15:8]  : computed[15:8],
+                ((active_vl > 32'd0) && !mask_value[0]) ? old_value[7:0]   : computed[7:0]
+            };
+        end
+    end
+endfunction
+
 reg         busy;
 reg [1:0]   countdown;
 reg [31:0]  latched_res;
@@ -128,6 +150,7 @@ wire [31:0] vshift_vv_result;
 wire [31:0] vshift_vx_raw_result;
 wire [31:0] vshift_vx_result;
 wire [31:0] vmv_result;
+wire        standard_unmasked;
 
 hcpu_vector_cop_decode u_cop_decode(
     .i_ins(i_ins),
@@ -214,6 +237,7 @@ wire [1:0]  vadd_vs2 = i_ins[21:20];
 wire [7:0]  vadd_x_byte = i_src1[7:0];
 wire [31:0] vadd_vi_imm = {{27{i_ins[19]}}, i_ins[19:15]};
 wire [7:0]  vadd_i_byte = {3'b0, i_ins[19:15]};
+assign standard_unmasked = i_ins[25];
 assign vadd_vv_result = vtype[31] ? 32'h80000000 :
                         (vtype[2:0] == 3'd2) ? ((vlen == 32'b0) ? 32'b0 : (vrf[vadd_vs2] + vrf[vadd_vs1])) :
                         (vtype[2:0] == 3'd0) ? {
@@ -380,17 +404,22 @@ wire        vrf_write     = (is_vrf_op && (cop_funct7 != 7'd4)) || (standard_vrf
 wire [1:0]  vrf_write_idx = standard_mem_zero_load ? i_ins[8:7] :
                             standard_vrf_write ? vadd_vd :
                             is_vrf_lane ? 2'd0 : vrf_idx;
-wire [31:0] vrf_write_value = vadd_vv_standard ? vadd_vv_result :
-                              vadd_vx_standard ? vadd_vx_result :
-                              vadd_vi_standard ? vadd_vi_result :
-                              vsub_vv_standard ? vsub_vv_result :
-                              vsub_vx_standard ? vsub_vx_result :
-                              vbit_vv_standard ? vbit_vv_result :
-                              vbit_vx_standard ? vbit_vx_result :
-                              vbit_vi_standard ? vbit_vi_result :
-                              vshift_vv_standard ? vshift_vv_result :
-                              vshift_vx_standard ? vshift_vx_result :
-                              vmv_standard ? vmv_result :
+wire [31:0] vrf_write_unmasked_value = vadd_vv_standard ? vadd_vv_result :
+                                       vadd_vx_standard ? vadd_vx_result :
+                                       vadd_vi_standard ? vadd_vi_result :
+                                       vsub_vv_standard ? vsub_vv_result :
+                                       vsub_vx_standard ? vsub_vx_result :
+                                       vbit_vv_standard ? vbit_vv_result :
+                                       vbit_vx_standard ? vbit_vx_result :
+                                       vbit_vi_standard ? vbit_vi_result :
+                                       vshift_vv_standard ? vshift_vv_result :
+                                       vshift_vx_standard ? vshift_vx_result :
+                                       vmv_standard ? vmv_result :
+                                       32'b0;
+wire [31:0] vrf_write_masked_value = merge_masked_result(vrf_write_unmasked_value, vrf[vrf_write_idx], vrf[0], vlen, vtype[2:0], standard_unmasked);
+wire [31:0] vrf_write_value = (vadd_vv_standard || vadd_vx_standard || vadd_vi_standard ||
+                               vsub_vv_standard || vsub_vx_standard || vbit_vv_standard || vbit_vx_standard ||
+                               vbit_vi_standard || vshift_vv_standard || vshift_vx_standard || vmv_standard) ? vrf_write_masked_value :
                               standard_mem_zero_load ? 32'b0 :
                               is_vrf_lane ? vrf_op_result : i_src1;
 

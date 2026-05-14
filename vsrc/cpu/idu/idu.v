@@ -103,23 +103,23 @@ wire TYPEB      = (opcode == TYPE_B);
 wire TYPEEBRK   = (opcode == TYPE_EBRK);
 wire TYPECOP    = (opcode == TYPE_COP);
 wire TYPEVSETIVLI = (opcode == TYPE_OPV) && (func3 == 3'b111) && (ins[31] == 1'b0);
-wire TYPEVADDVV = (opcode == TYPE_OPV) && (func3 == 3'b000) && (ins[31:26] == 6'b000000) && (ins[25] == 1'b1);
-wire TYPEVADDVX = (opcode == TYPE_OPV) && (func3 == 3'b100) && (ins[31:26] == 6'b000000) && (ins[25] == 1'b1);
-wire TYPEVADDVI = (opcode == TYPE_OPV) && (func3 == 3'b011) && (ins[31:26] == 6'b000000) && (ins[25] == 1'b1);
-wire TYPEVBITVV = (opcode == TYPE_OPV) && (func3 == 3'b000) && (ins[25] == 1'b1) &&
+wire TYPEVADDVV = (opcode == TYPE_OPV) && (func3 == 3'b000) && (ins[31:26] == 6'b000000);
+wire TYPEVADDVX = (opcode == TYPE_OPV) && (func3 == 3'b100) && (ins[31:26] == 6'b000000);
+wire TYPEVADDVI = (opcode == TYPE_OPV) && (func3 == 3'b011) && (ins[31:26] == 6'b000000);
+wire TYPEVBITVV = (opcode == TYPE_OPV) && (func3 == 3'b000) &&
                   ((ins[31:26] == 6'b001001) || (ins[31:26] == 6'b001010) || (ins[31:26] == 6'b001011));
-wire TYPEVBITVX = (opcode == TYPE_OPV) && (func3 == 3'b100) && (ins[25] == 1'b1) &&
+wire TYPEVBITVX = (opcode == TYPE_OPV) && (func3 == 3'b100) &&
                   ((ins[31:26] == 6'b001001) || (ins[31:26] == 6'b001010) || (ins[31:26] == 6'b001011));
-wire TYPEVBITVI = (opcode == TYPE_OPV) && (func3 == 3'b011) && (ins[25] == 1'b1) &&
+wire TYPEVBITVI = (opcode == TYPE_OPV) && (func3 == 3'b011) &&
                   ((ins[31:26] == 6'b001001) || (ins[31:26] == 6'b001010) || (ins[31:26] == 6'b001011));
-wire TYPEVSUBVV = (opcode == TYPE_OPV) && (func3 == 3'b000) && (ins[31:26] == 6'b000010) && (ins[25] == 1'b1);
-wire TYPEVSUBVX = (opcode == TYPE_OPV) && (func3 == 3'b100) && (ins[31:26] == 6'b000010) && (ins[25] == 1'b1);
-wire TYPEVSHIFTVV = (opcode == TYPE_OPV) && (func3 == 3'b000) && (ins[25] == 1'b1) &&
+wire TYPEVSUBVV = (opcode == TYPE_OPV) && (func3 == 3'b000) && (ins[31:26] == 6'b000010);
+wire TYPEVSUBVX = (opcode == TYPE_OPV) && (func3 == 3'b100) && (ins[31:26] == 6'b000010);
+wire TYPEVSHIFTVV = (opcode == TYPE_OPV) && (func3 == 3'b000) &&
                     ((ins[31:26] == 6'b100101) || (ins[31:26] == 6'b101000) || (ins[31:26] == 6'b101001));
-wire TYPEVSHIFTVX = (opcode == TYPE_OPV) && (func3 == 3'b100) && (ins[25] == 1'b1) &&
+wire TYPEVSHIFTVX = (opcode == TYPE_OPV) && (func3 == 3'b100) &&
                     ((ins[31:26] == 6'b100101) || (ins[31:26] == 6'b101000) || (ins[31:26] == 6'b101001));
-wire TYPEVMVVV = (opcode == TYPE_OPV) && (func3 == 3'b000) && (ins[31:26] == 6'b010111) && (ins[25] == 1'b1);
-wire TYPEVMVVX = (opcode == TYPE_OPV) && (func3 == 3'b100) && (ins[31:26] == 6'b010111) && (ins[25] == 1'b1);
+wire TYPEVMVVV = (opcode == TYPE_OPV) && (func3 == 3'b000) && (ins[31:26] == 6'b010111);
+wire TYPEVMVVX = (opcode == TYPE_OPV) && (func3 == 3'b100) && (ins[31:26] == 6'b010111);
 wire TYPEVLE8V = (opcode == TYPE_VLOAD) && (func3 == 3'b000) && (ins[31:20] == 12'b000000100000);
 wire TYPEVSE8V = (opcode == TYPE_VSTORE) && (func3 == 3'b000) && (ins[31:25] == 7'b0000001) && (ins[24:20] == 5'b00000);
 wire TYPEVLE32V = (opcode == TYPE_VLOAD) && (func3 == 3'b110) && (ins[31:20] == 12'b000000100000);
