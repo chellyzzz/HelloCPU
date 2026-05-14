@@ -38,13 +38,14 @@ wire type_ebrk = (opcode == TYPE_EBRK);
 wire type_cop = (opcode == TYPE_COP);
 wire type_vsetivli = (opcode == TYPE_OPV) && (func3 == 3'b111) && (i_ins[31] == 1'b0);
 wire type_vaddvv = (opcode == TYPE_OPV) && (func3 == 3'b000) && (i_ins[31:26] == 6'b000000) && (i_ins[25] == 1'b1);
+wire type_vaddvx = (opcode == TYPE_OPV) && (func3 == 3'b100) && (i_ins[31:26] == 6'b000000) && (i_ins[25] == 1'b1);
 wire valid_ins = type_i || type_i_load || type_r || type_lui || type_auipc ||
-                 type_jal || type_jalr || type_s || type_b || type_ebrk || type_cop || type_vsetivli || type_vaddvv ||
+                 type_jal || type_jalr || type_s || type_b || type_ebrk || type_cop || type_vsetivli || type_vaddvv || type_vaddvx ||
                  (opcode == TYPE_FENCE);
 
 wire [4:0] sidecar_rs1_addr = (type_auipc || type_lui || type_jal || type_vaddvv) ? 5'b0 : rs1;
 wire [4:0] sidecar_rs2_addr = (type_r || type_b || type_s || type_cop) ? rs2 : 5'b0;
-wire sidecar_wen = valid_ins && !(type_s || type_b || opcode == TYPE_FENCE || type_vaddvv);
+wire sidecar_wen = valid_ins && !(type_s || type_b || opcode == TYPE_FENCE || type_vaddvv || type_vaddvx);
 wire sidecar_csr_wen = type_ebrk && |func3;
 wire sidecar_ecall = type_ebrk && (func3 == 3'b000) && (rs2[1:0] == 2'b00);
 wire sidecar_mret = type_ebrk && (func3 == 3'b000) && (rs2[1:0] == 2'b10);
@@ -64,7 +65,7 @@ assign o_predecode_bundle = {
     type_jalr,
     sidecar_fence_i,
     type_m,
-    type_cop || type_vsetivli || type_vaddvv,
+    type_cop || type_vsetivli || type_vaddvv || type_vaddvx,
     sidecar_ecall,
     sidecar_mret,
     sidecar_ebreak

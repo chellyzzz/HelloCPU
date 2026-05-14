@@ -102,8 +102,9 @@ wire TYPEEBRK   = (opcode == TYPE_EBRK);
 wire TYPECOP    = (opcode == TYPE_COP);
 wire TYPEVSETIVLI = (opcode == TYPE_OPV) && (func3 == 3'b111) && (ins[31] == 1'b0);
 wire TYPEVADDVV = (opcode == TYPE_OPV) && (func3 == 3'b000) && (ins[31:26] == 6'b000000) && (ins[25] == 1'b1);
+wire TYPEVADDVX = (opcode == TYPE_OPV) && (func3 == 3'b100) && (ins[31:26] == 6'b000000) && (ins[25] == 1'b1);
 wire valid_ins  = TYPEI || TYPEI_LOAD || TYPER || TYPELUI || TYPEAUIPC ||
-                  TYPEJAL || TYPEJALR || TYPES || TYPEB || TYPEEBRK || TYPECOP || TYPEVSETIVLI || TYPEVADDVV ||
+                  TYPEJAL || TYPEJALR || TYPES || TYPEB || TYPEEBRK || TYPECOP || TYPEVSETIVLI || TYPEVADDVV || TYPEVADDVX ||
                   (opcode == TYPE_FENCE);
 
 // ========================================================================
@@ -134,7 +135,7 @@ assign o_csr_addr = TYPEEBRK ? ins[31:20] : 12'b0;
 // ========================================================================
 // Write enables
 // ========================================================================
-assign o_wen     = valid_ins && !(TYPES || TYPEB || opcode == TYPE_FENCE || TYPEVADDVV);
+assign o_wen     = valid_ins && !(TYPES || TYPEB || opcode == TYPE_FENCE || TYPEVADDVV || TYPEVADDVX);
 assign o_csr_wen = (TYPEEBRK && |func3);
 
 // ========================================================================
@@ -202,7 +203,7 @@ assign o_src_sel2 =
 // M-extension
 // ========================================================================
 assign o_muldiv = TYPEM;
-assign o_is_cop_insn = TYPECOP || TYPEVSETIVLI || TYPEVADDVV;
+assign o_is_cop_insn = TYPECOP || TYPEVSETIVLI || TYPEVADDVV || TYPEVADDVX;
 
 // ========================================================================
 // Boolean control signals
