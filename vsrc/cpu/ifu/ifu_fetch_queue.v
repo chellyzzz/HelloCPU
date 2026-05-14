@@ -15,6 +15,7 @@ localparam TYPE_JAL    = 7'b1101111;
 localparam TYPE_B      = 7'b1100011;
 localparam TYPE_FENCE  = 7'b0001111;
 localparam TYPE_COP    = 7'b0001011;
+localparam TYPE_OPV    = 7'b1010111;
 
 wire [2:0] func3 = i_ins[14:12];
 wire [6:0] opcode = i_ins[6:0];
@@ -35,8 +36,9 @@ wire type_s = (opcode == TYPE_S);
 wire type_b = (opcode == TYPE_B);
 wire type_ebrk = (opcode == TYPE_EBRK);
 wire type_cop = (opcode == TYPE_COP);
+wire type_vsetivli = (opcode == TYPE_OPV) && (func3 == 3'b111) && (i_ins[31] == 1'b0);
 wire valid_ins = type_i || type_i_load || type_r || type_lui || type_auipc ||
-                 type_jal || type_jalr || type_s || type_b || type_ebrk || type_cop ||
+                 type_jal || type_jalr || type_s || type_b || type_ebrk || type_cop || type_vsetivli ||
                  (opcode == TYPE_FENCE);
 
 wire [4:0] sidecar_rs1_addr = (type_auipc || type_lui || type_jal) ? 5'b0 : rs1;
@@ -61,7 +63,7 @@ assign o_predecode_bundle = {
     type_jalr,
     sidecar_fence_i,
     type_m,
-    type_cop,
+    type_cop || type_vsetivli,
     sidecar_ecall,
     sidecar_mret,
     sidecar_ebreak
