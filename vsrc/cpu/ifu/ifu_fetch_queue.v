@@ -39,23 +39,23 @@ wire type_b = (opcode == TYPE_B);
 wire type_ebrk = (opcode == TYPE_EBRK);
 wire type_cop = (opcode == TYPE_COP);
 wire type_vsetivli = (opcode == TYPE_OPV) && (func3 == 3'b111) && (i_ins[31] == 1'b0);
-wire type_vaddvv = (opcode == TYPE_OPV) && (func3 == 3'b000) && (i_ins[31:26] == 6'b000000) && (i_ins[25] == 1'b1);
-wire type_vaddvx = (opcode == TYPE_OPV) && (func3 == 3'b100) && (i_ins[31:26] == 6'b000000) && (i_ins[25] == 1'b1);
-wire type_vaddvi = (opcode == TYPE_OPV) && (func3 == 3'b011) && (i_ins[31:26] == 6'b000000) && (i_ins[25] == 1'b1);
-wire type_vbitvv = (opcode == TYPE_OPV) && (func3 == 3'b000) && (i_ins[25] == 1'b1) &&
+wire type_vaddvv = (opcode == TYPE_OPV) && (func3 == 3'b000) && (i_ins[31:26] == 6'b000000);
+wire type_vaddvx = (opcode == TYPE_OPV) && (func3 == 3'b100) && (i_ins[31:26] == 6'b000000);
+wire type_vaddvi = (opcode == TYPE_OPV) && (func3 == 3'b011) && (i_ins[31:26] == 6'b000000);
+wire type_vbitvv = (opcode == TYPE_OPV) && (func3 == 3'b000) &&
                    ((i_ins[31:26] == 6'b001001) || (i_ins[31:26] == 6'b001010) || (i_ins[31:26] == 6'b001011));
-wire type_vbitvx = (opcode == TYPE_OPV) && (func3 == 3'b100) && (i_ins[25] == 1'b1) &&
+wire type_vbitvx = (opcode == TYPE_OPV) && (func3 == 3'b100) &&
                    ((i_ins[31:26] == 6'b001001) || (i_ins[31:26] == 6'b001010) || (i_ins[31:26] == 6'b001011));
-wire type_vbitvi = (opcode == TYPE_OPV) && (func3 == 3'b011) && (i_ins[25] == 1'b1) &&
+wire type_vbitvi = (opcode == TYPE_OPV) && (func3 == 3'b011) &&
                    ((i_ins[31:26] == 6'b001001) || (i_ins[31:26] == 6'b001010) || (i_ins[31:26] == 6'b001011));
-wire type_vsubvv = (opcode == TYPE_OPV) && (func3 == 3'b000) && (i_ins[31:26] == 6'b000010) && (i_ins[25] == 1'b1);
-wire type_vsubvx = (opcode == TYPE_OPV) && (func3 == 3'b100) && (i_ins[31:26] == 6'b000010) && (i_ins[25] == 1'b1);
-wire type_vshiftvv = (opcode == TYPE_OPV) && (func3 == 3'b000) && (i_ins[25] == 1'b1) &&
+wire type_vsubvv = (opcode == TYPE_OPV) && (func3 == 3'b000) && (i_ins[31:26] == 6'b000010);
+wire type_vsubvx = (opcode == TYPE_OPV) && (func3 == 3'b100) && (i_ins[31:26] == 6'b000010);
+wire type_vshiftvv = (opcode == TYPE_OPV) && (func3 == 3'b000) &&
                      ((i_ins[31:26] == 6'b100101) || (i_ins[31:26] == 6'b101000) || (i_ins[31:26] == 6'b101001));
-wire type_vshiftvx = (opcode == TYPE_OPV) && (func3 == 3'b100) && (i_ins[25] == 1'b1) &&
+wire type_vshiftvx = (opcode == TYPE_OPV) && (func3 == 3'b100) &&
                      ((i_ins[31:26] == 6'b100101) || (i_ins[31:26] == 6'b101000) || (i_ins[31:26] == 6'b101001));
-wire type_vmvvv = (opcode == TYPE_OPV) && (func3 == 3'b000) && (i_ins[31:26] == 6'b010111) && (i_ins[25] == 1'b1);
-wire type_vmvvx = (opcode == TYPE_OPV) && (func3 == 3'b100) && (i_ins[31:26] == 6'b010111) && (i_ins[25] == 1'b1);
+wire type_vmvvv = (opcode == TYPE_OPV) && (func3 == 3'b000) && (i_ins[31:26] == 6'b010111);
+wire type_vmvvx = (opcode == TYPE_OPV) && (func3 == 3'b100) && (i_ins[31:26] == 6'b010111);
 wire type_vle8v = (opcode == TYPE_VLOAD) && (func3 == 3'b000) && (i_ins[31:20] == 12'b000000100000);
 wire type_vse8v = (opcode == TYPE_VSTORE) && (func3 == 3'b000) && (i_ins[31:25] == 7'b0000001) && (i_ins[24:20] == 5'b00000);
 wire type_vle32v = (opcode == TYPE_VLOAD) && (func3 == 3'b110) && (i_ins[31:20] == 12'b000000100000);

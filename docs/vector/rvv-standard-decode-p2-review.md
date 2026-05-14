@@ -195,6 +195,16 @@ Phase 6 在 Phase 4 memory boundary 上补 `vle32.v/vse32.v`：
 - 继续复用现有 CPU memory owner/kill boundary；不改变 COP memory strobe/word-write contract。
 - 标准 memory tests 继续使用 static initialized data；stack/scalar-store 后立刻 COP load 仍不是已声明 coherent path。
 
+## 十七、Phase 7 mask execute 自审决策
+
+Phase 7 只打开 execute-class masked execution，不改变 memory/CSR/trap 边界：
+
+- 支持当前 execute-class 标准 OP-V 的 `vm=0`，包括 add/sub/bitwise/shift/move。
+- Mask 来源为 COP-local `v0`，`SEW=8` 使用 mask bit `[3:0]` 对应 4 个 byte lanes，`SEW=32` 使用 bit 0。
+- Masked-off lanes 使用 undisturbed 策略，保持旧 `vd` lane；tail lanes 继续沿用既有 prototype 行为。
+- 标准 memory masked forms 仍不支持，`vle/vse` 继续只识别 `vm=1`。
+- `vill=1` 下仍不写 VRF；unsupported OP-V 继续 fail closed。
+
 ## 十、bitwise VV 自审决策
 
 `vand.vv`、`vor.vv`、`vxor.vv` 作为一个稳定 execute-class 点一起落地：
