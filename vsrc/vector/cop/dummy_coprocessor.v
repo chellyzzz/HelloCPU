@@ -7,6 +7,9 @@ module hcpu_dummy_coprocessor(
     input      [31:0]   i_src2,
     input      [31:0]   i_ins,
     output     [31:0]   o_res,
+    output     [31:0]   o_vl,
+    output     [31:0]   o_vtype,
+    output     [31:0]   o_vstart,
     output reg          o_done,
     output reg          o_cop_mem_req_valid,
     output reg          o_cop_mem_req_store,
@@ -85,6 +88,9 @@ reg [1:0]   mem_vrf_idx;
 reg [1:0]   mem_last_lane;
 
 assign o_res = latched_res;
+assign o_vl = vlen;
+assign o_vtype = vtype;
+assign o_vstart = 32'b0;
 
 wire [2:0]  cop_funct3;
 wire [6:0]  cop_funct7;

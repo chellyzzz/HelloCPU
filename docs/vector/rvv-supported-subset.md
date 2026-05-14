@@ -33,9 +33,9 @@
 
 | 项目 | 当前状态 | 第一批 RVV 目标 | 备注 |
 |------|----------|-----------------|------|
-| `vl` | supported | planned | 标准 `vsetivli` 和 custom prototype 均按 `VLMAX=4` 饱和 |
-| `vtype` | supported | planned | 标准 `vsetivli` 支持 `SEW=8/32, LMUL=m1`，unsupported `vtypei` 置 `vill=1` |
-| `vstart` | unsupported | unsupported | 第一批固定视为 0，不支持中途重启 |
+| `vl` | supported | planned | 标准 `vsetivli` 和 custom prototype 均按 `VLMAX=4` 饱和；CSR `0xc20` 可读 mirror |
+| `vtype` | supported | planned | 标准 `vsetivli` 支持 `SEW=8/32, LMUL=m1`，unsupported `vtypei` 置 `vill=1`；CSR `0xc21` 可读 mirror |
+| `vstart` | supported | planned | CSR `0x008` 可读，固定为 0；不支持 restart |
 | `vxrm` | unsupported | deferred | 饱和/舍入类指令前不需要 |
 | `vxsat` | unsupported | deferred | 饱和类指令前不需要 |
 | vector CSR trap semantics | unsupported | deferred | 需要 CPU interface review |
@@ -159,6 +159,7 @@ Phase 3 阶段性边界：`vl/vtype` 继续 COP-local，`vstart` 固定等价为
 | RVV Phase 5 execute | supported by focused tests | `vsub.vv/vx`、`vsll/vsrl/vsra.vv/vx`、bitwise VI |
 | RVV Phase 6 memory | supported by focused tests | `vle32.v/vse32.v` unit-stride byte-serial memory requests |
 | RVV Phase 7 mask | supported by focused tests | execute-class `vm=0`，`v0` mask，masked-off lane undisturbed |
+| RVV Phase 8 CSR mirror | supported by focused tests | `vl/vtype/vstart` CSR-visible readback；illegal trap deferred |
 | other RVV ALU directed | unsupported | planned |
 | RVV load/store directed | unsupported | planned |
 | RVV load/compute/store program | unsupported | planned |
@@ -177,6 +178,7 @@ Phase 3 阶段性边界：`vl/vtype` 继续 COP-local，`vstart` 固定等价为
 - `vadd.vv`、`vadd.vx`、`vadd.vi`、`vsub.vv/vx`、`vand/vor/vxor.vv/vx/vi`、`vsll/vsrl/vsra.vv/vx`、`vmv.v.v`、`vmv.v.x`。
 - `vle8.v`/`vse8.v` 和 `vle32.v`/`vse32.v` unit-stride memory slice。
 - execute-class `vm=0` masked execution，mask bits 来自 COP-local `v0`，masked-off lanes 保持旧 `vd`。
+- CSR-readable `vl`/`vtype`/`vstart` mirror，更新点为 COP commit-visible fire；`vstart` 固定为 0。
 - `vm=1` 全使能。
 - unsupported 指令和配置不执行近似语义。
 - 标准测试短期只把 custom VRF read/write 当 legacy/debug harness；新测试优先用标准 move 初始化，直到标准 load/store 或更完整 VRF observable path 可用。
