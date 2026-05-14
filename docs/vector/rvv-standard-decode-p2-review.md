@@ -109,7 +109,7 @@
 
 ## 七、当前结论
 
-C-line 当前分支已经证明 state model、consumer、custom vset-like prototype、标准 OP-V `vsetivli` 最小 slice、unmasked `vadd.vv` 和 unmasked `vadd.vx` 最小 execute slice 可工作。下一步风险转移到更广的标准 execute-class OP-V、masked ops、illegal/trap 和 CSR 可见性边界。
+C-line 当前分支已经证明 state model、consumer、custom vset-like prototype、标准 OP-V `vsetivli`、unmasked `vadd.vv/vadd.vx` 和 unmasked bitwise VV 最小 execute slice 可工作。下一步风险转移到更广的标准 execute-class OP-V、masked ops、illegal/trap、CSR 可见性和标准 vector memory 边界。
 
 ## 八、`vadd.vv` 自审决策
 
@@ -121,6 +121,18 @@ C-line 当前分支已经证明 state model、consumer、custom vset-like protot
 - `vl=0` 写入 0；`vl<VLMAX` 时 inactive byte lanes 写 0。
 - `vill=1` 时不写 VRF，并返回 `0x80000000` 到 COP response。
 - `vadd.vv` 不写 scalar GPR；`rd` 字段仅作为 vector `vd`。
+- 不支持 masked `vm=0`、`vstart!=0`、`LMUL!=m1` 或超过当前 VRF prototype 的 register file 行为。
+
+## 十、bitwise VV 自审决策
+
+`vand.vv`、`vor.vv`、`vxor.vv` 作为一个稳定 execute-class 点一起落地：
+
+- 只识别 OP-V `vand.vv/vor.vv/vxor.vv`，`funct3=000`、`vm=1`。
+- `vd/vs1/vs2` 使用标准字段，但当前只映射到 COP-local 4-entry VRF 的低两位。
+- `SEW=8` 按 byte lanes 应用 `vl` gating，`SEW=32` 按 32-bit lane 执行。
+- `vl=0` 写入 0；`vl<VLMAX` 时 inactive byte lanes 写 0。
+- `vill=1` 时不写 VRF，并返回 `0x80000000` 到 COP response。
+- bitwise VV 不写 scalar GPR；`rd` 字段仅作为 vector `vd`。
 - 不支持 masked `vm=0`、`vstart!=0`、`LMUL!=m1` 或超过当前 VRF prototype 的 register file 行为。
 
 ## 九、`vadd.vx` 自审决策
