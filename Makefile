@@ -237,7 +237,7 @@ scalar_mem_pending_kill: sw
 		-o $(abspath $(BUILD_DIR)/Vscalar_mem_pending_kill_tb)
 	@$(BUILD_DIR)/Vscalar_mem_pending_kill_tb $(SW_DIR)/build/scalar/load-repeat.bin
 
-backend_contract_checks: exu_wbu_flush exu_result_visibility cop_backend_flush idu_cop_regs commit_visible_ctrl ifu_idu_backpressure scalar_mem_pending_kill
+backend_contract_checks: exu_wbu_flush exu_result_visibility cop_backend_flush idu_cop_regs commit_visible_ctrl ifu_idu_backpressure scalar_mem_pending_kill cop_mem_pending_kill cop_mem_store_directed cop_mem_store_kill
 
 # Wave for debugging
 wave:

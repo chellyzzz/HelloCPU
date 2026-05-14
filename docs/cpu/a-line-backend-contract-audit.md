@@ -257,4 +257,7 @@ This still does not add queueing or multi-request overlap. It only makes the bac
 Current focused regression entry points now additionally include:
 
 - `make scalar_mem_pending_kill`
+- `make cop_mem_pending_kill`
+- `make cop_mem_store_directed`
+- `make cop_mem_store_kill`
 - `make backend_contract_checks`
