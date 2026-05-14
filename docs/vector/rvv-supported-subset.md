@@ -111,7 +111,7 @@
 | 项目 | 当前状态 | 第一批 RVV 目标 | 备注 |
 |------|----------|-----------------|------|
 | `vm=1` 全使能 | prototype | planned | 第一批默认路径 |
-| `vm=0` masked execution | unsupported | deferred | 可作为第二批 RVV 子集 |
+| `vm=0` masked execution | unsupported | deferred | Phase 3 决定继续 fail closed，不当作 unmasked 执行 |
 | `v0` mask register | unsupported | deferred | 需要 element mask read path |
 | mask load/store skip | unsupported | deferred | 必须保证 inactive address 不访问 |
 | tail agnostic | unsupported | planned | 可固定一种 policy，但必须文档化 |
@@ -127,6 +127,8 @@
 | misaligned vector memory | unsupported | unsupported | 第一批可要求测试使用支持的地址 |
 | vector memory fault | unsupported | deferred | 需要 CPU exception/tval review |
 | precise vector exception | unsupported | deferred | 需要 `vstart` 语义 |
+
+Phase 3 阶段性边界：`vl/vtype` 继续 COP-local，`vstart` 固定等价为 0，unsupported OP-V fail closed 且不新增 trap-visible side effect。标准 vector memory 进入前必须沿用 CPU-owned memory service/owner/kill 语义。
 
 ## 十一、验证矩阵
 
