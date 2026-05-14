@@ -232,6 +232,12 @@ Current decode-policy RTL slice:
 - Current outputs are `pair_visible`, `allow_second`, and explicit block reasons for `raw`, `waw`, `dual_writeback`, `exclusive_backend`, `redirect_control`, `downstream_busy`, `cop_pipeline`, and `frontend_flush`.
 - This still does not change issue width; it only makes the decode entrance policy executable and testable.
 
+Current directional slot1 step:
+
+- The executable policy now treats only `older ALU + younger branch` as slot-1 eligible.
+- `older branch + younger ALU` remains observable but is blocked by policy.
+- If slot 1 were ever enabled by later RTL, the current skeleton would select the younger entry as slot 1 and classify it as the branch side.
+
 Current pairing/hazard draft direction:
 
 - Near-term real slice stays `2-wide fetch/predecode` with single issue preserved.

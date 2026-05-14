@@ -379,13 +379,18 @@ wire       ifu_pair_has_waw;
 wire       ifu_pair_has_dual_writeback;
 wire       ifu_pair_has_exclusive_backend;
 wire       ifu_pair_has_redirect_control;
+wire       ifu_pair_order_alu_then_branch;
+wire       ifu_pair_order_branch_then_alu;
 wire       decode_pair_visible;
 wire       decode_pair_allow_second;
+wire       decode_pair_select_slot1_youngest;
+wire       decode_pair_select_slot1_branch;
 wire       decode_pair_block_raw;
 wire       decode_pair_block_waw;
 wire       decode_pair_block_dual_writeback;
 wire       decode_pair_block_exclusive_backend;
 wire       decode_pair_block_redirect_control;
+wire       decode_pair_block_older_branch_first;
 wire       decode_pair_block_downstream_busy;
 wire       decode_pair_block_cop_pipeline;
 wire       decode_pair_block_frontend_flush;
@@ -553,7 +558,9 @@ hcpu_ifu_fetch_queue ifu_fetch_queue(
     .o_pair_has_waw                    (ifu_pair_has_waw          ),
     .o_pair_has_dual_writeback         (ifu_pair_has_dual_writeback),
     .o_pair_has_exclusive_backend      (ifu_pair_has_exclusive_backend),
-    .o_pair_has_redirect_control       (ifu_pair_has_redirect_control)
+    .o_pair_has_redirect_control       (ifu_pair_has_redirect_control),
+    .o_pair_order_alu_then_branch      (ifu_pair_order_alu_then_branch),
+    .o_pair_order_branch_then_alu      (ifu_pair_order_branch_then_alu)
 );
 
 hcpu_IDU idu1(
@@ -856,16 +863,21 @@ hcpu_decode_pair_policy decode_pair_policy(
     .i_pair_has_dual_writeback          (ifu_pair_has_dual_writeback        ),
     .i_pair_has_exclusive_backend       (ifu_pair_has_exclusive_backend     ),
     .i_pair_has_redirect_control        (ifu_pair_has_redirect_control      ),
+    .i_pair_order_alu_then_branch       (ifu_pair_order_alu_then_branch     ),
+    .i_pair_order_branch_then_alu       (ifu_pair_order_branch_then_alu     ),
     .i_downstream_ready                 (exu2idu_ready                      ),
     .i_cop_pipeline_active              (cop_pipeline_active                ),
     .i_frontend_flush                   (frontend_flush                     ),
     .o_pair_visible                     (decode_pair_visible                ),
     .o_allow_second                     (decode_pair_allow_second           ),
+    .o_select_slot1_youngest            (decode_pair_select_slot1_youngest  ),
+    .o_select_slot1_branch              (decode_pair_select_slot1_branch    ),
     .o_block_raw                        (decode_pair_block_raw              ),
     .o_block_waw                        (decode_pair_block_waw              ),
     .o_block_dual_writeback             (decode_pair_block_dual_writeback   ),
     .o_block_exclusive_backend          (decode_pair_block_exclusive_backend),
     .o_block_redirect_control           (decode_pair_block_redirect_control ),
+    .o_block_older_branch_first         (decode_pair_block_older_branch_first),
     .o_block_downstream_busy            (decode_pair_block_downstream_busy  ),
     .o_block_cop_pipeline               (decode_pair_block_cop_pipeline     ),
     .o_block_frontend_flush             (decode_pair_block_frontend_flush   )

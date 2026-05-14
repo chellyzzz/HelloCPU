@@ -68,6 +68,8 @@ static int expect_pair_screen(Vhcpu_ifu_fetch_queue *top,
                               bool has_dual_writeback,
                               bool has_exclusive_backend,
                               bool has_redirect_control,
+                              bool order_alu_then_branch,
+                              bool order_branch_then_alu,
                               const char *context) {
   int fail = 0;
   fail |= expect(top->o_pair_valid == valid, context);
@@ -77,6 +79,8 @@ static int expect_pair_screen(Vhcpu_ifu_fetch_queue *top,
   fail |= expect(top->o_pair_has_dual_writeback == has_dual_writeback, context);
   fail |= expect(top->o_pair_has_exclusive_backend == has_exclusive_backend, context);
   fail |= expect(top->o_pair_has_redirect_control == has_redirect_control, context);
+  fail |= expect(top->o_pair_order_alu_then_branch == order_alu_then_branch, context);
+  fail |= expect(top->o_pair_order_branch_then_alu == order_branch_then_alu, context);
   return fail;
 }
 
@@ -163,7 +167,7 @@ int main(int argc, char **argv) {
   fail |= expect_predecode(top, 5, 6, 0, true, false, false, false, false, false,
                            false, false, false, false, false, false, false,
                            "stall preserves first predecode entry");
-  fail |= expect_pair_screen(top, true, true, false, false, false, false, false,
+  fail |= expect_pair_screen(top, true, true, false, false, false, false, false, true, false,
                              "addi plus branch is visible as the first pairing candidate");
 
   top->i_pc = pc_c;
@@ -195,7 +199,7 @@ int main(int argc, char **argv) {
   fail |= expect_predecode(top, 8, 1, 2, false, false, false, false, true, false,
                            false, false, false, false, false, false, false,
                            "branch predecode preserved after replace");
-  fail |= expect_pair_screen(top, true, false, false, false, false, true, false,
+  fail |= expect_pair_screen(top, true, false, false, false, false, true, false, false, false,
                              "branch plus load is blocked by exclusive backend use");
 
   top->i_enq_valid = 0;
@@ -217,7 +221,7 @@ int main(int argc, char **argv) {
 
   fail |= expect(top->o_deq_valid == 0, "queue empties after final dequeue");
   fail |= expect(top->o_enq_ready == 1, "queue is ready again after draining");
-  fail |= expect_pair_screen(top, false, false, false, false, false, false, false,
+  fail |= expect_pair_screen(top, false, false, false, false, false, false, false, false, false,
                              "empty queue has no pair screen result");
 
   top->i_deq_ready = 0;
@@ -298,7 +302,7 @@ int main(int argc, char **argv) {
   tick(top);
   top->eval();
 
-  fail |= expect_pair_screen(top, true, false, false, false, false, false, true,
+  fail |= expect_pair_screen(top, true, false, false, false, false, false, true, false, false,
                              "fence.i plus addi is pairing-hostile because of redirect control");
 
   top->i_deq_ready = 1;
@@ -310,7 +314,7 @@ int main(int argc, char **argv) {
   tick(top);
   top->eval();
 
-  fail |= expect_pair_screen(top, true, false, true, false, true, false, false,
+  fail |= expect_pair_screen(top, true, false, true, false, true, false, false, false, false,
                              "back-to-back addi pair reports raw and dual-writeback pressure");
 
   top->i_pc = pc_g;
@@ -321,7 +325,7 @@ int main(int argc, char **argv) {
   tick(top);
   top->eval();
 
-  fail |= expect_pair_screen(top, true, false, false, true, true, false, false,
+  fail |= expect_pair_screen(top, true, false, false, true, true, false, false, false, false,
                              "same-rd addi pair reports WAW and dual-writeback pressure");
 
   delete top;

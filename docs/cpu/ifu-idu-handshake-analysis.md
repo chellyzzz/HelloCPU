@@ -581,6 +581,12 @@ Current rule:
 2. any `RAW`, `WAW`, dual-writeback pressure, exclusive backend claim, or redirect/control class blocks slot 1
 3. even a clean candidate is blocked if downstream is not ready, COP pipeline ownership is active, or frontend flush is active
 
+Current directional refinement:
+
+1. only `older ALU + younger branch` may reach `allow_second = 1`
+2. `older branch + younger ALU` is an explicit observable block case
+3. this preserves age order and keeps redirect-sensitive behavior on the younger side of the first executable slot-1 candidate
+
 This keeps the policy executable while preserving the current single-issue machine behavior.
 
 ## Immediate Follow-Up

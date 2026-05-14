@@ -111,7 +111,9 @@ module hcpu_ifu_fetch_queue (
     output                              o_pair_has_waw,
     output                              o_pair_has_dual_writeback,
     output                              o_pair_has_exclusive_backend,
-    output                              o_pair_has_redirect_control
+    output                              o_pair_has_redirect_control,
+    output                              o_pair_order_alu_then_branch,
+    output                              o_pair_order_branch_then_alu
 );
 
 localparam DEPTH = 2;
@@ -266,8 +268,9 @@ wire pair_has_waw = pair0_wen && pair1_wen && (pair0_rd != 5'b0) && (pair1_rd ==
 wire pair_has_dual_writeback = pair0_wen && pair1_wen;
 wire pair_has_exclusive_backend = pair0_has_exclusive_backend || pair1_has_exclusive_backend;
 wire pair_has_redirect_control = pair0_has_redirect_control || pair1_has_redirect_control;
-wire pair_candidate_alu_branch = (pair0_is_simple_alu && pair1_brch) ||
-                                 (pair0_brch && pair1_is_simple_alu);
+wire pair_order_alu_then_branch = pair0_is_simple_alu && pair1_brch;
+wire pair_order_branch_then_alu = pair0_brch && pair1_is_simple_alu;
+wire pair_candidate_alu_branch = pair_order_alu_then_branch || pair_order_branch_then_alu;
 
 assign o_pair_valid = (count == DEPTH);
 assign o_pair_candidate_alu_branch = o_pair_valid && pair_candidate_alu_branch && !pair_has_raw &&
@@ -278,6 +281,8 @@ assign o_pair_has_waw = o_pair_valid && pair_has_waw;
 assign o_pair_has_dual_writeback = o_pair_valid && pair_has_dual_writeback;
 assign o_pair_has_exclusive_backend = o_pair_valid && pair_has_exclusive_backend;
 assign o_pair_has_redirect_control = o_pair_valid && pair_has_redirect_control;
+assign o_pair_order_alu_then_branch = o_pair_valid && pair_order_alu_then_branch;
+assign o_pair_order_branch_then_alu = o_pair_valid && pair_order_branch_then_alu;
 
 integer i;
 always @(posedge clock or posedge reset) begin

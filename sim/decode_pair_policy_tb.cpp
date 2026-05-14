@@ -23,6 +23,8 @@ int main(int argc, char **argv) {
   top->i_pair_has_dual_writeback = 0;
   top->i_pair_has_exclusive_backend = 0;
   top->i_pair_has_redirect_control = 0;
+  top->i_pair_order_alu_then_branch = 0;
+  top->i_pair_order_branch_then_alu = 0;
   top->i_downstream_ready = 1;
   top->i_cop_pipeline_active = 0;
   top->i_frontend_flush = 0;
@@ -33,10 +35,13 @@ int main(int argc, char **argv) {
 
   top->i_pair_valid = 1;
   top->i_pair_candidate_alu_branch = 1;
+  top->i_pair_order_alu_then_branch = 1;
   top->eval();
 
   fail |= expect(top->o_pair_visible == 1, "valid pair becomes visible");
   fail |= expect(top->o_allow_second == 1, "clean ALU plus branch pair is allowed by skeleton");
+  fail |= expect(top->o_select_slot1_youngest == 1, "allowed pair selects younger slot1 entry");
+  fail |= expect(top->o_select_slot1_branch == 1, "allowed pair selects branch as slot1 class");
 
   top->i_downstream_ready = 0;
   top->eval();
@@ -80,6 +85,15 @@ int main(int argc, char **argv) {
   fail |= expect(top->o_block_redirect_control == 1, "redirect control block reason is observable");
 
   top->i_pair_has_redirect_control = 0;
+  top->i_pair_order_alu_then_branch = 0;
+  top->i_pair_order_branch_then_alu = 1;
+  top->eval();
+
+  fail |= expect(top->o_allow_second == 0, "older branch then younger ALU is blocked by direction rule");
+  fail |= expect(top->o_block_older_branch_first == 1, "older branch ordering block is observable");
+
+  top->i_pair_order_branch_then_alu = 0;
+  top->i_pair_order_alu_then_branch = 1;
   top->i_cop_pipeline_active = 1;
   top->eval();
 
