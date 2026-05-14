@@ -103,10 +103,16 @@ wire TYPECOP    = (opcode == TYPE_COP);
 wire TYPEVSETIVLI = (opcode == TYPE_OPV) && (func3 == 3'b111) && (ins[31] == 1'b0);
 wire TYPEVADDVV = (opcode == TYPE_OPV) && (func3 == 3'b000) && (ins[31:26] == 6'b000000) && (ins[25] == 1'b1);
 wire TYPEVADDVX = (opcode == TYPE_OPV) && (func3 == 3'b100) && (ins[31:26] == 6'b000000) && (ins[25] == 1'b1);
+wire TYPEVADDVI = (opcode == TYPE_OPV) && (func3 == 3'b011) && (ins[31:26] == 6'b000000) && (ins[25] == 1'b1);
 wire TYPEVBITVV = (opcode == TYPE_OPV) && (func3 == 3'b000) && (ins[25] == 1'b1) &&
                   ((ins[31:26] == 6'b001001) || (ins[31:26] == 6'b001010) || (ins[31:26] == 6'b001011));
+wire TYPEVBITVX = (opcode == TYPE_OPV) && (func3 == 3'b100) && (ins[25] == 1'b1) &&
+                  ((ins[31:26] == 6'b001001) || (ins[31:26] == 6'b001010) || (ins[31:26] == 6'b001011));
+wire TYPEVMVVV = (opcode == TYPE_OPV) && (func3 == 3'b000) && (ins[31:26] == 6'b010111) && (ins[25] == 1'b1);
+wire TYPEVMVVX = (opcode == TYPE_OPV) && (func3 == 3'b100) && (ins[31:26] == 6'b010111) && (ins[25] == 1'b1);
 wire valid_ins  = TYPEI || TYPEI_LOAD || TYPER || TYPELUI || TYPEAUIPC ||
-                  TYPEJAL || TYPEJALR || TYPES || TYPEB || TYPEEBRK || TYPECOP || TYPEVSETIVLI || TYPEVADDVV || TYPEVADDVX || TYPEVBITVV ||
+                  TYPEJAL || TYPEJALR || TYPES || TYPEB || TYPEEBRK || TYPECOP || TYPEVSETIVLI ||
+                  TYPEVADDVV || TYPEVADDVX || TYPEVADDVI || TYPEVBITVV || TYPEVBITVX || TYPEVMVVV || TYPEVMVVX ||
                   (opcode == TYPE_FENCE);
 
 // ========================================================================
@@ -126,7 +132,7 @@ assign o_imm =
 // Register addresses
 // ========================================================================
 assign o_rd  = rd;
-assign o_rs1 = (TYPEAUIPC || TYPELUI || TYPEJAL || TYPEVADDVV || TYPEVBITVV) ? 5'b0 : rs1;
+assign o_rs1 = (TYPEAUIPC || TYPELUI || TYPEJAL || TYPEVADDVV || TYPEVADDVI || TYPEVBITVV || TYPEVMVVV) ? 5'b0 : rs1;
 assign o_rs2 = (TYPER || TYPEB || TYPES || TYPECOP) ? rs2 : 5'b0;
 
 // ========================================================================
@@ -137,7 +143,8 @@ assign o_csr_addr = TYPEEBRK ? ins[31:20] : 12'b0;
 // ========================================================================
 // Write enables
 // ========================================================================
-assign o_wen     = valid_ins && !(TYPES || TYPEB || opcode == TYPE_FENCE || TYPEVADDVV || TYPEVADDVX || TYPEVBITVV);
+assign o_wen     = valid_ins && !(TYPES || TYPEB || opcode == TYPE_FENCE || TYPEVADDVV || TYPEVADDVX ||
+                                  TYPEVADDVI || TYPEVBITVV || TYPEVBITVX || TYPEVMVVV || TYPEVMVVX);
 assign o_csr_wen = (TYPEEBRK && |func3);
 
 // ========================================================================
@@ -205,7 +212,8 @@ assign o_src_sel2 =
 // M-extension
 // ========================================================================
 assign o_muldiv = TYPEM;
-assign o_is_cop_insn = TYPECOP || TYPEVSETIVLI || TYPEVADDVV || TYPEVADDVX || TYPEVBITVV;
+assign o_is_cop_insn = TYPECOP || TYPEVSETIVLI || TYPEVADDVV || TYPEVADDVX || TYPEVADDVI ||
+                       TYPEVBITVV || TYPEVBITVX || TYPEVMVVV || TYPEVMVVX;
 
 // ========================================================================
 // Boolean control signals

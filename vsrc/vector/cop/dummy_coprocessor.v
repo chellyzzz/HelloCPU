@@ -57,9 +57,15 @@ wire        vsetivli_proto;
 wire        vsetivli_standard;
 wire        vadd_vv_standard;
 wire        vadd_vx_standard;
+wire        vadd_vi_standard;
 wire        vand_vv_standard;
 wire        vor_vv_standard;
 wire        vxor_vv_standard;
+wire        vand_vx_standard;
+wire        vor_vx_standard;
+wire        vxor_vx_standard;
+wire        vmv_v_v_standard;
+wire        vmv_v_x_standard;
 wire [31:0] scalar_lane_result;
 wire [31:0] vrf_op_result;
 wire [31:0] vlen_next_value;
@@ -69,8 +75,12 @@ wire [31:0] vtype_next_value;
 wire [31:0] vstate_add_result;
 wire [31:0] vadd_vv_result;
 wire [31:0] vadd_vx_result;
+wire [31:0] vadd_vi_result;
 wire [31:0] vbit_vv_raw_result;
 wire [31:0] vbit_vv_result;
+wire [31:0] vbit_vx_raw_result;
+wire [31:0] vbit_vx_result;
+wire [31:0] vmv_result;
 
 hcpu_vector_cop_decode u_cop_decode(
     .i_ins(i_ins),
@@ -91,9 +101,15 @@ hcpu_vector_cop_decode u_cop_decode(
     .o_vsetivli_standard(vsetivli_standard),
     .o_vadd_vv_standard(vadd_vv_standard),
     .o_vadd_vx_standard(vadd_vx_standard),
+    .o_vadd_vi_standard(vadd_vi_standard),
     .o_vand_vv_standard(vand_vv_standard),
     .o_vor_vv_standard(vor_vv_standard),
-    .o_vxor_vv_standard(vxor_vv_standard)
+    .o_vxor_vv_standard(vxor_vv_standard),
+    .o_vand_vx_standard(vand_vx_standard),
+    .o_vor_vx_standard(vor_vx_standard),
+    .o_vxor_vx_standard(vxor_vx_standard),
+    .o_vmv_v_v_standard(vmv_v_v_standard),
+    .o_vmv_v_x_standard(vmv_v_x_standard)
 );
 
 hcpu_vector_lane_alu u_scalar_lane_alu(
@@ -134,6 +150,8 @@ wire [1:0]  vadd_vd  = i_ins[8:7];
 wire [1:0]  vadd_vs1 = i_ins[16:15];
 wire [1:0]  vadd_vs2 = i_ins[21:20];
 wire [7:0]  vadd_x_byte = i_src1[7:0];
+wire [31:0] vadd_vi_imm = {{27{i_ins[19]}}, i_ins[19:15]};
+wire [7:0]  vadd_i_byte = {3'b0, i_ins[19:15]};
 assign vadd_vv_result = vtype[31] ? 32'h80000000 :
                         (vtype[2:0] == 3'd2) ? ((vlen == 32'b0) ? 32'b0 : (vrf[vadd_vs2] + vrf[vadd_vs1])) :
                         (vtype[2:0] == 3'd0) ? {
@@ -150,6 +168,14 @@ assign vadd_vx_result = vtype[31] ? 32'h80000000 :
                             (vlen > 32'd1) ? (vrf[vadd_vs2][15:8]  + vadd_x_byte) : 8'b0,
                             (vlen > 32'd0) ? (vrf[vadd_vs2][7:0]   + vadd_x_byte) : 8'b0
                         } : 32'h80000000;
+assign vadd_vi_result = vtype[31] ? 32'h80000000 :
+                        (vtype[2:0] == 3'd2) ? ((vlen == 32'b0) ? 32'b0 : (vrf[vadd_vs2] + vadd_vi_imm)) :
+                        (vtype[2:0] == 3'd0) ? {
+                            (vlen > 32'd3) ? (vrf[vadd_vs2][31:24] + vadd_i_byte) : 8'b0,
+                            (vlen > 32'd2) ? (vrf[vadd_vs2][23:16] + vadd_i_byte) : 8'b0,
+                            (vlen > 32'd1) ? (vrf[vadd_vs2][15:8]  + vadd_i_byte) : 8'b0,
+                            (vlen > 32'd0) ? (vrf[vadd_vs2][7:0]   + vadd_i_byte) : 8'b0
+                        } : 32'h80000000;
 wire vbit_vv_standard = vand_vv_standard || vor_vv_standard || vxor_vv_standard;
 assign vbit_vv_raw_result = vand_vv_standard ? (vrf[vadd_vs2] & vrf[vadd_vs1]) :
                             vor_vv_standard ? (vrf[vadd_vs2] | vrf[vadd_vs1]) :
@@ -162,12 +188,37 @@ assign vbit_vv_result = vtype[31] ? 32'h80000000 :
                             (vlen > 32'd1) ? vbit_vv_raw_result[15:8]  : 8'b0,
                             (vlen > 32'd0) ? vbit_vv_raw_result[7:0]   : 8'b0
                         } : 32'h80000000;
+wire vbit_vx_standard = vand_vx_standard || vor_vx_standard || vxor_vx_standard;
+assign vbit_vx_raw_result = vand_vx_standard ? (vrf[vadd_vs2] & i_src1) :
+                            vor_vx_standard ? (vrf[vadd_vs2] | i_src1) :
+                            (vrf[vadd_vs2] ^ i_src1);
+assign vbit_vx_result = vtype[31] ? 32'h80000000 :
+                        (vtype[2:0] == 3'd2) ? ((vlen == 32'b0) ? 32'b0 : vbit_vx_raw_result) :
+                        (vtype[2:0] == 3'd0) ? {
+                            (vlen > 32'd3) ? vbit_vx_raw_result[31:24] : 8'b0,
+                            (vlen > 32'd2) ? vbit_vx_raw_result[23:16] : 8'b0,
+                            (vlen > 32'd1) ? vbit_vx_raw_result[15:8]  : 8'b0,
+                            (vlen > 32'd0) ? vbit_vx_raw_result[7:0]   : 8'b0
+                        } : 32'h80000000;
+wire vmv_standard = vmv_v_v_standard || vmv_v_x_standard;
+wire [31:0] vmv_raw_result = vmv_v_x_standard ? i_src1 : vrf[vadd_vs1];
+assign vmv_result = vtype[31] ? 32'h80000000 :
+                    (vtype[2:0] == 3'd2) ? ((vlen == 32'b0) ? 32'b0 : vmv_raw_result) :
+                    (vtype[2:0] == 3'd0) ? {
+                        (vlen > 32'd3) ? vmv_raw_result[31:24] : 8'b0,
+                        (vlen > 32'd2) ? vmv_raw_result[23:16] : 8'b0,
+                        (vlen > 32'd1) ? vmv_raw_result[15:8]  : 8'b0,
+                        (vlen > 32'd0) ? vmv_raw_result[7:0]   : 8'b0
+                    } : 32'h80000000;
 wire [1:0]  vrf_idx   = i_src2[1:0];
 wire        is_mem_op = is_mem_load || is_mem_store;
 wire [31:0] cop_result = vsetivli_any ? vlen_next_value :
                           vadd_vv_standard ? vadd_vv_result :
                           vadd_vx_standard ? vadd_vx_result :
+                          vadd_vi_standard ? vadd_vi_result :
                           vbit_vv_standard ? vbit_vv_result :
+                          vbit_vx_standard ? vbit_vx_result :
+                          vmv_standard ? vmv_result :
                           (cop_funct3 == 3'b001) ? scalar_lane_result :
                           (cop_funct3 == 3'b010) ? scalar_lane_result :
                           (cop_funct3 == 3'b011) ? scalar_lane_result :
@@ -181,12 +232,17 @@ wire [31:0] cop_result = vsetivli_any ? vlen_next_value :
                           is_vrf_lane ? vrf_op_result :
                           is_vrf_op  ? vrf[vrf_idx] :
                           scalar_op;
-wire        vrf_write     = (is_vrf_op && (cop_funct7 != 7'd4)) || ((vadd_vv_standard || vadd_vx_standard || vbit_vv_standard) && !vtype[31]);
-wire [1:0]  vrf_write_idx = (vadd_vv_standard || vadd_vx_standard || vbit_vv_standard) ? vadd_vd :
+wire        standard_vrf_write = vadd_vv_standard || vadd_vx_standard || vadd_vi_standard ||
+                                 vbit_vv_standard || vbit_vx_standard || vmv_standard;
+wire        vrf_write     = (is_vrf_op && (cop_funct7 != 7'd4)) || (standard_vrf_write && !vtype[31]);
+wire [1:0]  vrf_write_idx = standard_vrf_write ? vadd_vd :
                             is_vrf_lane ? 2'd0 : vrf_idx;
 wire [31:0] vrf_write_value = vadd_vv_standard ? vadd_vv_result :
                               vadd_vx_standard ? vadd_vx_result :
+                              vadd_vi_standard ? vadd_vi_result :
                               vbit_vv_standard ? vbit_vv_result :
+                              vbit_vx_standard ? vbit_vx_result :
+                              vmv_standard ? vmv_result :
                               is_vrf_lane ? vrf_op_result : i_src1;
 
 always @(posedge clock or posedge reset) begin

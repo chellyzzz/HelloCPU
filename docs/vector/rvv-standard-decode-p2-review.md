@@ -109,7 +109,7 @@
 
 ## 七、当前结论
 
-C-line 当前分支已经证明 state model、consumer、custom vset-like prototype、标准 OP-V `vsetivli`、unmasked `vadd.vv/vadd.vx` 和 unmasked bitwise VV 最小 execute slice 可工作。下一步风险转移到更广的标准 execute-class OP-V、masked ops、illegal/trap、CSR 可见性和标准 vector memory 边界。
+C-line 当前分支已经证明 state model、consumer、custom vset-like prototype、标准 OP-V `vsetivli`、unmasked add/bitwise/move 最小 execute slice 可工作。下一步风险转移到更广的标准 execute-class OP-V、masked ops、illegal/trap、CSR 可见性和标准 vector memory 边界。
 
 ## 八、`vadd.vv` 自审决策
 
@@ -122,6 +122,18 @@ C-line 当前分支已经证明 state model、consumer、custom vset-like protot
 - `vill=1` 时不写 VRF，并返回 `0x80000000` 到 COP response。
 - `vadd.vv` 不写 scalar GPR；`rd` 字段仅作为 vector `vd`。
 - 不支持 masked `vm=0`、`vstart!=0`、`LMUL!=m1` 或超过当前 VRF prototype 的 register file 行为。
+
+## 十一、Phase 1 ALU/move 自审决策
+
+Phase 1 在已支持的 `vadd.vv/vx` 和 bitwise VV 上补齐以下最小标准路径：
+
+- `vadd.vi`：`funct6=0`、`funct3=011`、`vm=1`，immediate 来自 `imm[4:0]`。
+- `vand.vx/vor.vx/vxor.vx`：复用 scalar GPR `rs1` path。
+- `vmv.v.v/vmv.v.x`：作为基础 move/broadcast，用于后续减少 custom VRF init 依赖。
+- 所有 Phase 1 op 均不写 scalar GPR，`vd` 仅作为 vector destination。
+- `vd/vs1/vs2` 标准字段当前仍映射到 COP-local 4-entry VRF 的低两位。
+- `SEW=8/32`、`LMUL=m1`、`vstart=0`、`vm=1` 是唯一支持组合。
+- `vill=1` 时不写 VRF；unsupported OP-V 继续 fail closed。
 
 ## 十、bitwise VV 自审决策
 
