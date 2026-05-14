@@ -639,8 +639,16 @@ Current fetch-queue contract refinement:
 Current frontend pair-bundle refinement:
 
 1. the top level now captures a non-executing two-lane frontend bundle whenever both queue lanes are visible at once
-2. this bundle keeps slot0/slot1 payload, predictor metadata, minimal predecode identity, and the current pair-policy snapshot in one flush-cleared, hold-stable surface
-3. top-level regression now checks bundle capture, hold, flush-clear, and `fireable` vs `blocked` accounting, which closes the frontend-only contract path through policy, packing, and transport
+2. this bundle now keeps slot0 live decode metadata and unconditional younger-lane decode metadata alongside payload, predictor metadata, and the current pair-policy snapshot in one flush-cleared, hold-stable surface
+3. the younger decode source is no longer tied only to the directional branch-only slot1 path, so blocked visible pairs such as `older branch + younger ALU` still preserve truthful lane-1 decode state without reaching execute/commit
+4. top-level regression now checks bundle capture, hold, flush-clear, and `fireable` vs `blocked` accounting against those decode sources, which closes the frontend-only contract path through policy, packing, transport, and non-executing decode handoff
+
+Current pair-handoff refinement:
+
+1. the top level now captures that frontend pair bundle into a second registered handoff surface that behaves like a sink-side `frontend bundle -> near-idu_exu` checkpoint
+2. this handoff is still strictly non-executing: it clears on `frontend_flush`, holds its payload when no new bundle arrives, and never allocates a real execute, commit, or writeback resource
+3. slot0 and slot1 operand payload now follow the same pre-`idu_exu` source selection intent as the live scalar lane: `ecall/mret` remap `src1`, CSR-source selection remaps `src2`, and the younger lane uses dedicated non-binding RF/CSR read taps to keep the handoff truthful without driving execution
+4. top-level regression now checks handoff capture, hold, flush-clear, and self-consistent `fireable` vs `blocked` accounting, extending the executable frontend contract one stage closer to a future dispatch boundary
 
 This keeps the policy executable while preserving the current single-issue machine behavior.
 
@@ -648,6 +656,6 @@ This keeps the policy executable while preserving the current single-issue machi
 
 The next useful follow-up items are:
 
-1. define the first pairing / hazard matrix before adding any decode queue
-2. decide whether predecode bits live inside the fetch queue entry or in a tiny post-dequeue sidecar stage
-3. add broader assertion coverage only when a new boundary semantic is introduced, not preemptively
+1. define the first dispatch-ready contract for the current pair handoff without letting lane 1 enter the real backend
+2. decide which handoff fields are mandatory for a future `idu_exu`-adjacent sink and which can remain frontend-only observability
+3. keep broader assertion growth tied to real new boundary semantics rather than adding speculative checks early

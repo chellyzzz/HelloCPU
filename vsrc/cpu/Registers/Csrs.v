@@ -8,6 +8,8 @@ module hcpu_CSR_RegisterFile (
 
     input              [  11:0]         i_csr_raddr                ,
     output             [  31:0]         o_csr_rdata                ,
+    input              [  11:0]         i_csr_raddr2               ,
+    output             [  31:0]         o_csr_rdata2               ,
 
     input              [  11:0]         i_csr_waddr                ,
     input              [  31:0]         i_csr_wdata                ,
@@ -80,6 +82,15 @@ assign o_csr_rdata  = i_csr_raddr == 12'hf11 ? mvendorid :
                       i_csr_raddr == 12'h342 ? mcause :
                       i_csr_raddr == 12'h305 ? mtvec :
                       i_csr_raddr == 12'hb00 ? mcycle :
+                      32'b0;
+
+assign o_csr_rdata2 = i_csr_raddr2 == 12'hf11 ? mvendorid :
+                      i_csr_raddr2 == 12'hf12 ? marchid :
+                      i_csr_raddr2 == 12'h300 ? {19'b0, mstatus} :
+                      i_csr_raddr2 == 12'h341 ? mepc :
+                      i_csr_raddr2 == 12'h342 ? mcause :
+                      i_csr_raddr2 == 12'h305 ? mtvec :
+                      i_csr_raddr2 == 12'hb00 ? mcycle :
                       32'b0;
 
 assign o_mepc       = i_mret    ? mepc  : 32'b0;

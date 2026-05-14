@@ -159,6 +159,8 @@ Current preferred first slice:
 - another intermediate safe step is allowed: require top-level coverage for `visible + fireable`, `visible + blocked`, and `visible + flushed` slot-1 states before attempting any real second-lane transport
 - another intermediate safe step is allowed: capture visible slot-1 metadata into a shadow transport register surface, as long as it clears on flush, never adds backpressure, and never reaches execute/commit
 - another intermediate safe step is allowed: add a non-executing dual-lane frontend bundle and policy snapshot surface, as long as it is fed only by queue/predecode truth sources, clears on flush, and still does not reach execute/commit
+- another intermediate safe step is allowed: enrich that frontend bundle with truthful per-lane decode payload sourced from the live older decode path and an unconditional younger decode path, as long as it remains non-executing and flush-cleared
+- another intermediate safe step is allowed: capture that frontend bundle into a near-`idu_exu` non-executing handoff register surface, as long as operand/CSR payload stay truthful to existing RF/CSR sources, the surface clears on flush, adds no backpressure, and still never reaches execute/commit
 
 Done when:
 

@@ -289,13 +289,22 @@ Current fetch-queue contract refinement:
 Current frontend pair-bundle surface:
 
 - `hcpu` now captures a non-executing two-lane frontend bundle whenever the oldest and younger queue entries are both visible.
-- This bundle carries slot0/slot1 `pc`, `ins`, predictor metadata, and minimal predecode identity (`rd`, `rs1`, `rs2`, `wen`, `brch`) plus the current pair-policy snapshot.
+- This bundle now carries slot0/slot1 `pc`, `ins`, predictor metadata, decoded control payload (`imm`, `csr_addr`, `exu_opt`, `alu_opt`, `src_sel1`, `src_sel2`, class bits), and the current pair-policy snapshot.
 - The bundle is cleared by `frontend_flush`, holds across idle cycles, and remains entirely outside execute/commit.
+- Slot0 decode metadata is sourced from the live scalar IDU path, while slot1 bundle metadata is sourced from a new unconditional younger-entry decode surface so even blocked visible pairs retain truthful lane-1 decode state.
 
 Current frontend policy-snapshot refinement:
 
 - The pair bundle now preserves `candidate_alu_branch`, `allow_second`, directional order, and all current block reasons in one stable frontend-owned surface.
 - Top-level coverage now checks bundle capture, hold, flush-clear, and self-consistent `fireable` vs `blocked` accounting.
+
+Current pair-handoff surface:
+
+- `hcpu` now captures the frontend pair bundle into a second non-executing register surface that behaves like a sink-side `frontend bundle -> near-idu_exu handoff` checkpoint.
+- This handoff keeps the two-lane `pc`, `ins`, predictor metadata, decode payload, and policy snapshot stable across idle cycles, clears on `frontend_flush`, and still never reaches execute or commit.
+- Slot0 and slot1 `src1/src2` payload are now sourced from truthful pre-`idu_exu` selection rules rather than a fragile same-cycle decode mirror: `ecall/mret` redirect sources are folded into `src1`, CSR source override is folded into `src2`, and lane 1 uses dedicated non-binding RF/CSR read taps.
+- Top-level validation now requires handoff capture, hold, flush-clear, and self-consistent `fireable` vs `blocked` accounting, so the frontend-only path now closes through policy, packing, decode, bundle, and a registered handoff sink surface.
+- Current validation for this checkpoint: `make top_slot1_observability`, `make top_pc_update_flush`, and `make run ALL=sum` all PASS.
 
 Current pairing/hazard draft direction:
 
@@ -303,6 +312,7 @@ Current pairing/hazard draft direction:
 - First issue-capable prototype rejects `RAW`, `WAW`, and shared exclusive-backend pairs by default.
 - Until writeback bandwidth changes, treat two normal writers in one cycle as out of scope.
 - The only future pairing candidate worth studying first is `simple ALU + branch`.
+- The next narrow structural target after the current handoff checkpoint is to define the first dispatch-ready contract for this surface without letting lane 1 allocate a real backend slot yet.
 
 ### B-Task-1: IFU/IDU pass-through protocol specification document
 
