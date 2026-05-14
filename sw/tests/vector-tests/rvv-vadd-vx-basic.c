@@ -32,7 +32,7 @@ static inline unsigned cop_vrf_read(unsigned idx) {
 
 static inline unsigned rvv_vadd_vx_v1_v0(unsigned scalar) {
   register unsigned result asm("t0") = 0x12345678u;
-  asm volatile (".insn r 0x57, 4, 1, x5, %1, x0"
+  asm volatile (".insn r 0x57, 4, 1, x1, %1, x0"
                 : "+r"(result)
                 : "r"(scalar)
                 : "memory");

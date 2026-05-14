@@ -15,7 +15,7 @@
 
 ## 二、当前结论
 
-当前 HelloCPU 只声明支持标准 OP-V `vsetivli`、unmasked integer add、bitwise 和基础 move 的最小 slice。其他 RVV 能力仍属于 `custom-0` COP prototype，用于验证 CPU/COP issue、kill、VRF、memory owner 和 pending-kill 语义。
+当前 HelloCPU 声明支持一个冻结的 partial RVV integer subset，而不是完整 RVV。冻结声明见 `rvv-subset-freeze.md`；其他 RVV 能力仍属于 unsupported/deferred，不应静默执行成近似行为。
 
 标准 OP-V `vsetivli` 进入 RTL 前的 interface review 草案见 `rvv-standard-decode-p2-review.md`。
 
@@ -44,12 +44,12 @@
 
 | 配置 | 当前状态 | 第一批 RVV 目标 | 备注 |
 |------|----------|-----------------|------|
-| `VLEN` | prototype | planned | 先固定小宽度，后续再扩 |
+| `VLEN` | supported | planned | 固定小宽度，当前每个 vector register 存 32-bit 数据 |
 | `ELEN=8` | prototype | planned | 当前 COP lane/memory 可作为验证基础 |
 | `ELEN=16` | unsupported | deferred | 第一批不做 |
 | `ELEN=32` | prototype | planned | 当前 GPR/VRF 32-bit 原型可复用 |
 | `ELEN=64` | unsupported | deferred | RV32 基线下暂不做 |
-| `LMUL=m1` | prototype | planned | P1B `vtype` prototype 只接受 `m1` |
+| `LMUL=m1` | supported | planned | 只支持 `m1`，标准寄存器字段可寻址 `v0-v31` |
 | fractional LMUL | unsupported | unsupported | 第一批明确不支持 |
 | `LMUL>m1` | unsupported | deferred | 需要 VRF banking/alias 设计 |
 
@@ -160,6 +160,7 @@ Phase 3 阶段性边界：`vl/vtype` 继续 COP-local，`vstart` 固定等价为
 | RVV Phase 6 memory | supported by focused tests | `vle32.v/vse32.v` unit-stride byte-serial memory requests |
 | RVV Phase 7 mask | supported by focused tests | execute-class `vm=0`，`v0` mask，masked-off lane undisturbed |
 | RVV Phase 8 CSR mirror | supported by focused tests | `vl/vtype/vstart` CSR-visible readback；illegal trap deferred |
+| RVV Phase 9/11 acceptance | supported by focused tests | `v0-v31` register addressing and frozen subset smoke |
 | other RVV ALU directed | unsupported | planned |
 | RVV load/store directed | unsupported | planned |
 | RVV load/compute/store program | unsupported | planned |
@@ -172,6 +173,7 @@ Phase 3 阶段性边界：`vl/vtype` 继续 COP-local，`vstart` 固定等价为
 
 - RV32 base CPU with partial RVV integer subset。
 - `VLEN` 固定小宽度。
+- 标准 RVV register fields 可寻址 `v0-v31`，但 `LMUL` 只支持 `m1`。
 - `SEW=8` 和/或 `SEW=32`。
 - `LMUL=m1`。
 - `vsetivli` 最小 slice。

@@ -1,11 +1,11 @@
 #include "rvv_test_helpers.h"
 
 static inline void rvv_vadd_vv_masked_v1_v2_v3(void) {
-  asm volatile (".word 0x002182d7" ::: "memory");
+  asm volatile (".word 0x002180d7" ::: "memory");
 }
 
 static inline void rvv_vsub_vv_masked_v1_v2_v3(void) {
-  asm volatile (".word 0x082182d7" ::: "memory");
+  asm volatile (".word 0x082180d7" ::: "memory");
 }
 
 int main() {

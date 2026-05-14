@@ -30,7 +30,7 @@ static inline void rvv_vmv_v_x_v0(unsigned scalar) {
 }
 
 static inline void rvv_vmv_v_x_v1(unsigned scalar) {
-  asm volatile (".insn r 0x57, 4, 47, x5, %0, x0" :: "r"(scalar) : "memory");
+  asm volatile (".insn r 0x57, 4, 47, x1, %0, x0" :: "r"(scalar) : "memory");
 }
 
 static inline void rvv_vmv_v_x_v2(unsigned scalar) {

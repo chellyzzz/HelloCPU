@@ -1,47 +1,47 @@
 #include "rvv_test_helpers.h"
 
 static inline void rvv_vsub_vv_v1_v0_v2(void) {
-  asm volatile (".insn r 0x57, 0, 5, x5, x2, x0" ::: "memory");
+  asm volatile (".insn r 0x57, 0, 5, x1, x2, x0" ::: "memory");
 }
 
 static inline void rvv_vsub_vx_v1_v0(unsigned scalar) {
-  asm volatile (".insn r 0x57, 4, 5, x5, %0, x0" :: "r"(scalar) : "memory");
+  asm volatile (".insn r 0x57, 4, 5, x1, %0, x0" :: "r"(scalar) : "memory");
 }
 
 static inline void rvv_vsll_vv_v1_v0_v2(void) {
-  asm volatile (".insn r 0x57, 0, 75, x5, x2, x0" ::: "memory");
+  asm volatile (".insn r 0x57, 0, 75, x1, x2, x0" ::: "memory");
 }
 
 static inline void rvv_vsrl_vv_v1_v0_v2(void) {
-  asm volatile (".insn r 0x57, 0, 81, x5, x2, x0" ::: "memory");
+  asm volatile (".insn r 0x57, 0, 81, x1, x2, x0" ::: "memory");
 }
 
 static inline void rvv_vsra_vv_v1_v0_v2(void) {
-  asm volatile (".insn r 0x57, 0, 83, x5, x2, x0" ::: "memory");
+  asm volatile (".insn r 0x57, 0, 83, x1, x2, x0" ::: "memory");
 }
 
 static inline void rvv_vsll_vx_v1_v0(unsigned scalar) {
-  asm volatile (".insn r 0x57, 4, 75, x5, %0, x0" :: "r"(scalar) : "memory");
+  asm volatile (".insn r 0x57, 4, 75, x1, %0, x0" :: "r"(scalar) : "memory");
 }
 
 static inline void rvv_vsrl_vx_v1_v0(unsigned scalar) {
-  asm volatile (".insn r 0x57, 4, 81, x5, %0, x0" :: "r"(scalar) : "memory");
+  asm volatile (".insn r 0x57, 4, 81, x1, %0, x0" :: "r"(scalar) : "memory");
 }
 
 static inline void rvv_vsra_vx_v1_v0(unsigned scalar) {
-  asm volatile (".insn r 0x57, 4, 83, x5, %0, x0" :: "r"(scalar) : "memory");
+  asm volatile (".insn r 0x57, 4, 83, x1, %0, x0" :: "r"(scalar) : "memory");
 }
 
 static inline void rvv_vand_vi_v1_v0_3(void) {
-  asm volatile (".word 0x2601b2d7" ::: "memory");
+  asm volatile (".word 0x2601b0d7" ::: "memory");
 }
 
 static inline void rvv_vor_vi_v1_v0_3(void) {
-  asm volatile (".word 0x2a01b2d7" ::: "memory");
+  asm volatile (".word 0x2a01b0d7" ::: "memory");
 }
 
 static inline void rvv_vxor_vi_v1_v0_3(void) {
-  asm volatile (".word 0x2e01b2d7" ::: "memory");
+  asm volatile (".word 0x2e01b0d7" ::: "memory");
 }
 
 int main() {

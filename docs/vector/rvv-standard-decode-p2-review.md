@@ -215,6 +215,16 @@ Phase 8 只做 CSR-visible state mirror，不接通完整 illegal instruction tr
 - `vsetivli` bad `vtypei` 继续设置 `vill=1`，CSR `vtype` 可读到 `0x80000000`。
 - Unsupported OP-V 和真正 illegal instruction trap 仍 deferred，等待 CPU exception path review。
 
+## 十九、Phase 9/10/11 subset 收口决策
+
+Phase 9/10/11 目标是收口 partial RVV subset，而不是继续扩完整 RVV：
+
+- Phase 9 将 COP-local VRF 扩展到 32 个 32-bit registers，标准 `vd/vs1/vs2/vs3` 使用完整 5-bit register fields。
+- 继续只支持 `LMUL=m1`，不实现 grouped register aliasing。
+- Phase 10 冻结 supported subset，新增 `rvv-subset-freeze.md` 作为主 contract。
+- Phase 11 用 acceptance test 覆盖高编号 register、masked execute、CSR/memory smoke。
+- 完整 illegal trap、coherency、LMUL、`vstart` restart、更多 memory forms 均 deferred。
+
 ## 十、bitwise VV 自审决策
 
 `vand.vv`、`vor.vv`、`vxor.vv` 作为一个稳定 execute-class 点一起落地：
