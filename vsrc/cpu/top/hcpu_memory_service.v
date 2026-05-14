@@ -89,6 +89,8 @@ module hcpu_memory_service(
 reg                    [  31:0]         cop_mem_rdata_r;
 wire                                    cop_mem_new_req;
 wire                                    cop_mem_slot_load;
+wire                                    cop_mem_store_accepted;
+wire                                    cop_mem_store_launch_done;
 
 assign cop_mem_bus_active = (cop_mem_state != 2'd0);
 assign cop_mem_resp_active = cop_mem_bus_active || cop_mem_done_r;
@@ -119,6 +121,8 @@ hcpu_memory_service_request_slot u_memory_service_request_slot(
     .slot_store                        (cop_mem_wen_r             ),
     .slot_aw_done                      (cop_mem_aw_done           ),
     .slot_w_done                       (cop_mem_w_done            ),
+    .slot_store_accepted               (cop_mem_store_accepted    ),
+    .slot_store_launch_done            (cop_mem_store_launch_done ),
     .slot_addr                         (cop_mem_addr_r            ),
     .slot_wdata                        (cop_mem_wdata_r           ),
     .slot_size                         (cop_mem_size_r            )
@@ -194,8 +198,7 @@ always @(posedge clock or posedge reset) begin
             if ((cop_mem_state == 2'd1) && !cop_mem_wen_r && !cop_mem_ar_fire) begin
                 cop_mem_state <= 2'd0;
                 cop_mem_killed_r <= 1'b0;
-            end else if ((cop_mem_state == 2'd1) && cop_mem_wen_r &&
-                         !(cop_mem_aw_done || cop_mem_aw_fire) && !(cop_mem_w_done || cop_mem_w_fire)) begin
+            end else if ((cop_mem_state == 2'd1) && cop_mem_wen_r && !cop_mem_store_accepted) begin
                 cop_mem_state <= 2'd0;
                 cop_mem_killed_r <= 1'b0;
             end else if (cop_mem_state != 2'd0) begin
@@ -207,10 +210,8 @@ always @(posedge clock or posedge reset) begin
                 if ((cop_mem_state == 2'd1) && !cop_mem_wen_r && cop_mem_ar_fire) begin
                     cop_mem_state <= 2'd2;
                 end
-                if ((cop_mem_state == 2'd1) && cop_mem_wen_r) begin
-                    if ((cop_mem_aw_done || cop_mem_aw_fire) && (cop_mem_w_done || cop_mem_w_fire)) begin
-                        cop_mem_state <= 2'd2;
-                    end
+                if ((cop_mem_state == 2'd1) && cop_mem_store_launch_done) begin
+                    cop_mem_state <= 2'd2;
                 end
             end
         end else begin
@@ -222,10 +223,8 @@ always @(posedge clock or posedge reset) begin
                     end
                 end
                 2'd1: begin
-                    if (cop_mem_wen_r) begin
-                        if ((cop_mem_aw_done || cop_mem_aw_fire) && (cop_mem_w_done || cop_mem_w_fire)) begin
-                            cop_mem_state <= 2'd2;
-                        end
+                    if (cop_mem_store_launch_done) begin
+                        cop_mem_state <= 2'd2;
                     end else if (cop_mem_ar_fire) begin
                         cop_mem_state <= 2'd2;
                     end

@@ -11,10 +11,15 @@ module hcpu_memory_service_request_slot(
     output reg                          slot_store,
     output reg                          slot_aw_done,
     output reg                          slot_w_done,
+    output                              slot_store_accepted,
+    output                              slot_store_launch_done,
     output reg         [  31:0]         slot_addr,
     output reg         [  31:0]         slot_wdata,
     output reg         [   2:0]         slot_size
 );
+
+assign slot_store_accepted = slot_store && (slot_aw_done || slot_w_done || slot_aw_fire || slot_w_fire);
+assign slot_store_launch_done = slot_store && (slot_aw_done || slot_aw_fire) && (slot_w_done || slot_w_fire);
 
 always @(posedge clock or posedge reset) begin
     if (reset) begin
