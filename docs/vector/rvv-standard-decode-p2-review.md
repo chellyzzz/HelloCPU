@@ -184,6 +184,17 @@ Phase 5 扩展仍限定在无 memory、无 CSR/trap、无 mask 的 execute-class
 - `SEW=8` 按 byte lanes 执行并受 `vl` gating；`SEW=32` 按单 32-bit element 执行。
 - `vill=1` 下不写 VRF；unsupported OP-V 继续 fail closed。
 
+## 十六、Phase 6 standard memory 自审决策
+
+Phase 6 在 Phase 4 memory boundary 上补 `vle32.v/vse32.v`：
+
+- 只识别 unit-stride `vle32.v/vse32.v`，`vm=1`、`width=110`、`mop=00`、`mew=0`、`nf=0`。
+- 只支持 `SEW=32`、`LMUL=m1`、`vstart=0`、`vill=0`。
+- `vl=0` 时 load 写 0、store 不访问 memory。
+- `vl>0` 时访问一个 32-bit element，但实现上使用 4 个 byte-serial memory requests。
+- 继续复用现有 CPU memory owner/kill boundary；不改变 COP memory strobe/word-write contract。
+- 标准 memory tests 继续使用 static initialized data；stack/scalar-store 后立刻 COP load 仍不是已声明 coherent path。
+
 ## 十、bitwise VV 自审决策
 
 `vand.vv`、`vor.vv`、`vxor.vv` 作为一个稳定 execute-class 点一起落地：
