@@ -53,14 +53,14 @@ module hcpu_memory_service(
     output                              mem_service_resp_valid,
     output             [  31:0]         mem_service_resp_rdata,
     output reg         [   1:0]         cop_mem_state,
-    output reg                          cop_mem_wen_r,
-    output reg                          cop_mem_aw_done,
-    output reg                          cop_mem_w_done,
+    output                              cop_mem_wen_r,
+    output                              cop_mem_aw_done,
+    output                              cop_mem_w_done,
     output reg                          cop_mem_killed_r,
     output reg                          cop_mem_done_r,
-    output reg         [  31:0]         cop_mem_addr_r,
-    output reg         [  31:0]         cop_mem_wdata_r,
-    output reg         [   2:0]         cop_mem_size_r,
+    output             [  31:0]         cop_mem_addr_r,
+    output             [  31:0]         cop_mem_wdata_r,
+    output             [   2:0]         cop_mem_size_r,
     output                              mem_axi_awvalid,
     output             [  31:0]         mem_axi_awaddr,
     output             [   3:0]         mem_axi_awid,
@@ -88,6 +88,7 @@ module hcpu_memory_service(
 
 reg                    [  31:0]         cop_mem_rdata_r;
 wire                                    cop_mem_new_req;
+wire                                    cop_mem_slot_load;
 
 assign cop_mem_bus_active = (cop_mem_state != 2'd0);
 assign cop_mem_resp_active = cop_mem_bus_active || cop_mem_done_r;
@@ -103,42 +104,90 @@ assign mem_service_req_size = mem_owner_cop_active ? cop_mem_size_r : scalar_mem
 assign mem_service_resp_valid = cop_mem_resp_active ? cop_mem_resp_valid : scalar_mem_resp_valid;
 assign mem_service_resp_rdata = cop_mem_resp_active ? cop_mem_resp_rdata : scalar_mem_resp_rdata;
 assign cop_mem_new_req = cop_mem_req_valid && (cop_mem_state == 2'd0) && !cop_mem_done_r && !mem_owner_scalar_active;
-assign mem_axi_awaddr = cop_mem_bus_active ? mem_service_req_addr : scalar_axi_awaddr;
-assign mem_axi_awvalid = (cop_mem_state == 2'd1) ? (cop_mem_wen_r && !cop_mem_aw_done) : scalar_axi_awvalid;
-assign mem_axi_awid = cop_mem_bus_active ? 4'b0 : scalar_axi_awid;
-assign mem_axi_awlen = cop_mem_bus_active ? 8'b0 : scalar_axi_awlen;
-assign mem_axi_awsize = cop_mem_bus_active ? mem_service_req_size : scalar_axi_awsize;
-assign mem_axi_awburst = cop_mem_bus_active ? 2'b00 : scalar_axi_awburst;
-assign mem_axi_wdata = cop_mem_bus_active ? mem_service_req_wdata : scalar_axi_wdata;
-assign mem_axi_wstrb = cop_mem_bus_active ? 4'b0001 : scalar_axi_wstrb;
-assign mem_axi_wvalid = (cop_mem_state == 2'd1) ? (cop_mem_wen_r && !cop_mem_w_done) : scalar_axi_wvalid;
-assign mem_axi_wlast = cop_mem_bus_active ? 1'b1 : scalar_axi_wlast;
-assign mem_axi_bready = (cop_mem_state == 2'd2 || cop_mem_state == 2'd3) ? cop_mem_wen_r : scalar_axi_bready;
-assign mem_axi_araddr = cop_mem_bus_active ? mem_service_req_addr : scalar_axi_araddr;
-assign mem_axi_arvalid = (cop_mem_state == 2'd1) ? !cop_mem_wen_r : scalar_axi_arvalid;
-assign mem_axi_arid = cop_mem_bus_active ? 4'b0 : scalar_axi_arid;
-assign mem_axi_arlen = cop_mem_bus_active ? 8'b0 : scalar_axi_arlen;
-assign mem_axi_arsize = cop_mem_bus_active ? mem_service_req_size : scalar_axi_arsize;
-assign mem_axi_arburst = cop_mem_bus_active ? 2'b00 : scalar_axi_arburst;
-assign mem_axi_rready = (cop_mem_state == 2'd2 || cop_mem_state == 2'd3) ? !cop_mem_wen_r : scalar_axi_rready;
-assign cop_mem_aw_fire = mem_axi_awvalid && mem_axi_awready;
-assign cop_mem_w_fire = mem_axi_wvalid && mem_axi_wready;
-assign cop_mem_b_fire = mem_axi_bready && mem_axi_bvalid;
-assign cop_mem_ar_fire = mem_axi_arvalid && mem_axi_arready;
-assign cop_mem_r_fire = mem_axi_rready && mem_axi_rvalid && mem_axi_rlast;
+assign cop_mem_slot_load = (cop_mem_state == 2'd0) && cop_mem_new_req;
+
+hcpu_memory_service_request_slot u_memory_service_request_slot(
+    .clock                             (clock                     ),
+    .reset                             (reset                     ),
+    .slot_load                         (cop_mem_slot_load         ),
+    .slot_req_store                    (cop_mem_req_store         ),
+    .slot_req_addr                     (cop_mem_req_addr          ),
+    .slot_req_wdata                    (cop_mem_req_wdata         ),
+    .slot_req_size                     (cop_mem_req_size          ),
+    .slot_aw_fire                      (cop_mem_aw_fire           ),
+    .slot_w_fire                       (cop_mem_w_fire            ),
+    .slot_store                        (cop_mem_wen_r             ),
+    .slot_aw_done                      (cop_mem_aw_done           ),
+    .slot_w_done                       (cop_mem_w_done            ),
+    .slot_addr                         (cop_mem_addr_r            ),
+    .slot_wdata                        (cop_mem_wdata_r           ),
+    .slot_size                         (cop_mem_size_r            )
+);
+
+hcpu_memory_service_axi_mux u_memory_service_axi_mux(
+    .cop_mem_bus_active                (cop_mem_bus_active        ),
+    .cop_mem_state                     (cop_mem_state             ),
+    .cop_mem_wen_r                     (cop_mem_wen_r             ),
+    .cop_mem_aw_done                   (cop_mem_aw_done           ),
+    .cop_mem_w_done                    (cop_mem_w_done            ),
+    .mem_service_req_addr              (mem_service_req_addr      ),
+    .mem_service_req_wdata             (mem_service_req_wdata     ),
+    .mem_service_req_size              (mem_service_req_size      ),
+    .scalar_axi_awvalid                (scalar_axi_awvalid        ),
+    .scalar_axi_awaddr                 (scalar_axi_awaddr         ),
+    .scalar_axi_awid                   (scalar_axi_awid           ),
+    .scalar_axi_awlen                  (scalar_axi_awlen          ),
+    .scalar_axi_awsize                 (scalar_axi_awsize         ),
+    .scalar_axi_awburst                (scalar_axi_awburst        ),
+    .scalar_axi_wvalid                 (scalar_axi_wvalid         ),
+    .scalar_axi_wdata                  (scalar_axi_wdata          ),
+    .scalar_axi_wstrb                  (scalar_axi_wstrb          ),
+    .scalar_axi_wlast                  (scalar_axi_wlast          ),
+    .scalar_axi_bready                 (scalar_axi_bready         ),
+    .scalar_axi_arvalid                (scalar_axi_arvalid        ),
+    .scalar_axi_araddr                 (scalar_axi_araddr         ),
+    .scalar_axi_arid                   (scalar_axi_arid           ),
+    .scalar_axi_arlen                  (scalar_axi_arlen          ),
+    .scalar_axi_arsize                 (scalar_axi_arsize         ),
+    .scalar_axi_arburst                (scalar_axi_arburst        ),
+    .scalar_axi_rready                 (scalar_axi_rready         ),
+    .mem_axi_awready                   (mem_axi_awready           ),
+    .mem_axi_wready                    (mem_axi_wready            ),
+    .mem_axi_bvalid                    (mem_axi_bvalid            ),
+    .mem_axi_arready                   (mem_axi_arready           ),
+    .mem_axi_rvalid                    (mem_axi_rvalid            ),
+    .mem_axi_rlast                     (mem_axi_rlast             ),
+    .mem_axi_awvalid                   (mem_axi_awvalid           ),
+    .mem_axi_awaddr                    (mem_axi_awaddr            ),
+    .mem_axi_awid                      (mem_axi_awid              ),
+    .mem_axi_awlen                     (mem_axi_awlen             ),
+    .mem_axi_awsize                    (mem_axi_awsize            ),
+    .mem_axi_awburst                   (mem_axi_awburst           ),
+    .mem_axi_wvalid                    (mem_axi_wvalid            ),
+    .mem_axi_wdata                     (mem_axi_wdata             ),
+    .mem_axi_wstrb                     (mem_axi_wstrb             ),
+    .mem_axi_wlast                     (mem_axi_wlast             ),
+    .mem_axi_bready                    (mem_axi_bready            ),
+    .mem_axi_arvalid                   (mem_axi_arvalid           ),
+    .mem_axi_araddr                    (mem_axi_araddr            ),
+    .mem_axi_arid                      (mem_axi_arid              ),
+    .mem_axi_arlen                     (mem_axi_arlen             ),
+    .mem_axi_arsize                    (mem_axi_arsize            ),
+    .mem_axi_arburst                   (mem_axi_arburst           ),
+    .mem_axi_rready                    (mem_axi_rready            ),
+    .cop_mem_aw_fire                   (cop_mem_aw_fire           ),
+    .cop_mem_w_fire                    (cop_mem_w_fire            ),
+    .cop_mem_b_fire                    (cop_mem_b_fire            ),
+    .cop_mem_ar_fire                   (cop_mem_ar_fire           ),
+    .cop_mem_r_fire                    (cop_mem_r_fire            )
+);
 
 always @(posedge clock or posedge reset) begin
     if (reset) begin
         cop_mem_state    <= 2'd0;
-        cop_mem_wen_r    <= 1'b0;
-        cop_mem_aw_done  <= 1'b0;
-        cop_mem_w_done   <= 1'b0;
         cop_mem_killed_r <= 1'b0;
         cop_mem_done_r   <= 1'b0;
         cop_mem_rdata_r  <= 32'b0;
-        cop_mem_addr_r   <= 32'b0;
-        cop_mem_wdata_r  <= 32'b0;
-        cop_mem_size_r   <= 3'b0;
     end else begin
         cop_mem_done_r <= 1'b0;
         if (cop_kill) begin
@@ -159,12 +208,6 @@ always @(posedge clock or posedge reset) begin
                     cop_mem_state <= 2'd2;
                 end
                 if ((cop_mem_state == 2'd1) && cop_mem_wen_r) begin
-                    if (cop_mem_aw_fire) begin
-                        cop_mem_aw_done <= 1'b1;
-                    end
-                    if (cop_mem_w_fire) begin
-                        cop_mem_w_done <= 1'b1;
-                    end
                     if ((cop_mem_aw_done || cop_mem_aw_fire) && (cop_mem_w_done || cop_mem_w_fire)) begin
                         cop_mem_state <= 2'd2;
                     end
@@ -175,23 +218,11 @@ always @(posedge clock or posedge reset) begin
                 2'd0: begin
                     if (cop_mem_new_req) begin
                         cop_mem_state    <= 2'd1;
-                        cop_mem_wen_r    <= cop_mem_req_store;
-                        cop_mem_aw_done  <= 1'b0;
-                        cop_mem_w_done   <= 1'b0;
                         cop_mem_killed_r <= 1'b0;
-                        cop_mem_addr_r   <= cop_mem_req_addr;
-                        cop_mem_wdata_r  <= cop_mem_req_wdata;
-                        cop_mem_size_r   <= cop_mem_req_size;
                     end
                 end
                 2'd1: begin
                     if (cop_mem_wen_r) begin
-                        if (!cop_mem_aw_done && cop_mem_aw_fire) begin
-                            cop_mem_aw_done <= 1'b1;
-                        end
-                        if (!cop_mem_w_done && cop_mem_w_fire) begin
-                            cop_mem_w_done <= 1'b1;
-                        end
                         if ((cop_mem_aw_done || cop_mem_aw_fire) && (cop_mem_w_done || cop_mem_w_fire)) begin
                             cop_mem_state <= 2'd2;
                         end
