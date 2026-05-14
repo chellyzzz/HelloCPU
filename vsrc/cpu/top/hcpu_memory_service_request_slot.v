@@ -1,13 +1,17 @@
 module hcpu_memory_service_request_slot(
     input                               clock,
     input                               reset,
+    input                               slot_clear,
     input                               slot_load,
+    input                               slot_set_resp_pending,
     input                               slot_req_store,
     input              [  31:0]         slot_req_addr,
     input              [  31:0]         slot_req_wdata,
     input              [   2:0]         slot_req_size,
     input                               slot_aw_fire,
     input                               slot_w_fire,
+    output reg                          slot_valid,
+    output reg                          slot_resp_pending,
     output reg                          slot_store,
     output reg                          slot_aw_done,
     output reg                          slot_w_done,
@@ -23,6 +27,8 @@ assign slot_store_launch_done = slot_store && (slot_aw_done || slot_aw_fire) && 
 
 always @(posedge clock or posedge reset) begin
     if (reset) begin
+        slot_valid   <= 1'b0;
+        slot_resp_pending <= 1'b0;
         slot_store   <= 1'b0;
         slot_aw_done <= 1'b0;
         slot_w_done  <= 1'b0;
@@ -30,7 +36,15 @@ always @(posedge clock or posedge reset) begin
         slot_wdata   <= 32'b0;
         slot_size    <= 3'b0;
     end else begin
-        if (slot_load) begin
+        if (slot_clear) begin
+            slot_valid        <= 1'b0;
+            slot_resp_pending <= 1'b0;
+            slot_store        <= 1'b0;
+            slot_aw_done      <= 1'b0;
+            slot_w_done       <= 1'b0;
+        end else if (slot_load) begin
+            slot_valid        <= 1'b1;
+            slot_resp_pending <= 1'b0;
             slot_store   <= slot_req_store;
             slot_aw_done <= 1'b0;
             slot_w_done  <= 1'b0;
@@ -38,6 +52,9 @@ always @(posedge clock or posedge reset) begin
             slot_wdata   <= slot_req_wdata;
             slot_size    <= slot_req_size;
         end else begin
+            if (slot_set_resp_pending) begin
+                slot_resp_pending <= 1'b1;
+            end
             if (slot_aw_fire) begin
                 slot_aw_done <= 1'b1;
             end

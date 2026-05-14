@@ -220,6 +220,9 @@ int main(int argc, char **argv) {
 
     if (killed_first_cop_read && top->tb_cop_mem_killed && top->tb_cop_mem_state == 2) {
       observed_killed_drain = true;
+      if (!top->tb_cop_mem_resp_pending) {
+        return fail("killed COP read lost response-pending state while draining");
+      }
       if (top->tb_cop_mem_resp_valid || top->tb_mem_service_resp_valid) {
         return fail("killed COP memory exposed response while draining");
       }

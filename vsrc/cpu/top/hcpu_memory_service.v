@@ -53,6 +53,7 @@ module hcpu_memory_service(
     output                              mem_service_resp_valid,
     output             [  31:0]         mem_service_resp_rdata,
     output reg         [   1:0]         cop_mem_state,
+    output                              cop_mem_slot_resp_pending_o,
     output                              cop_mem_wen_r,
     output                              cop_mem_aw_done,
     output                              cop_mem_w_done,
@@ -88,11 +89,18 @@ module hcpu_memory_service(
 
 reg                    [  31:0]         cop_mem_rdata_r;
 wire                                    cop_mem_new_req;
+wire                                    cop_mem_slot_clear;
 wire                                    cop_mem_slot_load;
+wire                                    cop_mem_slot_set_resp_pending;
+wire                                    cop_mem_slot_valid;
+wire                                    cop_mem_slot_resp_pending;
 wire                                    cop_mem_store_accepted;
 wire                                    cop_mem_store_launch_done;
+wire                                    cop_mem_resp_wait_fire;
+wire                                    cop_mem_pre_accept_kill;
 
-assign cop_mem_bus_active = (cop_mem_state != 2'd0);
+assign cop_mem_bus_active = cop_mem_slot_valid;
+assign cop_mem_slot_resp_pending_o = cop_mem_slot_resp_pending;
 assign cop_mem_resp_active = cop_mem_bus_active || cop_mem_done_r;
 assign cop_mem_resp_valid = cop_mem_done_r && !cop_mem_killed_r;
 assign cop_mem_resp_rdata = cop_mem_rdata_r;
@@ -105,19 +113,31 @@ assign mem_service_req_wdata = mem_owner_cop_active ? cop_mem_wdata_r : scalar_m
 assign mem_service_req_size = mem_owner_cop_active ? cop_mem_size_r : scalar_mem_req_size;
 assign mem_service_resp_valid = cop_mem_resp_active ? cop_mem_resp_valid : scalar_mem_resp_valid;
 assign mem_service_resp_rdata = cop_mem_resp_active ? cop_mem_resp_rdata : scalar_mem_resp_rdata;
-assign cop_mem_new_req = cop_mem_req_valid && (cop_mem_state == 2'd0) && !cop_mem_done_r && !mem_owner_scalar_active;
-assign cop_mem_slot_load = (cop_mem_state == 2'd0) && cop_mem_new_req;
+assign cop_mem_new_req = cop_mem_req_valid && !cop_mem_slot_valid && !cop_mem_done_r && !mem_owner_scalar_active;
+assign cop_mem_pre_accept_kill = ((cop_mem_state == 2'd1) && !cop_mem_wen_r && !cop_mem_ar_fire) ||
+                                 ((cop_mem_state == 2'd1) && cop_mem_wen_r && !cop_mem_store_accepted);
+assign cop_mem_resp_wait_fire = (cop_mem_state == 2'd2) && cop_mem_slot_resp_pending &&
+                                (cop_mem_wen_r ? cop_mem_b_fire : cop_mem_r_fire);
+assign cop_mem_slot_clear = (cop_mem_state == 2'd3) || (cop_kill && cop_mem_pre_accept_kill) ||
+                            (cop_mem_killed_r && cop_mem_resp_wait_fire);
+assign cop_mem_slot_load = cop_mem_new_req;
+assign cop_mem_slot_set_resp_pending = ((cop_mem_state == 2'd1) && !cop_mem_wen_r && cop_mem_ar_fire) ||
+                                       ((cop_mem_state == 2'd1) && cop_mem_store_launch_done);
 
 hcpu_memory_service_request_slot u_memory_service_request_slot(
     .clock                             (clock                     ),
     .reset                             (reset                     ),
+    .slot_clear                        (cop_mem_slot_clear        ),
     .slot_load                         (cop_mem_slot_load         ),
+    .slot_set_resp_pending             (cop_mem_slot_set_resp_pending),
     .slot_req_store                    (cop_mem_req_store         ),
     .slot_req_addr                     (cop_mem_req_addr          ),
     .slot_req_wdata                    (cop_mem_req_wdata         ),
     .slot_req_size                     (cop_mem_req_size          ),
     .slot_aw_fire                      (cop_mem_aw_fire           ),
     .slot_w_fire                       (cop_mem_w_fire            ),
+    .slot_valid                        (cop_mem_slot_valid        ),
+    .slot_resp_pending                 (cop_mem_slot_resp_pending ),
     .slot_store                        (cop_mem_wen_r             ),
     .slot_aw_done                      (cop_mem_aw_done           ),
     .slot_w_done                       (cop_mem_w_done            ),
@@ -195,15 +215,12 @@ always @(posedge clock or posedge reset) begin
     end else begin
         cop_mem_done_r <= 1'b0;
         if (cop_kill) begin
-            if ((cop_mem_state == 2'd1) && !cop_mem_wen_r && !cop_mem_ar_fire) begin
-                cop_mem_state <= 2'd0;
-                cop_mem_killed_r <= 1'b0;
-            end else if ((cop_mem_state == 2'd1) && cop_mem_wen_r && !cop_mem_store_accepted) begin
+            if (cop_mem_pre_accept_kill) begin
                 cop_mem_state <= 2'd0;
                 cop_mem_killed_r <= 1'b0;
             end else if (cop_mem_state != 2'd0) begin
                 cop_mem_killed_r <= 1'b1;
-                if ((cop_mem_state == 2'd2) && (cop_mem_wen_r ? cop_mem_b_fire : cop_mem_r_fire)) begin
+                if (cop_mem_resp_wait_fire) begin
                     cop_mem_state <= 2'd0;
                     cop_mem_killed_r <= 1'b0;
                 end
@@ -230,7 +247,7 @@ always @(posedge clock or posedge reset) begin
                     end
                 end
                 2'd2: begin
-                    if (cop_mem_wen_r ? cop_mem_b_fire : cop_mem_r_fire) begin
+                    if (cop_mem_resp_wait_fire) begin
                         cop_mem_state <= cop_mem_killed_r ? 2'd0 : 2'd3;
                         cop_mem_rdata_r <= lsu_rdata;
                     end

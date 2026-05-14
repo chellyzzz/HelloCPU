@@ -92,6 +92,7 @@ Done when:
 Current draft:
 
 - Stage 0 remains `2-wide fetch/predecode` with single issue preserved, so no execution-side pairing is required yet.
+- A-line backend constraints for the first issue-capable handoff are pinned in `docs/cpu/a-line-backend-constraints.md`; frontend work should treat that note as the backend truth source until those constraints change.
 - The first issue-capable prototype must reject any same-cycle pair with slot-to-slot `RAW` dependence.
 - The first issue-capable prototype must reject any same-cycle pair with `WAW` to the same architectural `rd`.
 - The first issue-capable prototype must reject any pair that needs the same exclusive backend owner in the same cycle: `LSU`, `MUL/DIV`, `COP`, or redirect/control owner.
@@ -144,6 +145,7 @@ Done when:
 Current preferred first slice:
 
 - `2-wide fetch/predecode` only
+- next handoff-ready intermediate slice may add `dual-lane observe/classify + single-issue fallback`, but still must not dual-dispatch into backend execution
 - single dequeue into the existing decode/register-read path
 - no decode queue, no dual dispatch, no dual writeback in v1
 - an intermediate safe step is allowed: store instruction-local predecode sidecar bits in fetch-queue entries without changing issue width

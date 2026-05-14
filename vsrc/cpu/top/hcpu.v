@@ -76,6 +76,7 @@ module hcpu
     output                              tb_mem_service_req_valid   ,
     output                              tb_mem_service_resp_valid  ,
     output             [   1:0]         tb_cop_mem_state           ,
+    output                              tb_cop_mem_resp_pending    ,
     output                              tb_cop_mem_store           ,
     output                              tb_cop_mem_aw_fire         ,
     output                              tb_cop_mem_w_fire          ,
@@ -300,6 +301,7 @@ wire                   [   2:0]         LSU_ARB_AXI_ARSIZE         ;
 wire                   [   1:0]         LSU_ARB_AXI_ARBURST        ;
 wire                                    LSU_ARB_AXI_RREADY         ;
 wire                   [   1:0]         cop_mem_state              ;
+wire                                    cop_mem_slot_resp_pending  ;
 wire                                    cop_mem_wen_r              ;
 wire                                    cop_mem_aw_done            ;
 wire                                    cop_mem_w_done             ;
@@ -776,6 +778,7 @@ hcpu_memory_service u_memory_service(
     .mem_service_resp_valid            (mem_service_resp_valid    ),
     .mem_service_resp_rdata            (mem_service_resp_rdata    ),
     .cop_mem_state                     (cop_mem_state             ),
+    .cop_mem_slot_resp_pending_o       (cop_mem_slot_resp_pending ),
     .cop_mem_wen_r                     (cop_mem_wen_r             ),
     .cop_mem_aw_done                   (cop_mem_aw_done           ),
     .cop_mem_w_done                    (cop_mem_w_done            ),
@@ -999,6 +1002,7 @@ assign tb_mem_owner_cop_active = mem_owner_cop_active;
 assign tb_mem_service_req_valid = mem_service_req_valid;
 assign tb_mem_service_resp_valid = mem_service_resp_valid;
 assign tb_cop_mem_state = cop_mem_state;
+assign tb_cop_mem_resp_pending = cop_mem_slot_resp_pending;
 assign tb_cop_mem_store = cop_mem_wen_r;
 assign tb_cop_mem_aw_fire = cop_mem_bus_active && cop_mem_aw_fire;
 assign tb_cop_mem_w_fire = cop_mem_bus_active && cop_mem_w_fire;

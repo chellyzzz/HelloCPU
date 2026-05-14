@@ -81,6 +81,10 @@ The current goal is not to redesign the backend into a wide machine now.
 
 The current goal is to make the existing single-issue backend clean enough that a future wider frontend can drive it safely without hidden assumptions around completion, kill, or commit ordering.
 
+Current backend handoff note:
+
+- `docs/cpu/a-line-backend-constraints.md`
+
 ## Recommended Execution Order
 
 1. Audit `accept/done/commit` and `kill/flush` semantics.

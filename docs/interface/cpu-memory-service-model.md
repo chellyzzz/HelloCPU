@@ -240,6 +240,7 @@ Current stable point:
 - the ownership policy, completion routing, and AXI-side service mux now live in one reusable module.
 - the single in-flight service-owned request is now explicit behind `vsrc/cpu/top/hcpu_memory_service_request_slot.v`.
 - the request slot now also makes store `accepted` versus store `launch-done` explicit, so pre-accept kill rules stay local to that single-entry slot instead of spread across top-level state logic.
+- single-entry slot occupancy and response-pending state are now also explicit in that slot, so `hcpu_memory_service` can treat request ownership separately from response visibility without introducing a queue yet.
 - the AXI-side service mux has been split again behind `vsrc/cpu/top/hcpu_memory_service_axi_mux.v` so a later queue/store-buffer stage has an explicit insertion seam.
 - future vector memory can extend `hcpu_memory_service` as another service client instead of re-opening top-level `hcpu.v` policy wiring.
 
