@@ -77,6 +77,7 @@ localparam TYPE_JAL    = 7'b1101111;
 localparam TYPE_B      = 7'b1100011;
 localparam TYPE_FENCE  = 7'b0001111;
 localparam TYPE_COP    = 7'b0001011;
+localparam TYPE_OPV    = 7'b1010111;
 
 // Instruction field extraction
 wire [2:0] func3  = ins[14:12];
@@ -99,8 +100,9 @@ wire TYPES      = (opcode == TYPE_S);
 wire TYPEB      = (opcode == TYPE_B);
 wire TYPEEBRK   = (opcode == TYPE_EBRK);
 wire TYPECOP    = (opcode == TYPE_COP);
+wire TYPEVSETIVLI = (opcode == TYPE_OPV) && (func3 == 3'b111) && (ins[31] == 1'b0);
 wire valid_ins  = TYPEI || TYPEI_LOAD || TYPER || TYPELUI || TYPEAUIPC ||
-                  TYPEJAL || TYPEJALR || TYPES || TYPEB || TYPEEBRK || TYPECOP ||
+                  TYPEJAL || TYPEJALR || TYPES || TYPEB || TYPEEBRK || TYPECOP || TYPEVSETIVLI ||
                   (opcode == TYPE_FENCE);
 
 // ========================================================================
@@ -113,6 +115,7 @@ assign o_imm =
     (TYPEJALR)              ? {{20{ins[31]}},ins[31:20]}              :
     (TYPEB)                 ? {{20{ins[31]}},ins[7],ins[30:25],ins[11:8],1'b0} :
     (TYPES)                 ? {{20{ins[31]}},ins[31:25],ins[11:7]}    :
+    (TYPEVSETIVLI)          ? {21'b0, ins[30:20]}                     :
     32'b0;
 
 // ========================================================================
@@ -188,6 +191,7 @@ assign o_src_sel2 =
     (TYPEI       || TYPELUI    || TYPEAUIPC  ||
      TYPEI_LOAD  || TYPES)                     ? SEL2_IMM :
      (TYPER       || TYPEB || TYPECOP)         ? SEL2_REG :
+     (TYPEVSETIVLI)                             ? SEL2_IMM :
      (TYPEJAL     || TYPEJALR)                  ? SEL2_4   :
     (TYPEEBRK && func3 == FUN3_CSRRW)          ? SEL2_IMM :
     (TYPEEBRK && func3 == FUN3_CSRRS)          ? SEL2_REG :
@@ -197,7 +201,7 @@ assign o_src_sel2 =
 // M-extension
 // ========================================================================
 assign o_muldiv = TYPEM;
-assign o_is_cop_insn = TYPECOP;
+assign o_is_cop_insn = TYPECOP || TYPEVSETIVLI;
 
 // ========================================================================
 // Boolean control signals

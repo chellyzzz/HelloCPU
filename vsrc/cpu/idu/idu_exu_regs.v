@@ -103,7 +103,9 @@ assign sel_src1 =   ({32{i_ecall}}& i_mtvec )|
                     ({32{i_mret}} & i_mepc  )|
                     i_src1;
 
-assign sel_src2 =   ({32{i_csr_src_sel}} & i_csr_rs2) | i_src2;
+assign sel_src2 =   ({32{i_csr_src_sel}} & i_csr_rs2) |
+                    ({32{i_is_cop_insn && (i_src_sel2 == 3'b010)}} & i_imm) |
+                    ({32{!(i_csr_src_sel || (i_is_cop_insn && (i_src_sel2 == 3'b010)))}} & i_src2);
 
 always @(posedge clock or posedge reset) begin
     if(reset) begin

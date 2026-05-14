@@ -166,7 +166,7 @@ P2 的第一步仍保持 COP-local，新增 custom COP `vsetivli_p` 作为标准
 |--------|--------|------|------|
 | 0 | 19 | `vsetivli_p` | `rs1=AVL`、`rs2=prototype vtype immediate`，同时写入 `vl/vtype`，返回新 `vl` |
 
-这两个编码仍属于 custom COP prototype。标准 OP-V decode、trap/illegal path、CSR 可见状态都留给后续 CPU interface review。
+这两个编码仍属于 custom COP prototype。标准 OP-V `vsetivli` 最小 slice 已复用相同状态语义；其他 OP-V decode、trap/illegal path、CSR 可见状态仍留给后续 review。
 
 ## 八、进入标准 RVV decode 的条件
 
@@ -178,7 +178,7 @@ P2 的第一步仍保持 COP-local，新增 custom COP `vsetivli_p` 作为标准
 - custom `vstate_add` 已证明 `vl/vtype/vill` gating 可用。
 - custom `vsetivli_p` 已证明 AVL 饱和和 `vtype` 配置路径可用。
 - 标准 RVV unsupported 行为已有设计文档，避免 silent wrong execution。
-- CPU decode/trap/CSR interface review 完成。
+- 标准 OP-V `vsetivli` 最小 slice 已验证；进入其他 OP-V decode 前 CPU decode/trap/CSR interface review 仍需完成。
 
 标准 decode review 草案见 `rvv-standard-decode-p2-review.md`。
 

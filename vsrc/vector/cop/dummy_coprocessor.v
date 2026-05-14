@@ -54,6 +54,7 @@ wire        vtype_write;
 wire        vtype_read;
 wire        vstate_add;
 wire        vsetivli_proto;
+wire        vsetivli_standard;
 wire [31:0] scalar_lane_result;
 wire [31:0] vrf_op_result;
 wire [31:0] vlen_next_value;
@@ -77,7 +78,8 @@ hcpu_vector_cop_decode u_cop_decode(
     .o_vtype_write(vtype_write),
     .o_vtype_read(vtype_read),
     .o_vstate_add(vstate_add),
-    .o_vsetivli_proto(vsetivli_proto)
+    .o_vsetivli_proto(vsetivli_proto),
+    .o_vsetivli_standard(vsetivli_standard)
 );
 
 hcpu_vector_lane_alu u_scalar_lane_alu(
@@ -104,7 +106,8 @@ assign vtype_write_value = ((i_src1[2:0] == 3'd0) || (i_src1[2:0] == 3'd2)) && (
 assign vsetivli_vtype_value = ((i_src2[2:0] == 3'd0) || (i_src2[2:0] == 3'd2)) && (i_src2[5:3] == 3'd0) ?
                               {29'b0, i_src2[2:0]} :
                               32'h80000000;
-assign vtype_next_value = vsetivli_proto ? vsetivli_vtype_value : vtype_write_value;
+wire vsetivli_any = vsetivli_proto || vsetivli_standard;
+assign vtype_next_value = vsetivli_any ? vsetivli_vtype_value : vtype_write_value;
 assign vstate_add_result = vtype[31] ? 32'h80000000 :
                            (vtype[2:0] == 3'd2) ? ((vlen == 32'b0) ? 32'b0 : (i_src1 + i_src2)) :
                            (vtype[2:0] == 3'd0) ? {
@@ -115,7 +118,8 @@ assign vstate_add_result = vtype[31] ? 32'h80000000 :
                            } : 32'h80000000;
 wire [1:0]  vrf_idx   = i_src2[1:0];
 wire        is_mem_op = is_mem_load || is_mem_store;
-wire [31:0] cop_result = (cop_funct3 == 3'b001) ? scalar_lane_result :
+wire [31:0] cop_result = vsetivli_any ? vlen_next_value :
+                          (cop_funct3 == 3'b001) ? scalar_lane_result :
                           (cop_funct3 == 3'b010) ? scalar_lane_result :
                           (cop_funct3 == 3'b011) ? scalar_lane_result :
                           (cop_funct3 == 3'b100) ? scratch :
@@ -125,7 +129,6 @@ wire [31:0] cop_result = (cop_funct3 == 3'b001) ? scalar_lane_result :
                           vtype_write ? vtype :
                           vtype_read ? vtype :
                           vstate_add ? vstate_add_result :
-                          vsetivli_proto ? vlen_next_value :
                           is_vrf_lane ? vrf_op_result :
                           is_vrf_op  ? vrf[vrf_idx] :
                           scalar_op;
@@ -190,9 +193,9 @@ always @(posedge clock or posedge reset) begin
             latched_res <= cop_result;
             pending_scratch_write <= scratch_write;
             pending_scratch_value <= i_src1;
-            pending_vlen_write    <= vlen_write || vsetivli_proto;
+            pending_vlen_write    <= vlen_write || vsetivli_any;
             pending_vlen_value    <= vlen_next_value;
-            pending_vtype_write   <= vtype_write || vsetivli_proto;
+            pending_vtype_write   <= vtype_write || vsetivli_any;
             pending_vtype_value   <= vtype_next_value;
             if (is_mem_op) begin
                 countdown    <= 2'b0;

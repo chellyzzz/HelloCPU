@@ -11,7 +11,7 @@
 - custom `vsetivli_p` vset-like prototype。
 - killed/flush pending state write 不提交。
 
-下一步只建议评审标准 OP-V `vsetivli`，不同时引入完整 `vsetvli`、`vsetvl`、vector ALU 或 vector memory 标准路径。
+本轮自审批准并落地标准 OP-V `vsetivli` 最小 slice，不同时引入完整 `vsetvli`、`vsetvl`、vector ALU 或 vector memory 标准路径。
 
 ## 二、当前非目标
 
@@ -23,16 +23,17 @@
 
 ## 三、建议的第一条标准入口
 
-第一条标准入口建议只做 `vsetivli` decode slice。
+第一条标准入口只做 `vsetivli` decode slice。
 
 建议范围：
 
 - 只识别 OP-V `vsetivli` 编码。
-- `AVL` 来自 immediate/uimm path。
+- `AVL` 来自 `rs1` GPR path。
 - `vtypei` 只接受 prototype 支持范围：`SEW=8/32`、`LMUL=m1`。
 - `vl` 按 `VLMAX=4` 饱和。
 - unsupported `vtypei` 设置 `vill=1`。
 - 返回新 `vl` 到 `rd`。
+- other OP-V encodings fail closed，不进入 COP execute path。
 
 建议继续沿用单发射、最多一个 COP 请求在飞、CPU/WBU 统一提交的 V1 contract。
 
@@ -54,10 +55,10 @@
 - illegal `vtypei` 是设置 `vill=1` 并完成，还是触发 illegal instruction。
 - `vm=0`、unsupported SEW/LMUL、`vstart != 0` future CSR 写入是否必须 fail closed。
 
-C-line 推荐：
+已采用策略：
 
 - `vsetivli` with unsupported `vtypei`：设置 `vill=1` 并返回饱和 `vl`，与当前 prototype 保持一致。
-- unsupported RVV execute-class opcode：不要 silent execute；在 trap path 未冻结前保持 unsupported，不映射到 custom lane op。
+- unsupported RVV execute-class opcode：不进入 COP，不映射到 custom lane op。
 
 ### 4.3 State visibility
 
@@ -67,10 +68,10 @@ C-line 推荐：
 - CPU 是否需要读取 `vl/vtype` 以处理 CSR、trap 或 debug。
 - `vl/vtype` 写入在哪个事件变为 architectural visible：COP done、WBU commit，还是已有 commit-visible control gate。
 
-C-line 推荐：
+已采用策略：
 
 - P2 标准 `vsetivli` 仍复用 COP-local state storage。
-- 写入必须延迟到 completion/commit-visible 风格边界。
+- 写入延迟到当前 COP completion/commit-visible 风格边界。
 - flush/kill 取消 pending `vl/vtype` 写入。
 
 ### 4.4 Response and commit
@@ -89,10 +90,8 @@ C-line 推荐：
 | 测试 | 覆盖点 |
 |------|--------|
 | `rvv-vsetivli-basic` | supported `SEW=8/32, LMUL=m1` 配置和 `rd=vl` |
-| `rvv-vsetivli-illegal-vtype` | unsupported `vtypei` 设置 `vill=1` |
-| `rvv-vsetivli-vl-saturate` | AVL 大于 `VLMAX` 饱和到 4 |
-| `rvv-vsetivli-kill` | killed pending `vl/vtype` 写入不提交 |
-| `rvv-unsupported-opv` | 未支持 OP-V 不 silent execute |
+| `rvv-vsetivli-illegal` | unsupported `vtypei` 设置 `vill=1` |
+| `rvv-unsupported-opv` | 未支持 OP-V fail closed，不进入 COP execute path |
 
 回归要求：
 
@@ -103,12 +102,11 @@ C-line 推荐：
 
 ## 六、推荐落地顺序
 
-1. D-line review 本文档的 decode/illegal/state visibility 决策。
-2. C-line 新增最小 OP-V decode classifier，不接 vector ALU。
-3. 标准 `vsetivli` path 复用当前 `vsetivli_p` 的 state update helper/语义。
-4. 新增标准 directed tests 和 unsupported fail-closed tests。
-5. 通过 focused + P0 smoke 后，再讨论 `vadd.vv` 标准 execute path。
+1. C-line 自审批准最小 OP-V `vsetivli` decode classifier，不接 vector ALU。
+2. 标准 `vsetivli` path 复用当前 `vsetivli_p` 的 state update helper/语义。
+3. 新增标准 directed tests 和 unsupported fail-closed tests。
+4. 通过 focused + P0 smoke 后，再讨论 `vadd.vv` 标准 execute path。
 
 ## 七、当前结论
 
-C-line 当前分支已经证明 state model、consumer 和 vset-like prototype 可工作。下一步风险不在 COP-local datapath，而在 CPU/shared decode、illegal/trap 和 state visibility 边界。标准 OP-V `vsetivli` 进入 RTL 前应先完成 D-line review。
+C-line 当前分支已经证明 state model、consumer、custom vset-like prototype 和标准 OP-V `vsetivli` 最小 slice 可工作。下一步风险转移到标准 execute-class OP-V、illegal/trap 和 CSR 可见性边界，进入 `vadd.vv` 标准路径前仍需单独 review。

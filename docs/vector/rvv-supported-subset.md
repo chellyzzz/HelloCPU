@@ -15,7 +15,7 @@
 
 ## 二、当前结论
 
-当前 HelloCPU 尚未声明支持标准 RVV。现有能力属于 `custom-0` COP prototype，用于验证 CPU/COP issue、kill、VRF、memory owner 和 pending-kill 语义。
+当前 HelloCPU 只声明支持标准 OP-V `vsetivli` 的最小 decode slice。其他 RVV 能力仍属于 `custom-0` COP prototype，用于验证 CPU/COP issue、kill、VRF、memory owner 和 pending-kill 语义。
 
 标准 OP-V `vsetivli` 进入 RTL 前的 interface review 草案见 `rvv-standard-decode-p2-review.md`。
 
@@ -33,8 +33,8 @@
 
 | 项目 | 当前状态 | 第一批 RVV 目标 | 备注 |
 |------|----------|-----------------|------|
-| `vl` | prototype | planned | 当前 custom COP `vlen` 和 `vsetivli_p` 已按 `VLMAX=4` 饱和，仍不是标准 `vl` |
-| `vtype` | prototype | planned | P1C/P2 custom COP prototype 已覆盖 supported/illegal/kill/consumer |
+| `vl` | supported | planned | 标准 `vsetivli` 和 custom prototype 均按 `VLMAX=4` 饱和 |
+| `vtype` | supported | planned | 标准 `vsetivli` 支持 `SEW=8/32, LMUL=m1`，unsupported `vtypei` 置 `vill=1` |
 | `vstart` | unsupported | unsupported | 第一批固定视为 0，不支持中途重启 |
 | `vxrm` | unsupported | deferred | 饱和/舍入类指令前不需要 |
 | `vxsat` | unsupported | deferred | 饱和类指令前不需要 |
@@ -58,7 +58,7 @@
 | 指令 | 当前状态 | 第一批 RVV 目标 | 备注 |
 |------|----------|-----------------|------|
 | `vsetvli` | unsupported | planned | 尚未接标准 decode |
-| `vsetivli` | prototype | planned | 当前仅有 custom `vsetivli_p` prototype，不是标准编码 |
+| `vsetivli` | supported | planned | 只支持 OP-V 最小 decode slice，未扩展到完整 RVV CSR/trap 语义 |
 | `vsetvl` | unsupported | deferred | 可等 `vsetvli` 稳定后做 |
 
 ## 六、整数 ALU 指令
@@ -119,8 +119,8 @@
 
 | 项目 | 当前状态 | 第一批 RVV 目标 | 备注 |
 |------|----------|-----------------|------|
-| unsupported RVV opcode | unsupported | planned | 必须明确 illegal/unsupported，不 silent execute |
-| illegal `vtype` | prototype | planned | P1B unsupported `SEW/LMUL` 置 `vill=1` |
+| unsupported RVV opcode | unsupported | planned | 当前 fail closed，不进入 COP execute path |
+| illegal `vtype` | supported | planned | 标准 `vsetivli` 和 custom prototype 均置 `vill=1` |
 | misaligned vector memory | unsupported | unsupported | 第一批可要求测试使用支持的地址 |
 | vector memory fault | unsupported | deferred | 需要 CPU exception/tval review |
 | precise vector exception | unsupported | deferred | 需要 `vstart` 语义 |
@@ -137,7 +137,8 @@
 | custom COP `vtype` prototype | supported by prototype tests | 保留到标准 `vset*` path 稳定 |
 | custom COP state consumer | supported by prototype tests | `vstate_add` 覆盖 `vl/vtype/vill` gating |
 | custom COP `vsetivli_p` | supported by prototype tests | 标准 `vsetivli` 前的低风险 prototype |
-| RVV `vset*` | unsupported | planned |
+| RVV `vsetivli` | supported by focused tests | 当前只支持最小 OP-V `vsetivli` |
+| other RVV `vset*` | unsupported | planned |
 | RVV ALU directed | unsupported | planned |
 | RVV load/store directed | unsupported | planned |
 | RVV load/compute/store program | unsupported | planned |
@@ -150,7 +151,7 @@
 - `VLEN` 固定小宽度。
 - `SEW=8` 和/或 `SEW=32`。
 - `LMUL=m1`。
-- `vsetvli` 或 `vsetivli`。
+- `vsetivli` 最小 slice。
 - `vadd.vv`、`vadd.vx`、`vand.vv`、`vor.vv`、`vxor.vv`、基础 move。
 - `vle8.v`/`vse8.v` 或 `vle32.v`/`vse32.v`。
 - `vm=1` 全使能。
