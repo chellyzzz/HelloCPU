@@ -31,12 +31,13 @@ wire pair_clean = i_pair_candidate_alu_branch && !i_pair_has_raw && !i_pair_has_
                   !i_pair_has_dual_writeback && !i_pair_has_exclusive_backend &&
                   !i_pair_has_redirect_control;
 wire pair_direction_ok = i_pair_order_alu_then_branch && !i_pair_order_branch_then_alu;
+wire slot1_visible = i_pair_valid && pair_clean && pair_direction_ok;
 
 assign o_pair_visible = i_pair_valid;
-assign o_allow_second = i_pair_valid && pair_clean && pair_direction_ok && i_downstream_ready &&
+assign o_allow_second = slot1_visible && i_downstream_ready &&
                         !i_cop_pipeline_active && !i_frontend_flush;
-assign o_select_slot1_youngest = o_allow_second;
-assign o_select_slot1_branch = o_allow_second;
+assign o_select_slot1_youngest = slot1_visible;
+assign o_select_slot1_branch = slot1_visible;
 assign o_block_raw = i_pair_valid && i_pair_has_raw;
 assign o_block_waw = i_pair_valid && i_pair_has_waw;
 assign o_block_dual_writeback = i_pair_valid && i_pair_has_dual_writeback;

@@ -250,6 +250,12 @@ Current slot1 decode surface:
 - The slot-1 decode surface is assertion-checked to remain a non-writing branch decode.
 - The live single-issue path still uses only the original `idu1 -> idu_exu_regs` flow.
 
+Current slot1 observability refinement:
+
+- `slot1` packing visibility is now decoupled from `allow_second` so the surface stays observable even when downstream backpressure blocks any real second-lane fire.
+- `allow_second` remains the stricter execution gate for any future real dual-lane enable.
+- A new top-level regression now watches the live packed slot-1 surface on `if-else.bin` and confirms that it remains branch-only and non-binding.
+
 Current pairing/hazard draft direction:
 
 - Near-term real slice stays `2-wide fetch/predecode` with single issue preserved.

@@ -599,6 +599,12 @@ Current slot1 decode refinement:
 2. this decode surface is used only for observability and assertion coverage, not for execution or queue dequeue side effects
 3. the current assertions require that any visible slot-1 decode still behaves like a non-writing younger branch
 
+Current slot1 observability refinement:
+
+1. slot-1 packing visibility is now allowed to stay high for a clean directional pair even when downstream readiness, COP ownership, or frontend flush block `allow_second`
+2. this separates `what the machine can currently observe` from `what the machine may eventually fire`
+3. top-level regression coverage now checks both cases: slot 1 visible-and-fireable, and slot 1 visible-but-blocked
+
 This keeps the policy executable while preserving the current single-issue machine behavior.
 
 ## Immediate Follow-Up

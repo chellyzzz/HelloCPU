@@ -35,7 +35,7 @@ VECTOR_TESTS := $(basename $(notdir $(wildcard $(SW_DIR)/tests/vector-tests/*.c)
 
 # === Targets ===
 
-.PHONY: all sim sw clean run_% run_all bench bench_only branch_trace predictor_sim ifu_idu_backpressure exu_wbu_flush exu_result_visibility cop_backend_flush idu_cop_regs commit_visible_ctrl ifu_fetch_queue decode_pair_policy top_fetch_queue_flush top_pc_update_flush cop_mem_pending_kill cop_mem_store_directed cop_mem_store_kill scalar_mem_pending_kill backend_contract_checks embench-build embench-run embench-run-one
+.PHONY: all sim sw clean run_% run_all bench bench_only branch_trace predictor_sim ifu_idu_backpressure exu_wbu_flush exu_result_visibility cop_backend_flush idu_cop_regs commit_visible_ctrl ifu_fetch_queue decode_pair_policy top_fetch_queue_flush top_pc_update_flush top_slot1_observability cop_mem_pending_kill cop_mem_store_directed cop_mem_store_kill scalar_mem_pending_kill backend_contract_checks embench-build embench-run embench-run-one
 
 all: sim sw
 
@@ -199,6 +199,13 @@ top_pc_update_flush: sim sw
 		--Mdir $(BUILD_DIR)/top_pc_update_flush_tb \
 		-o $(abspath $(BUILD_DIR)/Vtop_pc_update_flush_tb)
 	@$(BUILD_DIR)/Vtop_pc_update_flush_tb $(if $(IMG),$(IMG),$(SW_DIR)/build/scalar/pc-update-ecall.bin) --pc-update
+
+top_slot1_observability: sim sw
+	$(VERILATOR) --top-module $(TOPNAME) +incdir+vsrc/cpu/include --cc --exe --build -O3 -Wno-fatal -Wno-style --timescale "1ns/1ns" --no-timing -j 8 $(EXTRA_VERILATOR_FLAGS) \
+		$(VSRCS) $(abspath $(SIM_DIR)/top_slot1_observability_tb.cpp) \
+		--Mdir $(BUILD_DIR)/top_slot1_observability_tb \
+		-o $(abspath $(BUILD_DIR)/Vtop_slot1_observability_tb)
+	@$(BUILD_DIR)/Vtop_slot1_observability_tb $(if $(IMG),$(IMG),$(SW_DIR)/build/scalar/if-else.bin)
 
 cop_mem_pending_kill: sw
 	$(VERILATOR) --top-module cop_mem_pending_kill_top +incdir+vsrc/cpu/include --cc --exe --build -Wno-fatal -Wno-style \

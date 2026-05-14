@@ -47,6 +47,8 @@ int main(int argc, char **argv) {
   top->eval();
 
   fail |= expect(top->o_allow_second == 0, "downstream backpressure blocks slot1 allowance");
+  fail |= expect(top->o_select_slot1_youngest == 1, "downstream backpressure still leaves slot1 packing visible");
+  fail |= expect(top->o_select_slot1_branch == 1, "downstream backpressure still classifies slot1 as branch");
   fail |= expect(top->o_block_downstream_busy == 1, "downstream backpressure is observable");
 
   top->i_downstream_ready = 1;
@@ -98,6 +100,7 @@ int main(int argc, char **argv) {
   top->eval();
 
   fail |= expect(top->o_allow_second == 0, "cop pipeline activity blocks slot1 allowance");
+  fail |= expect(top->o_select_slot1_youngest == 1, "cop pipeline activity does not hide slot1 packing");
   fail |= expect(top->o_block_cop_pipeline == 1, "cop pipeline block reason is observable");
 
   top->i_cop_pipeline_active = 0;
@@ -105,6 +108,7 @@ int main(int argc, char **argv) {
   top->eval();
 
   fail |= expect(top->o_allow_second == 0, "frontend flush blocks slot1 allowance");
+  fail |= expect(top->o_select_slot1_youngest == 1, "frontend flush does not hide slot1 packing before queue flush lands");
   fail |= expect(top->o_block_frontend_flush == 1, "frontend flush block reason is observable");
 
   delete top;
