@@ -235,6 +235,20 @@ int main(int argc, char **argv) {
       fail |= expect(root->sim_top__DOT__cpu__DOT__decode_slot1_ins ==
                          root->sim_top__DOT__cpu__DOT__ifu_pair_younger_ins,
                      "slot1 instruction tracks the younger queued entry");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__decode_slot1_rd ==
+                         root->sim_top__DOT__cpu__DOT__ifu_pair_younger_predecode_rd,
+                     "slot1 rd metadata matches the younger sidecar");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__decode_slot1_rs1 ==
+                         root->sim_top__DOT__cpu__DOT__ifu_pair_younger_predecode_rs1_addr,
+                     "slot1 rs1 metadata matches the younger sidecar");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__decode_slot1_rs2 ==
+                         root->sim_top__DOT__cpu__DOT__ifu_pair_younger_predecode_rs2_addr,
+                     "slot1 rs2 metadata matches the younger sidecar");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__decode_slot1_wen ==
+                         root->sim_top__DOT__cpu__DOT__ifu_pair_younger_predecode_wen,
+                     "slot1 wen metadata matches the younger sidecar");
+      fail |= expect((root->sim_top__DOT__cpu__DOT__decode_slot1_imm & 1u) == 0,
+                     "slot1 branch immediate remains instruction-aligned");
       fail |= expect(root->sim_top__DOT__cpu__DOT__decode_slot1_pc !=
                          root->sim_top__DOT__cpu__DOT__decode_slot0_pc,
                      "slot1 pc stays distinct from slot0 pc");

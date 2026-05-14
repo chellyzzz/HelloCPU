@@ -384,6 +384,10 @@ wire       ifu_pair_order_branch_then_alu;
 wire      ifu_pair_younger_valid /* verilator public_flat */;
 wire [31:0] ifu_pair_younger_pc /* verilator public_flat */;
 wire [31:0] ifu_pair_younger_ins /* verilator public_flat */;
+wire [4:0] ifu_pair_younger_predecode_rd /* verilator public_flat */;
+wire [4:0] ifu_pair_younger_predecode_rs1_addr /* verilator public_flat */;
+wire [4:0] ifu_pair_younger_predecode_rs2_addr /* verilator public_flat */;
+wire      ifu_pair_younger_predecode_wen /* verilator public_flat */;
 wire       ifu_pair_younger_predecode_brch;
 wire       decode_pair_visible;
 wire      decode_pair_allow_second /* verilator public_flat */;
@@ -406,6 +410,11 @@ wire [31:0] decode_slot1_ins /* verilator public_flat */;
 wire      decode_slot1_is_branch /* verilator public_flat */;
 wire      decode_slot1_wen /* verilator public_flat */;
 wire      decode_slot1_brch /* verilator public_flat */;
+wire [31:0] decode_slot1_imm /* verilator public_flat */;
+wire [4:0] decode_slot1_rd /* verilator public_flat */;
+wire [4:0] decode_slot1_rs1 /* verilator public_flat */;
+wire [4:0] decode_slot1_rs2 /* verilator public_flat */;
+wire [2:0] decode_slot1_exu_opt /* verilator public_flat */;
 
 hcpu_CSR_RegisterFile Csrs(
     .clock                             (clock                     ),
@@ -576,6 +585,10 @@ hcpu_ifu_fetch_queue ifu_fetch_queue(
     .o_pair_younger_valid              (ifu_pair_younger_valid),
     .o_pair_younger_pc                 (ifu_pair_younger_pc),
     .o_pair_younger_ins                (ifu_pair_younger_ins),
+    .o_pair_younger_predecode_rd       (ifu_pair_younger_predecode_rd),
+    .o_pair_younger_predecode_rs1_addr (ifu_pair_younger_predecode_rs1_addr),
+    .o_pair_younger_predecode_rs2_addr (ifu_pair_younger_predecode_rs2_addr),
+    .o_pair_younger_predecode_wen      (ifu_pair_younger_predecode_wen),
     .o_pair_younger_predecode_brch     (ifu_pair_younger_predecode_brch)
 );
 
@@ -910,12 +923,12 @@ hcpu_IDU idu_slot1(
     .clock                             (clock                     ),
     .ins                               (decode_slot1_ins          ),
     .reset                             (reset                     ),
-    .o_imm                             (                          ),
-    .o_rd                              (                          ),
-    .o_rs1                             (                          ),
-    .o_rs2                             (                          ),
+    .o_imm                             (decode_slot1_imm          ),
+    .o_rd                              (decode_slot1_rd           ),
+    .o_rs1                             (decode_slot1_rs1          ),
+    .o_rs2                             (decode_slot1_rs2          ),
     .o_csr_addr                        (                          ),
-    .o_exu_opt                         (                          ),
+    .o_exu_opt                         (decode_slot1_exu_opt      ),
     .o_alu_opt                         (                          ),
     .o_wen                             (decode_slot1_wen          ),
     .o_csr_wen                         (                          ),
@@ -946,6 +959,14 @@ always @(*) begin
         $fatal(1, "hcpu slot1 decode surface incorrectly made the packed younger branch writable");
     if (decode_slot1_valid && (decode_slot1_pc == decode_slot0_pc))
         $fatal(1, "hcpu slot packing reused the older pc for slot1");
+    if (decode_slot1_valid && (decode_slot1_rd != ifu_pair_younger_predecode_rd))
+        $fatal(1, "hcpu slot1 rd metadata diverged from younger sidecar");
+    if (decode_slot1_valid && (decode_slot1_rs1 != ifu_pair_younger_predecode_rs1_addr))
+        $fatal(1, "hcpu slot1 rs1 metadata diverged from younger sidecar");
+    if (decode_slot1_valid && (decode_slot1_rs2 != ifu_pair_younger_predecode_rs2_addr))
+        $fatal(1, "hcpu slot1 rs2 metadata diverged from younger sidecar");
+    if (decode_slot1_valid && (decode_slot1_wen != ifu_pair_younger_predecode_wen))
+        $fatal(1, "hcpu slot1 wen metadata diverged from younger sidecar");
 end
 `endif
 

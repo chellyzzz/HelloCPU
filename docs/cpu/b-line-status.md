@@ -256,6 +256,12 @@ Current slot1 observability refinement:
 - `allow_second` remains the stricter execution gate for any future real dual-lane enable.
 - A new top-level regression now watches the live packed slot-1 surface on `if-else.bin` and confirms that it remains branch-only and non-binding.
 
+Current slot1 decode metadata surface:
+
+- The younger fetch-queue sidecar now exposes `rd`, `rs1`, `rs2`, and `wen` for the packed slot-1 candidate.
+- The non-binding slot-1 decode surface now exposes `imm`, `rd`, `rs1`, `rs2`, and `exu_opt` in addition to `pc`, `ins`, `brch`, and `wen`.
+- Top-level assertions and regression coverage now check that slot-1 decode metadata matches the younger queue sidecar while remaining non-binding.
+
 Current pairing/hazard draft direction:
 
 - Near-term real slice stays `2-wide fetch/predecode` with single issue preserved.

@@ -605,6 +605,12 @@ Current slot1 observability refinement:
 2. this separates `what the machine can currently observe` from `what the machine may eventually fire`
 3. top-level regression coverage now checks both cases: slot 1 visible-and-fireable, and slot 1 visible-but-blocked
 
+Current slot1 metadata refinement:
+
+1. the younger fetch-queue sidecar now exports `rd`, `rs1`, `rs2`, and `wen` for the packed slot-1 candidate
+2. the top-level slot-1 decode surface now exports `imm`, `rd`, `rs1`, `rs2`, and `exu_opt` for observability
+3. non-synthesis assertions now lock the slot-1 decode metadata to the younger sidecar so this surface stays executable but non-binding
+
 This keeps the policy executable while preserving the current single-issue machine behavior.
 
 ## Immediate Follow-Up

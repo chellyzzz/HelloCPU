@@ -88,12 +88,20 @@ static int expect_pair_younger(Vhcpu_ifu_fetch_queue *top,
                                bool valid,
                                uint32_t pc,
                                uint32_t ins,
+                               uint32_t rd,
+                               uint32_t rs1,
+                               uint32_t rs2,
+                               bool wen,
                                bool brch,
                                const char *context) {
   int fail = 0;
   fail |= expect(top->o_pair_younger_valid == valid, context);
   fail |= expect(top->o_pair_younger_pc == pc, context);
   fail |= expect(top->o_pair_younger_ins == ins, context);
+  fail |= expect(top->o_pair_younger_predecode_rd == rd, context);
+  fail |= expect(top->o_pair_younger_predecode_rs1_addr == rs1, context);
+  fail |= expect(top->o_pair_younger_predecode_rs2_addr == rs2, context);
+  fail |= expect(top->o_pair_younger_predecode_wen == wen, context);
   fail |= expect(top->o_pair_younger_predecode_brch == brch, context);
   return fail;
 }
@@ -183,7 +191,7 @@ int main(int argc, char **argv) {
                            "stall preserves first predecode entry");
   fail |= expect_pair_screen(top, true, true, false, false, false, false, false, true, false,
                              "addi plus branch is visible as the first pairing candidate");
-  fail |= expect_pair_younger(top, true, pc_b, ins_b, true,
+  fail |= expect_pair_younger(top, true, pc_b, ins_b, 8, 1, 2, false, true,
                               "branch becomes the younger pairing entry");
 
   top->i_pc = pc_c;
@@ -217,7 +225,7 @@ int main(int argc, char **argv) {
                            "branch predecode preserved after replace");
   fail |= expect_pair_screen(top, true, false, false, false, false, true, false, false, false,
                              "branch plus load is blocked by exclusive backend use");
-  fail |= expect_pair_younger(top, true, pc_c, ins_c, false,
+  fail |= expect_pair_younger(top, true, pc_c, ins_c, 7, 4, 0, true, false,
                               "load becomes the younger entry after replace");
 
   top->i_enq_valid = 0;
@@ -241,7 +249,7 @@ int main(int argc, char **argv) {
   fail |= expect(top->o_enq_ready == 1, "queue is ready again after draining");
   fail |= expect_pair_screen(top, false, false, false, false, false, false, false, false, false,
                              "empty queue has no pair screen result");
-  fail |= expect_pair_younger(top, false, 0, 0, false,
+  fail |= expect_pair_younger(top, false, 0, 0, 0, 0, 0, false, false,
                               "empty queue has no younger pairing entry");
 
   top->i_deq_ready = 0;

@@ -117,6 +117,10 @@ module hcpu_ifu_fetch_queue (
     output                              o_pair_younger_valid,
     output             [31:0]           o_pair_younger_pc,
     output             [31:0]           o_pair_younger_ins,
+    output             [4:0]            o_pair_younger_predecode_rd,
+    output             [4:0]            o_pair_younger_predecode_rs1_addr,
+    output             [4:0]            o_pair_younger_predecode_rs2_addr,
+    output                              o_pair_younger_predecode_wen,
     output                              o_pair_younger_predecode_brch
 );
 
@@ -290,6 +294,10 @@ assign o_pair_order_branch_then_alu = o_pair_valid && pair_order_branch_then_alu
 assign o_pair_younger_valid = o_pair_valid;
 assign o_pair_younger_pc = o_pair_younger_valid ? pc_q[next_head] : 32'b0;
 assign o_pair_younger_ins = o_pair_younger_valid ? ins_q[next_head] : 32'b0;
+assign o_pair_younger_predecode_rd = o_pair_younger_valid ? pair1_rd : 5'b0;
+assign o_pair_younger_predecode_rs1_addr = o_pair_younger_valid ? pair1_rs1_addr : 5'b0;
+assign o_pair_younger_predecode_rs2_addr = o_pair_younger_valid ? pair1_rs2_addr : 5'b0;
+assign o_pair_younger_predecode_wen = o_pair_younger_valid && pair1_wen;
 assign o_pair_younger_predecode_brch = o_pair_younger_valid && pair1_brch;
 
 integer i;

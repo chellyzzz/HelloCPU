@@ -155,6 +155,7 @@ Current preferred first slice:
 - another intermediate safe step is allowed: expose the younger queued entry and derive a non-binding `slot0/slot1` packing skeleton without changing issue width
 - another intermediate safe step is allowed: decode that packed slot-1 surface for observability while still keeping only one live instruction on the execute path
 - another intermediate safe step is allowed: keep slot-1 observability visible under non-fireable conditions, as long as `allow_second` remains the stricter execution gate
+- another intermediate safe step is allowed: expand slot-1 observability to richer decode metadata as long as it remains checked against queue sidecar state and does not feed execution
 
 Done when:
 
