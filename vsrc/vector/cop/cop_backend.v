@@ -17,11 +17,17 @@ module hcpu_cop_backend(
     output              o_pre_ready,
     output              o_post_valid,
     output              o_busy,
+    output     [31:0]   o_vector_vl,
+    output     [31:0]   o_vector_vtype,
+    output     [31:0]   o_vector_vstart,
     output     [31:0]   o_res
 );
 
 wire        cop_done;
 wire [31:0] cop_res;
+wire [31:0] cop_vl;
+wire [31:0] cop_vtype;
+wire [31:0] cop_vstart;
 wire        cop_mem_req_valid;
 wire        cop_mem_req_store;
 wire [31:0] cop_mem_addr;
@@ -44,6 +50,9 @@ hcpu_dummy_coprocessor u_dummy_coprocessor(
     .i_src2     (i_src2),
     .i_ins      (i_ins),
     .o_res      (cop_res),
+    .o_vl       (cop_vl),
+    .o_vtype    (cop_vtype),
+    .o_vstart   (cop_vstart),
     .o_done     (cop_done),
     .o_cop_mem_req_valid (cop_mem_req_valid),
     .o_cop_mem_req_store (cop_mem_req_store),
@@ -62,6 +71,9 @@ assign backend_resp_fire = backend_commit_visible && i_post_ready;
 assign o_pre_ready = !cop_busy && !resp_valid;
 assign o_post_valid = backend_commit_visible;
 assign o_busy = cop_busy || resp_valid;
+assign o_vector_vl = cop_vl;
+assign o_vector_vtype = cop_vtype;
+assign o_vector_vstart = cop_vstart;
 assign o_res = resp_res;
 assign o_cop_mem_req_valid = cop_mem_req_valid;
 assign o_cop_mem_req_store = cop_mem_req_store;

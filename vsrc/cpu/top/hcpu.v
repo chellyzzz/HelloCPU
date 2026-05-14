@@ -290,6 +290,9 @@ wire                   [  31:0]         COP_MEM_WDATA              ;
 wire                   [   2:0]         COP_MEM_SIZE               ;
 wire                                    COP_MEM_RESP_VALID         ;
 wire                   [  31:0]         COP_MEM_RDATA              ;
+wire                   [  31:0]         COP_VECTOR_VL              ;
+wire                   [  31:0]         COP_VECTOR_VTYPE           ;
+wire                   [  31:0]         COP_VECTOR_VSTART          ;
 wire                                    LSU_ARB_AXI_AWVALID        ;
 wire                   [  31:0]         LSU_ARB_AXI_AWADDR         ;
 wire                   [   3:0]         LSU_ARB_AXI_AWID           ;
@@ -759,6 +762,10 @@ hcpu_CSR_RegisterFile Csrs(
     .i_ecall                           (ecall                     ),
     .i_mret                            (mret                      ),
     .i_pc                              (ifu2idu_pc                ),
+    .i_vector_state_wen                (cop_backend_commit_fire    ),
+    .i_vector_vl                       (COP_VECTOR_VL             ),
+    .i_vector_vtype                    (COP_VECTOR_VTYPE          ),
+    .i_vector_vstart                   (COP_VECTOR_VSTART         ),
 
     .i_csr_raddr                       (idu_csr_raddr             ),
     .o_csr_rdata                       (csr_rs2                   ),
@@ -2338,6 +2345,9 @@ hcpu_cop_backend cop_backend1(
     .o_pre_ready                       (cop_exu2idu_ready         ),
     .o_post_valid                      (cop_exu2wbu_valid         ),
     .o_busy                            (cop_backend_busy          ),
+    .o_vector_vl                       (COP_VECTOR_VL             ),
+    .o_vector_vtype                    (COP_VECTOR_VTYPE          ),
+    .o_vector_vstart                   (COP_VECTOR_VSTART         ),
     .o_res                             (cop_exu_res               )
 );
 

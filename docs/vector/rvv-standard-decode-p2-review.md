@@ -205,6 +205,16 @@ Phase 7 只打开 execute-class masked execution，不改变 memory/CSR/trap 边
 - 标准 memory masked forms 仍不支持，`vle/vse` 继续只识别 `vm=1`。
 - `vill=1` 下仍不写 VRF；unsupported OP-V 继续 fail closed。
 
+## 十八、Phase 8 CSR mirror 自审决策
+
+Phase 8 只做 CSR-visible state mirror，不接通完整 illegal instruction trap：
+
+- `vl` CSR `0xc20`、`vtype` CSR `0xc21`、`vstart` CSR `0x008` 可读。
+- CSR mirror 由 COP-local state 在 `cop_backend_commit_fire` 时同步，避免未提交 COP work 变成 CSR-visible。
+- `vstart` mirror 固定为 0；CSR 写 `vstart` 暂时清 0，不支持非零 restart。
+- `vsetivli` bad `vtypei` 继续设置 `vill=1`，CSR `vtype` 可读到 `0x80000000`。
+- Unsupported OP-V 和真正 illegal instruction trap 仍 deferred，等待 CPU exception path review。
+
 ## 十、bitwise VV 自审决策
 
 `vand.vv`、`vor.vv`、`vxor.vv` 作为一个稳定 execute-class 点一起落地：
