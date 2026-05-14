@@ -104,7 +104,14 @@ module hcpu_ifu_fetch_queue (
     output                              o_predecode_is_cop_insn,
     output                              o_predecode_ecall,
     output                              o_predecode_mret,
-    output                              o_predecode_ebreak
+    output                              o_predecode_ebreak,
+    output                              o_pair_valid,
+    output                              o_pair_candidate_alu_branch,
+    output                              o_pair_has_raw,
+    output                              o_pair_has_waw,
+    output                              o_pair_has_dual_writeback,
+    output                              o_pair_has_exclusive_backend,
+    output                              o_pair_has_redirect_control
 );
 
 localparam DEPTH = 2;
@@ -129,6 +136,8 @@ wire enq_ready = !full || (deq_valid && i_deq_ready);
 wire [1:0] valid_count = {1'b0, valid_q[0]} + {1'b0, valid_q[1]};
 wire [PREDECODE_WIDTH-1:0] enq_predecode_bundle;
 wire [PREDECODE_WIDTH-1:0] deq_predecode_bundle = predecode_q[head];
+wire next_head = head + 1'b1;
+wire [PREDECODE_WIDTH-1:0] pair_predecode_bundle = predecode_q[next_head];
 
 wire enq_fire = i_enq_valid && enq_ready;
 wire deq_fire = deq_valid && i_deq_ready;
@@ -163,6 +172,112 @@ assign {
     o_predecode_mret,
     o_predecode_ebreak
 } = deq_predecode_bundle;
+
+wire [4:0] pair0_rd;
+wire [4:0] pair0_rs1_addr;
+wire [4:0] pair0_rs2_addr;
+wire       pair0_wen;
+wire       pair0_csr_wen;
+wire       pair0_load;
+wire       pair0_store;
+wire       pair0_brch;
+wire       pair0_jal;
+wire       pair0_jalr;
+wire       pair0_fence_i;
+wire       pair0_muldiv;
+wire       pair0_is_cop_insn;
+wire       pair0_ecall;
+wire       pair0_mret;
+wire       pair0_ebreak;
+
+wire [4:0] pair1_rd;
+wire [4:0] pair1_rs1_addr;
+wire [4:0] pair1_rs2_addr;
+wire       pair1_wen;
+wire       pair1_csr_wen;
+wire       pair1_load;
+wire       pair1_store;
+wire       pair1_brch;
+wire       pair1_jal;
+wire       pair1_jalr;
+wire       pair1_fence_i;
+wire       pair1_muldiv;
+wire       pair1_is_cop_insn;
+wire       pair1_ecall;
+wire       pair1_mret;
+wire       pair1_ebreak;
+
+assign {
+    pair0_rd,
+    pair0_rs1_addr,
+    pair0_rs2_addr,
+    pair0_wen,
+    pair0_csr_wen,
+    pair0_load,
+    pair0_store,
+    pair0_brch,
+    pair0_jal,
+    pair0_jalr,
+    pair0_fence_i,
+    pair0_muldiv,
+    pair0_is_cop_insn,
+    pair0_ecall,
+    pair0_mret,
+    pair0_ebreak
+} = deq_predecode_bundle;
+
+assign {
+    pair1_rd,
+    pair1_rs1_addr,
+    pair1_rs2_addr,
+    pair1_wen,
+    pair1_csr_wen,
+    pair1_load,
+    pair1_store,
+    pair1_brch,
+    pair1_jal,
+    pair1_jalr,
+    pair1_fence_i,
+    pair1_muldiv,
+    pair1_is_cop_insn,
+    pair1_ecall,
+    pair1_mret,
+    pair1_ebreak
+} = pair_predecode_bundle;
+
+wire pair0_is_simple_alu = !pair0_load && !pair0_store && !pair0_brch && !pair0_jal &&
+                           !pair0_jalr && !pair0_fence_i && !pair0_muldiv &&
+                           !pair0_is_cop_insn && !pair0_ecall && !pair0_mret &&
+                           !pair0_ebreak && !pair0_csr_wen;
+wire pair1_is_simple_alu = !pair1_load && !pair1_store && !pair1_brch && !pair1_jal &&
+                           !pair1_jalr && !pair1_fence_i && !pair1_muldiv &&
+                           !pair1_is_cop_insn && !pair1_ecall && !pair1_mret &&
+                           !pair1_ebreak && !pair1_csr_wen;
+wire pair0_has_exclusive_backend = pair0_load || pair0_store || pair0_muldiv || pair0_is_cop_insn;
+wire pair1_has_exclusive_backend = pair1_load || pair1_store || pair1_muldiv || pair1_is_cop_insn;
+wire pair0_has_redirect_control = pair0_jal || pair0_jalr || pair0_fence_i || pair0_ecall ||
+                                  pair0_mret || pair0_ebreak;
+wire pair1_has_redirect_control = pair1_jal || pair1_jalr || pair1_fence_i || pair1_ecall ||
+                                  pair1_mret || pair1_ebreak;
+wire pair_has_raw = pair0_wen && (pair0_rd != 5'b0) &&
+                    (((pair1_rs1_addr == pair0_rd) && (pair1_rs1_addr != 5'b0)) ||
+                     ((pair1_rs2_addr == pair0_rd) && (pair1_rs2_addr != 5'b0)));
+wire pair_has_waw = pair0_wen && pair1_wen && (pair0_rd != 5'b0) && (pair1_rd == pair0_rd);
+wire pair_has_dual_writeback = pair0_wen && pair1_wen;
+wire pair_has_exclusive_backend = pair0_has_exclusive_backend || pair1_has_exclusive_backend;
+wire pair_has_redirect_control = pair0_has_redirect_control || pair1_has_redirect_control;
+wire pair_candidate_alu_branch = (pair0_is_simple_alu && pair1_brch) ||
+                                 (pair0_brch && pair1_is_simple_alu);
+
+assign o_pair_valid = (count == DEPTH);
+assign o_pair_candidate_alu_branch = o_pair_valid && pair_candidate_alu_branch && !pair_has_raw &&
+                                     !pair_has_waw && !pair_has_dual_writeback &&
+                                     !pair_has_exclusive_backend && !pair_has_redirect_control;
+assign o_pair_has_raw = o_pair_valid && pair_has_raw;
+assign o_pair_has_waw = o_pair_valid && pair_has_waw;
+assign o_pair_has_dual_writeback = o_pair_valid && pair_has_dual_writeback;
+assign o_pair_has_exclusive_backend = o_pair_valid && pair_has_exclusive_backend;
+assign o_pair_has_redirect_control = o_pair_valid && pair_has_redirect_control;
 
 integer i;
 always @(posedge clock or posedge reset) begin

@@ -372,6 +372,23 @@ wire       ifu2idu_predecode_is_cop_insn;
 wire       ifu2idu_predecode_ecall;
 wire       ifu2idu_predecode_mret;
 wire       ifu2idu_predecode_ebreak;
+wire       ifu_pair_valid;
+wire       ifu_pair_candidate_alu_branch;
+wire       ifu_pair_has_raw;
+wire       ifu_pair_has_waw;
+wire       ifu_pair_has_dual_writeback;
+wire       ifu_pair_has_exclusive_backend;
+wire       ifu_pair_has_redirect_control;
+wire       decode_pair_visible;
+wire       decode_pair_allow_second;
+wire       decode_pair_block_raw;
+wire       decode_pair_block_waw;
+wire       decode_pair_block_dual_writeback;
+wire       decode_pair_block_exclusive_backend;
+wire       decode_pair_block_redirect_control;
+wire       decode_pair_block_downstream_busy;
+wire       decode_pair_block_cop_pipeline;
+wire       decode_pair_block_frontend_flush;
 
 hcpu_CSR_RegisterFile Csrs(
     .clock                             (clock                     ),
@@ -529,7 +546,14 @@ hcpu_ifu_fetch_queue ifu_fetch_queue(
     .o_predecode_is_cop_insn           (ifu2idu_predecode_is_cop_insn),
     .o_predecode_ecall                 (ifu2idu_predecode_ecall   ),
     .o_predecode_mret                  (ifu2idu_predecode_mret    ),
-    .o_predecode_ebreak                (ifu2idu_predecode_ebreak  )
+    .o_predecode_ebreak                (ifu2idu_predecode_ebreak  ),
+    .o_pair_valid                      (ifu_pair_valid            ),
+    .o_pair_candidate_alu_branch       (ifu_pair_candidate_alu_branch),
+    .o_pair_has_raw                    (ifu_pair_has_raw          ),
+    .o_pair_has_waw                    (ifu_pair_has_waw          ),
+    .o_pair_has_dual_writeback         (ifu_pair_has_dual_writeback),
+    .o_pair_has_exclusive_backend      (ifu_pair_has_exclusive_backend),
+    .o_pair_has_redirect_control       (ifu_pair_has_redirect_control)
 );
 
 hcpu_IDU idu1(
@@ -823,6 +847,29 @@ hcpu_memory_service u_memory_service(
     .cop_mem_r_fire                    (cop_mem_r_fire            )
 );
 assign scalar_issue = idu2exu_valid && !idu2exu_is_cop_insn && !cop_pipeline_active;
+
+hcpu_decode_pair_policy decode_pair_policy(
+    .i_pair_valid                       (ifu_pair_valid                     ),
+    .i_pair_candidate_alu_branch        (ifu_pair_candidate_alu_branch      ),
+    .i_pair_has_raw                     (ifu_pair_has_raw                   ),
+    .i_pair_has_waw                     (ifu_pair_has_waw                   ),
+    .i_pair_has_dual_writeback          (ifu_pair_has_dual_writeback        ),
+    .i_pair_has_exclusive_backend       (ifu_pair_has_exclusive_backend     ),
+    .i_pair_has_redirect_control        (ifu_pair_has_redirect_control      ),
+    .i_downstream_ready                 (exu2idu_ready                      ),
+    .i_cop_pipeline_active              (cop_pipeline_active                ),
+    .i_frontend_flush                   (frontend_flush                     ),
+    .o_pair_visible                     (decode_pair_visible                ),
+    .o_allow_second                     (decode_pair_allow_second           ),
+    .o_block_raw                        (decode_pair_block_raw              ),
+    .o_block_waw                        (decode_pair_block_waw              ),
+    .o_block_dual_writeback             (decode_pair_block_dual_writeback   ),
+    .o_block_exclusive_backend          (decode_pair_block_exclusive_backend),
+    .o_block_redirect_control           (decode_pair_block_redirect_control ),
+    .o_block_downstream_busy            (decode_pair_block_downstream_busy  ),
+    .o_block_cop_pipeline               (decode_pair_block_cop_pipeline     ),
+    .o_block_frontend_flush             (decode_pair_block_frontend_flush   )
+);
 assign cop_refetch_flush = cop_backend_commit_fire;
 assign cop_active_pc = cop_commit_active ? cop_inflight_pc : idu2exu_pc;
 assign exu_res = cop_pipeline_active ? cop_exu_res : scalar_exu_res;

@@ -220,6 +220,18 @@ Current landed RTL slice:
 - The sidecar does not change execution semantics yet; dequeue still feeds the existing single-issue decode / register-read path.
 - Queue-level directed validation and top-level smoke regressions now cover this structure.
 
+Current pairing-screen RTL slice:
+
+- The fetch queue now also computes a non-binding pair screen over the two visible queue entries.
+- Current observability is draft-only: `pair_valid`, `pair_candidate_alu_branch`, `pair_has_raw`, `pair_has_waw`, `pair_has_dual_writeback`, `pair_has_exclusive_backend`, `pair_has_redirect_control`.
+- These signals do not affect issue behavior yet; they are only the first executable skeleton for future pairing policy.
+
+Current decode-policy RTL slice:
+
+- `vsrc/cpu/idu/decode_pair_policy.v` now turns queue pair-screen observability plus decode/backend entrance state into a non-binding slot-1 policy result.
+- Current outputs are `pair_visible`, `allow_second`, and explicit block reasons for `raw`, `waw`, `dual_writeback`, `exclusive_backend`, `redirect_control`, `downstream_busy`, `cop_pipeline`, and `frontend_flush`.
+- This still does not change issue width; it only makes the decode entrance policy executable and testable.
+
 Current pairing/hazard draft direction:
 
 - Near-term real slice stays `2-wide fetch/predecode` with single issue preserved.

@@ -534,6 +534,55 @@ Current landed validation hook:
 1. `hcpu` simulation now checks the stored fetch-queue predecode sidecar against the current combinational `hcpu_IDU` decode whenever `ifu2idu_valid` is high
 2. this keeps the sidecar tied to current decode truth without changing execution behavior
 
+### First Pairing-Screen Skeleton
+
+The next landed step after predecode sidecar storage is still intentionally non-binding.
+
+Current RTL now computes a draft pair screen over the two visible fetch-queue entries:
+
+1. `pair_valid`
+2. `pair_candidate_alu_branch`
+3. `pair_has_raw`
+4. `pair_has_waw`
+5. `pair_has_dual_writeback`
+6. `pair_has_exclusive_backend`
+7. `pair_has_redirect_control`
+
+Current meaning:
+
+1. this is observability only, not issue control
+2. it evaluates the oldest visible pair in queue order
+3. it keeps the current conservative policy executable without claiming that dual issue exists yet
+
+This is the first RTL bridge between the written pairing matrix and future real pairing logic.
+
+### Decode Entrance Policy Skeleton
+
+The next landed step is to map pair-screen observability into a decode-entrance policy result without enabling dual issue.
+
+Current RTL uses `vsrc/cpu/idu/decode_pair_policy.v` for that mapping.
+
+Inputs:
+
+1. queue pair-screen observability from the oldest visible pair
+2. downstream readiness at the current decode/issue entrance
+3. current `cop_pipeline_active`
+4. current `frontend_flush`
+
+Outputs:
+
+1. `pair_visible`
+2. `allow_second`
+3. block-reason observability for dependency, resource, control, and pipeline-state causes
+
+Current rule:
+
+1. only a clean `ALU + branch` candidate may reach `allow_second = 1`
+2. any `RAW`, `WAW`, dual-writeback pressure, exclusive backend claim, or redirect/control class blocks slot 1
+3. even a clean candidate is blocked if downstream is not ready, COP pipeline ownership is active, or frontend flush is active
+
+This keeps the policy executable while preserving the current single-issue machine behavior.
+
 ## Immediate Follow-Up
 
 The next useful follow-up items are:

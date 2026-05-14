@@ -149,6 +149,8 @@ Current preferred first slice:
 - single dequeue into the existing decode/register-read path
 - no decode queue, no dual dispatch, no dual writeback in v1
 - an intermediate safe step is allowed: store instruction-local predecode sidecar bits in fetch-queue entries without changing issue width
+- another intermediate safe step is allowed: compute pair-screen observability over the oldest two fetch entries without changing issue width
+- another intermediate safe step is allowed: compute decode-entrance slot-1 policy observability without changing issue width
 
 Done when:
 
