@@ -636,6 +636,12 @@ Current fetch-queue contract refinement:
 2. full-queue stall assertions now also lock the pair-screen result, younger predict metadata, and younger predecode bundle
 3. this makes the fetch queue a more explicit frontend truth source for future lane packing and lane-1 transport work
 
+Current frontend pair-bundle refinement:
+
+1. the top level now captures a non-executing two-lane frontend bundle whenever both queue lanes are visible at once
+2. this bundle keeps slot0/slot1 payload, predictor metadata, minimal predecode identity, and the current pair-policy snapshot in one flush-cleared, hold-stable surface
+3. top-level regression now checks bundle capture, hold, flush-clear, and `fireable` vs `blocked` accounting, which closes the frontend-only contract path through policy, packing, and transport
+
 This keeps the policy executable while preserving the current single-issue machine behavior.
 
 ## Immediate Follow-Up

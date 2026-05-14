@@ -185,6 +185,11 @@ struct Slot1Coverage {
   uint64_t endpoint_capture_blocked_events = 0;
   uint64_t endpoint_hold_cycles = 0;
   uint64_t endpoint_flush_clear_events = 0;
+  uint64_t pair_bundle_capture_events = 0;
+  uint64_t pair_bundle_capture_fireable_events = 0;
+  uint64_t pair_bundle_capture_blocked_events = 0;
+  uint64_t pair_bundle_hold_cycles = 0;
+  uint64_t pair_bundle_flush_clear_events = 0;
 };
 
 int main(int argc, char **argv) {
@@ -225,7 +230,30 @@ int main(int argc, char **argv) {
     const bool pre_slot1_valid = root->sim_top__DOT__cpu__DOT__decode_slot1_valid;
     const bool pre_frontend_flush = root->sim_top__DOT__cpu__DOT__frontend_flush;
     const bool pre_allow_second = root->sim_top__DOT__cpu__DOT__decode_pair_allow_second;
+    const bool pre_frontend_pair_capture = root->sim_top__DOT__cpu__DOT__frontend_pair_capture;
     const bool pre_slot1_endpoint_accept = root->sim_top__DOT__cpu__DOT__slot1_endpoint_accept;
+    const uint32_t pre_slot0_pc = root->sim_top__DOT__cpu__DOT__ifu2idu_pc;
+    const uint32_t pre_slot0_ins = root->sim_top__DOT__cpu__DOT__ifu2idu_ins;
+    const bool pre_slot0_predict_taken = root->sim_top__DOT__cpu__DOT__ifu2idu_predict_taken;
+    const uint32_t pre_slot0_predict_target = root->sim_top__DOT__cpu__DOT__ifu2idu_predict_target;
+    const bool pre_slot0_predict_btb_hit = root->sim_top__DOT__cpu__DOT__ifu2idu_predict_btb_hit;
+    const uint32_t pre_slot0_rd = root->sim_top__DOT__cpu__DOT__ifu2idu_predecode_rd;
+    const uint32_t pre_slot0_rs1 = root->sim_top__DOT__cpu__DOT__ifu2idu_predecode_rs1_addr;
+    const uint32_t pre_slot0_rs2 = root->sim_top__DOT__cpu__DOT__ifu2idu_predecode_rs2_addr;
+    const bool pre_slot0_wen = root->sim_top__DOT__cpu__DOT__ifu2idu_predecode_wen;
+    const bool pre_slot0_brch = root->sim_top__DOT__cpu__DOT__ifu2idu_predecode_brch;
+    const bool pre_pair_candidate_alu_branch = root->sim_top__DOT__cpu__DOT__ifu_pair_candidate_alu_branch;
+    const bool pre_pair_order_alu_then_branch = root->sim_top__DOT__cpu__DOT__ifu_pair_order_alu_then_branch;
+    const bool pre_pair_order_branch_then_alu = root->sim_top__DOT__cpu__DOT__ifu_pair_order_branch_then_alu;
+    const bool pre_pair_block_raw = root->sim_top__DOT__cpu__DOT__decode_pair_block_raw;
+    const bool pre_pair_block_waw = root->sim_top__DOT__cpu__DOT__decode_pair_block_waw;
+    const bool pre_pair_block_dual_writeback = root->sim_top__DOT__cpu__DOT__decode_pair_block_dual_writeback;
+    const bool pre_pair_block_exclusive_backend = root->sim_top__DOT__cpu__DOT__decode_pair_block_exclusive_backend;
+    const bool pre_pair_block_redirect_control = root->sim_top__DOT__cpu__DOT__decode_pair_block_redirect_control;
+    const bool pre_pair_block_older_branch_first = root->sim_top__DOT__cpu__DOT__decode_pair_block_older_branch_first;
+    const bool pre_pair_block_downstream_busy = root->sim_top__DOT__cpu__DOT__decode_pair_block_downstream_busy;
+    const bool pre_pair_block_cop_pipeline = root->sim_top__DOT__cpu__DOT__decode_pair_block_cop_pipeline;
+    const bool pre_pair_block_frontend_flush = root->sim_top__DOT__cpu__DOT__decode_pair_block_frontend_flush;
     const uint32_t pre_slot1_pc = root->sim_top__DOT__cpu__DOT__decode_slot1_pc;
     const uint32_t pre_slot1_ins = root->sim_top__DOT__cpu__DOT__decode_slot1_ins;
     const uint32_t pre_slot1_imm = root->sim_top__DOT__cpu__DOT__decode_slot1_imm;
@@ -250,6 +278,13 @@ int main(int argc, char **argv) {
     const bool pre_slot1_ecall = root->sim_top__DOT__cpu__DOT__decode_slot1_ecall;
     const bool pre_slot1_mret = root->sim_top__DOT__cpu__DOT__decode_slot1_mret;
     const bool pre_slot1_ebreak = root->sim_top__DOT__cpu__DOT__decode_slot1_ebreak;
+    const uint32_t pre_pair_younger_pc = root->sim_top__DOT__cpu__DOT__ifu_pair_younger_pc;
+    const uint32_t pre_pair_younger_ins = root->sim_top__DOT__cpu__DOT__ifu_pair_younger_ins;
+    const uint32_t pre_pair_younger_rd = root->sim_top__DOT__cpu__DOT__ifu_pair_younger_predecode_rd;
+    const uint32_t pre_pair_younger_rs1 = root->sim_top__DOT__cpu__DOT__ifu_pair_younger_predecode_rs1_addr;
+    const uint32_t pre_pair_younger_rs2 = root->sim_top__DOT__cpu__DOT__ifu_pair_younger_predecode_rs2_addr;
+    const bool pre_pair_younger_wen = root->sim_top__DOT__cpu__DOT__ifu_pair_younger_predecode_wen;
+    const bool pre_pair_younger_brch = root->sim_top__DOT__cpu__DOT__ifu_pair_younger_predecode_brch;
     const bool pre_pair_younger_predict_taken = root->sim_top__DOT__cpu__DOT__ifu_pair_younger_predict_taken;
     const uint32_t pre_pair_younger_predict_target = root->sim_top__DOT__cpu__DOT__ifu_pair_younger_predict_target;
     const bool pre_pair_younger_predict_btb_hit = root->sim_top__DOT__cpu__DOT__ifu_pair_younger_predict_btb_hit;
@@ -311,6 +346,42 @@ int main(int argc, char **argv) {
     const bool pre_endpoint_predict_taken = root->sim_top__DOT__cpu__DOT__slot1_endpoint_predict_taken;
     const uint32_t pre_endpoint_predict_target = root->sim_top__DOT__cpu__DOT__slot1_endpoint_predict_target;
     const bool pre_endpoint_predict_btb_hit = root->sim_top__DOT__cpu__DOT__slot1_endpoint_predict_btb_hit;
+    const bool pre_pair_bundle_valid = root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_valid;
+    const bool pre_pair_bundle_slot0_valid = root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot0_valid;
+    const uint32_t pre_pair_bundle_slot0_pc = root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot0_pc;
+    const uint32_t pre_pair_bundle_slot0_ins = root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot0_ins;
+    const bool pre_pair_bundle_slot0_predict_taken = root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot0_predict_taken;
+    const uint32_t pre_pair_bundle_slot0_predict_target = root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot0_predict_target;
+    const bool pre_pair_bundle_slot0_predict_btb_hit = root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot0_predict_btb_hit;
+    const uint32_t pre_pair_bundle_slot0_rd = root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot0_rd;
+    const uint32_t pre_pair_bundle_slot0_rs1 = root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot0_rs1;
+    const uint32_t pre_pair_bundle_slot0_rs2 = root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot0_rs2;
+    const bool pre_pair_bundle_slot0_wen = root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot0_wen;
+    const bool pre_pair_bundle_slot0_brch = root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot0_brch;
+    const bool pre_pair_bundle_slot1_valid = root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot1_valid;
+    const uint32_t pre_pair_bundle_slot1_pc = root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot1_pc;
+    const uint32_t pre_pair_bundle_slot1_ins = root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot1_ins;
+    const bool pre_pair_bundle_slot1_predict_taken = root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot1_predict_taken;
+    const uint32_t pre_pair_bundle_slot1_predict_target = root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot1_predict_target;
+    const bool pre_pair_bundle_slot1_predict_btb_hit = root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot1_predict_btb_hit;
+    const uint32_t pre_pair_bundle_slot1_rd = root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot1_rd;
+    const uint32_t pre_pair_bundle_slot1_rs1 = root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot1_rs1;
+    const uint32_t pre_pair_bundle_slot1_rs2 = root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot1_rs2;
+    const bool pre_pair_bundle_slot1_wen = root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot1_wen;
+    const bool pre_pair_bundle_slot1_brch = root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot1_brch;
+    const bool pre_pair_bundle_candidate_alu_branch = root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_candidate_alu_branch;
+    const bool pre_pair_bundle_allow_second = root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_allow_second;
+    const bool pre_pair_bundle_order_alu_then_branch = root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_order_alu_then_branch;
+    const bool pre_pair_bundle_order_branch_then_alu = root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_order_branch_then_alu;
+    const bool pre_pair_bundle_block_raw = root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_block_raw;
+    const bool pre_pair_bundle_block_waw = root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_block_waw;
+    const bool pre_pair_bundle_block_dual_writeback = root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_block_dual_writeback;
+    const bool pre_pair_bundle_block_exclusive_backend = root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_block_exclusive_backend;
+    const bool pre_pair_bundle_block_redirect_control = root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_block_redirect_control;
+    const bool pre_pair_bundle_block_older_branch_first = root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_block_older_branch_first;
+    const bool pre_pair_bundle_block_downstream_busy = root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_block_downstream_busy;
+    const bool pre_pair_bundle_block_cop_pipeline = root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_block_cop_pipeline;
+    const bool pre_pair_bundle_block_frontend_flush = root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_block_frontend_flush;
 
     top->clock = 1;
     top->eval();
@@ -673,6 +744,172 @@ int main(int argc, char **argv) {
                      "endpoint holds btb_hit stable");
     }
 
+    if (pre_frontend_flush) {
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_valid == 0,
+                     "frontend flush clears the pair bundle surface");
+      if (pre_pair_bundle_valid || pre_frontend_pair_capture) {
+        coverage.pair_bundle_flush_clear_events++;
+      }
+    } else if (pre_frontend_pair_capture) {
+      coverage.pair_bundle_capture_events++;
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_valid == 1,
+                     "visible frontend pair captures into the pair bundle");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot0_valid == 1,
+                     "pair bundle keeps slot0 valid");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot0_pc == pre_slot0_pc,
+                     "pair bundle captures slot0 pc");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot0_ins == pre_slot0_ins,
+                     "pair bundle captures slot0 instruction");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot0_predict_taken == pre_slot0_predict_taken,
+                     "pair bundle captures slot0 predict_taken");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot0_predict_target == pre_slot0_predict_target,
+                     "pair bundle captures slot0 predict_target");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot0_predict_btb_hit == pre_slot0_predict_btb_hit,
+                     "pair bundle captures slot0 btb_hit");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot0_rd == pre_slot0_rd,
+                     "pair bundle captures slot0 rd");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot0_rs1 == pre_slot0_rs1,
+                     "pair bundle captures slot0 rs1");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot0_rs2 == pre_slot0_rs2,
+                     "pair bundle captures slot0 rs2");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot0_wen == pre_slot0_wen,
+                     "pair bundle captures slot0 wen");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot0_brch == pre_slot0_brch,
+                     "pair bundle captures slot0 branch class");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot1_valid == 1,
+                     "pair bundle keeps slot1 valid");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot1_pc == pre_pair_younger_pc,
+                     "pair bundle captures slot1 pc");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot1_ins == pre_pair_younger_ins,
+                     "pair bundle captures slot1 instruction");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot1_predict_taken == pre_pair_younger_predict_taken,
+                     "pair bundle captures slot1 predict_taken");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot1_predict_target == pre_pair_younger_predict_target,
+                     "pair bundle captures slot1 predict_target");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot1_predict_btb_hit == pre_pair_younger_predict_btb_hit,
+                     "pair bundle captures slot1 btb_hit");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot1_rd == pre_pair_younger_rd,
+                     "pair bundle captures slot1 rd");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot1_rs1 == pre_pair_younger_rs1,
+                     "pair bundle captures slot1 rs1");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot1_rs2 == pre_pair_younger_rs2,
+                     "pair bundle captures slot1 rs2");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot1_wen == pre_pair_younger_wen,
+                     "pair bundle captures slot1 wen");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot1_brch == pre_pair_younger_brch,
+                     "pair bundle captures slot1 branch class");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_candidate_alu_branch == pre_pair_candidate_alu_branch,
+                     "pair bundle captures pair candidate classification");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_allow_second == pre_allow_second,
+                     "pair bundle captures pair fireability");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_order_alu_then_branch == pre_pair_order_alu_then_branch,
+                     "pair bundle captures alu-then-branch order");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_order_branch_then_alu == pre_pair_order_branch_then_alu,
+                     "pair bundle captures branch-then-alu order");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_block_raw == pre_pair_block_raw,
+                     "pair bundle captures raw block reason");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_block_waw == pre_pair_block_waw,
+                     "pair bundle captures waw block reason");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_block_dual_writeback == pre_pair_block_dual_writeback,
+                     "pair bundle captures dual-writeback block reason");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_block_exclusive_backend == pre_pair_block_exclusive_backend,
+                     "pair bundle captures exclusive-backend block reason");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_block_redirect_control == pre_pair_block_redirect_control,
+                     "pair bundle captures redirect-control block reason");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_block_older_branch_first == pre_pair_block_older_branch_first,
+                     "pair bundle captures older-branch-first block reason");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_block_downstream_busy == pre_pair_block_downstream_busy,
+                     "pair bundle captures downstream-busy block reason");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_block_cop_pipeline == pre_pair_block_cop_pipeline,
+                     "pair bundle captures cop-pipeline block reason");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_block_frontend_flush == pre_pair_block_frontend_flush,
+                     "pair bundle captures frontend-flush block reason");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot0_pc !=
+                         root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot1_pc,
+                     "pair bundle keeps distinct pcs across both lanes");
+      if (pre_allow_second) {
+        coverage.pair_bundle_capture_fireable_events++;
+        fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_candidate_alu_branch == 1,
+                       "fireable pair bundle remains a candidate alu-branch pair");
+      } else {
+        coverage.pair_bundle_capture_blocked_events++;
+      }
+    } else if (pre_pair_bundle_valid) {
+      coverage.pair_bundle_hold_cycles++;
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_valid == 1,
+                     "pair bundle holds valid without flush");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot0_valid == pre_pair_bundle_slot0_valid,
+                     "pair bundle holds slot0 valid stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot0_pc == pre_pair_bundle_slot0_pc,
+                     "pair bundle holds slot0 pc stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot0_ins == pre_pair_bundle_slot0_ins,
+                     "pair bundle holds slot0 instruction stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot0_predict_taken == pre_pair_bundle_slot0_predict_taken,
+                     "pair bundle holds slot0 predict_taken stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot0_predict_target == pre_pair_bundle_slot0_predict_target,
+                     "pair bundle holds slot0 predict_target stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot0_predict_btb_hit == pre_pair_bundle_slot0_predict_btb_hit,
+                     "pair bundle holds slot0 btb_hit stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot0_rd == pre_pair_bundle_slot0_rd,
+                     "pair bundle holds slot0 rd stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot0_rs1 == pre_pair_bundle_slot0_rs1,
+                     "pair bundle holds slot0 rs1 stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot0_rs2 == pre_pair_bundle_slot0_rs2,
+                     "pair bundle holds slot0 rs2 stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot0_wen == pre_pair_bundle_slot0_wen,
+                     "pair bundle holds slot0 wen stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot0_brch == pre_pair_bundle_slot0_brch,
+                     "pair bundle holds slot0 brch stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot1_valid == pre_pair_bundle_slot1_valid,
+                     "pair bundle holds slot1 valid stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot1_pc == pre_pair_bundle_slot1_pc,
+                     "pair bundle holds slot1 pc stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot1_ins == pre_pair_bundle_slot1_ins,
+                     "pair bundle holds slot1 instruction stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot1_predict_taken == pre_pair_bundle_slot1_predict_taken,
+                     "pair bundle holds slot1 predict_taken stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot1_predict_target == pre_pair_bundle_slot1_predict_target,
+                     "pair bundle holds slot1 predict_target stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot1_predict_btb_hit == pre_pair_bundle_slot1_predict_btb_hit,
+                     "pair bundle holds slot1 btb_hit stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot1_rd == pre_pair_bundle_slot1_rd,
+                     "pair bundle holds slot1 rd stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot1_rs1 == pre_pair_bundle_slot1_rs1,
+                     "pair bundle holds slot1 rs1 stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot1_rs2 == pre_pair_bundle_slot1_rs2,
+                     "pair bundle holds slot1 rs2 stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot1_wen == pre_pair_bundle_slot1_wen,
+                     "pair bundle holds slot1 wen stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_slot1_brch == pre_pair_bundle_slot1_brch,
+                     "pair bundle holds slot1 brch stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_candidate_alu_branch == pre_pair_bundle_candidate_alu_branch,
+                     "pair bundle holds candidate classification stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_allow_second == pre_pair_bundle_allow_second,
+                     "pair bundle holds fireability stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_order_alu_then_branch == pre_pair_bundle_order_alu_then_branch,
+                     "pair bundle holds alu-then-branch order stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_order_branch_then_alu == pre_pair_bundle_order_branch_then_alu,
+                     "pair bundle holds branch-then-alu order stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_block_raw == pre_pair_bundle_block_raw,
+                     "pair bundle holds raw block reason stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_block_waw == pre_pair_bundle_block_waw,
+                     "pair bundle holds waw block reason stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_block_dual_writeback == pre_pair_bundle_block_dual_writeback,
+                     "pair bundle holds dual-writeback block reason stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_block_exclusive_backend == pre_pair_bundle_block_exclusive_backend,
+                     "pair bundle holds exclusive-backend block reason stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_block_redirect_control == pre_pair_bundle_block_redirect_control,
+                     "pair bundle holds redirect-control block reason stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_block_older_branch_first == pre_pair_bundle_block_older_branch_first,
+                     "pair bundle holds older-branch-first block reason stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_block_downstream_busy == pre_pair_bundle_block_downstream_busy,
+                     "pair bundle holds downstream-busy block reason stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_block_cop_pipeline == pre_pair_bundle_block_cop_pipeline,
+                     "pair bundle holds cop-pipeline block reason stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__frontend_pair_bundle_block_frontend_flush == pre_pair_bundle_block_frontend_flush,
+                     "pair bundle holds frontend-flush block reason stable");
+    }
+
     top->clock = 0;
     top->eval();
     main_time++;
@@ -711,6 +948,19 @@ int main(int argc, char **argv) {
                  "slot1 endpoint holds an accepted payload across at least one cycle");
   fail |= expect(coverage.endpoint_flush_clear_events > 0,
                  "slot1 endpoint is cleared by at least one flush event");
+  fail |= expect(coverage.pair_bundle_capture_events > 0,
+                 "frontend pair bundle captures at least one visible pair");
+  fail |= expect(coverage.pair_bundle_capture_fireable_events > 0,
+                 "frontend pair bundle captures at least one fireable pair");
+  fail |= expect(coverage.pair_bundle_capture_blocked_events > 0,
+                 "frontend pair bundle captures at least one blocked pair");
+  fail |= expect(coverage.pair_bundle_hold_cycles > 0,
+                 "frontend pair bundle holds a captured pair across at least one cycle");
+  fail |= expect(coverage.pair_bundle_flush_clear_events > 0,
+                 "frontend pair bundle is cleared by at least one flush event");
+  fail |= expect(coverage.pair_bundle_capture_events ==
+                     (coverage.pair_bundle_capture_fireable_events + coverage.pair_bundle_capture_blocked_events),
+                 "frontend pair bundle fireable and blocked accounting stays self-consistent");
 
   delete top;
 
@@ -719,7 +969,7 @@ int main(int argc, char **argv) {
   }
 
   std::printf("PASS: top-level slot1 observability remains non-binding and branch-only "
-              "(slot1-events=%llu, fireable=%llu, blocked=%llu, blocked-nonflush=%llu, flushed=%llu, shadow-captures=%llu, shadow-fireable=%llu, shadow-blocked=%llu, shadow-hold=%llu, shadow-flush-clear=%llu, endpoint-captures=%llu, endpoint-fireable=%llu, endpoint-blocked=%llu, endpoint-hold=%llu, endpoint-flush-clear=%llu)\n",
+              "(slot1-events=%llu, fireable=%llu, blocked=%llu, blocked-nonflush=%llu, flushed=%llu, shadow-captures=%llu, shadow-fireable=%llu, shadow-blocked=%llu, shadow-hold=%llu, shadow-flush-clear=%llu, endpoint-captures=%llu, endpoint-fireable=%llu, endpoint-blocked=%llu, endpoint-hold=%llu, endpoint-flush-clear=%llu, pair-captures=%llu, pair-fireable=%llu, pair-blocked=%llu, pair-hold=%llu, pair-flush-clear=%llu)\n",
               static_cast<unsigned long long>(coverage.slot1_visible_events),
               static_cast<unsigned long long>(coverage.slot1_fireable_events),
               static_cast<unsigned long long>(coverage.slot1_blocked_events),
@@ -734,6 +984,11 @@ int main(int argc, char **argv) {
               static_cast<unsigned long long>(coverage.endpoint_capture_fireable_events),
               static_cast<unsigned long long>(coverage.endpoint_capture_blocked_events),
               static_cast<unsigned long long>(coverage.endpoint_hold_cycles),
-              static_cast<unsigned long long>(coverage.endpoint_flush_clear_events));
+              static_cast<unsigned long long>(coverage.endpoint_flush_clear_events),
+              static_cast<unsigned long long>(coverage.pair_bundle_capture_events),
+              static_cast<unsigned long long>(coverage.pair_bundle_capture_fireable_events),
+              static_cast<unsigned long long>(coverage.pair_bundle_capture_blocked_events),
+              static_cast<unsigned long long>(coverage.pair_bundle_hold_cycles),
+              static_cast<unsigned long long>(coverage.pair_bundle_flush_clear_events));
   return 0;
 }

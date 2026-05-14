@@ -286,6 +286,17 @@ Current fetch-queue contract refinement:
 - Under `PROTOCOL_ASSERT`, a full stalled fetch queue must now keep the full pair-screen result, younger predict metadata, and younger predecode bundle stable until dequeue or flush.
 - The directed fetch-queue regression now checks that a blocked overwrite attempt leaves the younger truth source unchanged.
 
+Current frontend pair-bundle surface:
+
+- `hcpu` now captures a non-executing two-lane frontend bundle whenever the oldest and younger queue entries are both visible.
+- This bundle carries slot0/slot1 `pc`, `ins`, predictor metadata, and minimal predecode identity (`rd`, `rs1`, `rs2`, `wen`, `brch`) plus the current pair-policy snapshot.
+- The bundle is cleared by `frontend_flush`, holds across idle cycles, and remains entirely outside execute/commit.
+
+Current frontend policy-snapshot refinement:
+
+- The pair bundle now preserves `candidate_alu_branch`, `allow_second`, directional order, and all current block reasons in one stable frontend-owned surface.
+- Top-level coverage now checks bundle capture, hold, flush-clear, and self-consistent `fireable` vs `blocked` accounting.
+
 Current pairing/hazard draft direction:
 
 - Near-term real slice stays `2-wide fetch/predecode` with single issue preserved.
