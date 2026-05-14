@@ -36,6 +36,8 @@ reg         mem_is_store;
 reg [1:0]   mem_lane;
 reg [31:0]  mem_base_addr;
 reg [31:0]  mem_load_data;
+reg [1:0]   mem_vrf_idx;
+reg [1:0]   mem_last_lane;
 
 assign o_res = latched_res;
 assign o_cop_mem_req_size = 3'b000;
@@ -66,6 +68,8 @@ wire        vor_vx_standard;
 wire        vxor_vx_standard;
 wire        vmv_v_v_standard;
 wire        vmv_v_x_standard;
+wire        vle8_v_standard;
+wire        vse8_v_standard;
 wire [31:0] scalar_lane_result;
 wire [31:0] vrf_op_result;
 wire [31:0] vlen_next_value;
@@ -109,7 +113,9 @@ hcpu_vector_cop_decode u_cop_decode(
     .o_vor_vx_standard(vor_vx_standard),
     .o_vxor_vx_standard(vxor_vx_standard),
     .o_vmv_v_v_standard(vmv_v_v_standard),
-    .o_vmv_v_x_standard(vmv_v_x_standard)
+    .o_vmv_v_x_standard(vmv_v_x_standard),
+    .o_vle8_v_standard(vle8_v_standard),
+    .o_vse8_v_standard(vse8_v_standard)
 );
 
 hcpu_vector_lane_alu u_scalar_lane_alu(
@@ -211,8 +217,21 @@ assign vmv_result = vtype[31] ? 32'h80000000 :
                         (vlen > 32'd0) ? vmv_raw_result[7:0]   : 8'b0
                     } : 32'h80000000;
 wire [1:0]  vrf_idx   = i_src2[1:0];
-wire        is_mem_op = is_mem_load || is_mem_store;
+wire        standard_mem_op = vle8_v_standard || vse8_v_standard;
+wire        standard_mem_supported = !vtype[31] && (vtype[2:0] == 3'd0);
+wire        standard_mem_active = standard_mem_op && standard_mem_supported && (vlen != 32'b0);
+wire        standard_mem_zero_load = vle8_v_standard && standard_mem_supported && (vlen == 32'b0);
+wire        is_mem_op = is_mem_load || is_mem_store || standard_mem_active;
+wire        mem_op_is_store = is_mem_store || vse8_v_standard;
+wire [1:0]  mem_op_vrf_idx = standard_mem_op ? i_ins[8:7] : 2'b0;
+wire [1:0]  mem_op_last_lane = standard_mem_op ? ((vlen > 32'd4) ? 2'd3 : (vlen[1:0] - 2'd1)) : 2'd3;
+wire [31:0] mem_load_final_data = (mem_lane == 2'd0) ? {24'b0, i_cop_mem_resp_rdata[7:0]} :
+                                  (mem_lane == 2'd1) ? {16'b0, i_cop_mem_resp_rdata[7:0], mem_load_data[7:0]} :
+                                  (mem_lane == 2'd2) ? {8'b0, i_cop_mem_resp_rdata[7:0], mem_load_data[15:8], mem_load_data[7:0]} :
+                                                       {i_cop_mem_resp_rdata[7:0], mem_load_data[23:16], mem_load_data[15:8], mem_load_data[7:0]};
 wire [31:0] cop_result = vsetivli_any ? vlen_next_value :
+                          (standard_mem_op && !standard_mem_supported) ? 32'h80000000 :
+                          standard_mem_zero_load ? 32'b0 :
                           vadd_vv_standard ? vadd_vv_result :
                           vadd_vx_standard ? vadd_vx_result :
                           vadd_vi_standard ? vadd_vi_result :
@@ -233,9 +252,10 @@ wire [31:0] cop_result = vsetivli_any ? vlen_next_value :
                           is_vrf_op  ? vrf[vrf_idx] :
                           scalar_op;
 wire        standard_vrf_write = vadd_vv_standard || vadd_vx_standard || vadd_vi_standard ||
-                                 vbit_vv_standard || vbit_vx_standard || vmv_standard;
+                                 vbit_vv_standard || vbit_vx_standard || vmv_standard || standard_mem_zero_load;
 wire        vrf_write     = (is_vrf_op && (cop_funct7 != 7'd4)) || (standard_vrf_write && !vtype[31]);
-wire [1:0]  vrf_write_idx = standard_vrf_write ? vadd_vd :
+wire [1:0]  vrf_write_idx = standard_mem_zero_load ? i_ins[8:7] :
+                            standard_vrf_write ? vadd_vd :
                             is_vrf_lane ? 2'd0 : vrf_idx;
 wire [31:0] vrf_write_value = vadd_vv_standard ? vadd_vv_result :
                               vadd_vx_standard ? vadd_vx_result :
@@ -243,6 +263,7 @@ wire [31:0] vrf_write_value = vadd_vv_standard ? vadd_vv_result :
                               vbit_vv_standard ? vbit_vv_result :
                               vbit_vx_standard ? vbit_vx_result :
                               vmv_standard ? vmv_result :
+                              standard_mem_zero_load ? 32'b0 :
                               is_vrf_lane ? vrf_op_result : i_src1;
 
 always @(posedge clock or posedge reset) begin
@@ -269,6 +290,8 @@ always @(posedge clock or posedge reset) begin
         mem_lane    <= 2'b0;
         mem_base_addr <= 32'b0;
         mem_load_data <= 32'b0;
+        mem_vrf_idx <= 2'b0;
+        mem_last_lane <= 2'b0;
         o_cop_mem_req_valid <= 1'b0;
         o_cop_mem_req_store <= 1'b0;
         o_cop_mem_req_addr  <= 32'b0;
@@ -289,6 +312,8 @@ always @(posedge clock or posedge reset) begin
         mem_lane    <= 2'b0;
         mem_base_addr <= 32'b0;
         mem_load_data <= 32'b0;
+        mem_vrf_idx <= 2'b0;
+        mem_last_lane <= 2'b0;
         o_cop_mem_req_valid <= 1'b0;
         o_cop_mem_req_store <= 1'b0;
         o_cop_mem_req_addr  <= 32'b0;
@@ -309,14 +334,16 @@ always @(posedge clock or posedge reset) begin
             if (is_mem_op) begin
                 countdown    <= 2'b0;
                 mem_active   <= 1'b1;
-                mem_is_store <= is_mem_store;
+                mem_is_store <= mem_op_is_store;
                 mem_lane     <= 2'b0;
                 mem_base_addr <= i_src1;
                 mem_load_data <= 32'b0;
+                mem_vrf_idx <= mem_op_vrf_idx;
+                mem_last_lane <= mem_op_last_lane;
                 o_cop_mem_req_valid <= 1'b1;
-                o_cop_mem_req_store <= is_mem_store;
+                o_cop_mem_req_store <= mem_op_is_store;
                 o_cop_mem_req_addr  <= i_src1;
-                o_cop_mem_req_wdata <= {24'b0, vrf[0][7:0]};
+                o_cop_mem_req_wdata <= {24'b0, vrf[mem_op_vrf_idx][7:0]};
             end else begin
                 countdown   <= 2'd2;
             end
@@ -334,7 +361,7 @@ always @(posedge clock or posedge reset) begin
                     endcase
                 end
 
-                if (mem_lane == 2'd3) begin
+                if (mem_lane == mem_last_lane) begin
                     busy                  <= 1'b0;
                     mem_active            <= 1'b0;
                     o_cop_mem_req_valid   <= 1'b0;
@@ -345,19 +372,19 @@ always @(posedge clock or posedge reset) begin
                     pending_vlen_write    <= 1'b0;
                     pending_vtype_write   <= 1'b0;
                     if (mem_is_store) begin
-                        latched_res <= vrf[0];
+                        latched_res <= vrf[mem_vrf_idx];
                     end else begin
-                        vrf[0] <= {i_cop_mem_resp_rdata[7:0], mem_load_data[23:16], mem_load_data[15:8], mem_load_data[7:0]};
-                        latched_res <= {i_cop_mem_resp_rdata[7:0], mem_load_data[23:16], mem_load_data[15:8], mem_load_data[7:0]};
+                        vrf[mem_vrf_idx] <= mem_load_final_data;
+                        latched_res <= mem_load_final_data;
                     end
                 end else begin
                     mem_lane   <= mem_lane + 2'd1;
                     o_cop_mem_req_valid <= 1'b1;
                     o_cop_mem_req_addr  <= mem_base_addr + {30'b0, mem_lane + 2'd1};
                     o_cop_mem_req_wdata <= {24'b0,
-                        (mem_lane == 2'd0) ? vrf[0][15:8] :
-                        (mem_lane == 2'd1) ? vrf[0][23:16] :
-                                             vrf[0][31:24]};
+                        (mem_lane == 2'd0) ? vrf[mem_vrf_idx][15:8] :
+                        (mem_lane == 2'd1) ? vrf[mem_vrf_idx][23:16] :
+                                             vrf[mem_vrf_idx][31:24]};
                     o_cop_mem_req_store <= mem_is_store;
                 end
             end

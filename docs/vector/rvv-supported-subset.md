@@ -96,8 +96,8 @@
 
 | 指令 | 当前状态 | 第一批 RVV 目标 | 备注 |
 |------|----------|-----------------|------|
-| `vle8.v` | prototype | planned | 当前 `vload_mem` 是 4x8-bit prototype |
-| `vse8.v` | prototype | planned | 当前 `vstore_mem` 是 4x8-bit prototype |
+| `vle8.v` | supported | planned | 只支持 unit-stride、unmasked `vm=1`、`SEW=8`、`LMUL=m1`、COP-local VRF |
+| `vse8.v` | supported | planned | 只支持 unit-stride、unmasked `vm=1`、`SEW=8`、`LMUL=m1`、COP-local VRF |
 | `vle16.v` | unsupported | deferred | 第一批不做 |
 | `vse16.v` | unsupported | deferred | 第一批不做 |
 | `vle32.v` | prototype | planned | 可作为 32-bit VRF path 目标 |
@@ -148,6 +148,7 @@ Phase 3 阶段性边界：`vl/vtype` 继续 COP-local，`vstart` 固定等价为
 | RVV `vadd.vx` directed | supported by focused tests | 当前只支持 unmasked `vadd.vx` |
 | RVV bitwise VV directed | supported by focused tests | 当前支持 unmasked `vand.vv/vor.vv/vxor.vv` |
 | RVV Phase 1 ALU/move | supported by focused tests | `vadd.vi`、bitwise VX、`vmv.v.v/vmv.v.x` |
+| RVV Phase 4 memory | supported by focused tests | `vle8.v/vse8.v` unit-stride through CPU memory owner boundary |
 | other RVV ALU directed | unsupported | planned |
 | RVV load/store directed | unsupported | planned |
 | RVV load/compute/store program | unsupported | planned |
@@ -164,7 +165,7 @@ Phase 3 阶段性边界：`vl/vtype` 继续 COP-local，`vstart` 固定等价为
 - `LMUL=m1`。
 - `vsetivli` 最小 slice。
 - `vadd.vv`、`vadd.vx`、`vadd.vi`、`vand.vv/vx`、`vor.vv/vx`、`vxor.vv/vx`、`vmv.v.v`、`vmv.v.x`。
-- `vle8.v`/`vse8.v` 或 `vle32.v`/`vse32.v`。
+- `vle8.v`/`vse8.v` unit-stride 8-bit memory slice。
 - `vm=1` 全使能。
 - unsupported 指令和配置不执行近似语义。
 - 标准测试短期只把 custom VRF read/write 当 legacy/debug harness；新测试优先用标准 move 初始化，直到标准 load/store 或更完整 VRF observable path 可用。

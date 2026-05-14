@@ -242,9 +242,9 @@ DONE: 合并结果，写入 VRF，o_done 置 1
 
 | 当前操作 | RVV 对应 | 迁移策略 |
 |----------|----------|----------|
-| `funct7=14` (vload_mem) | `vle8.v` | 迁移到标准 RVV load |
-| `funct7=15` (vstore_mem) | `vse8.v` | 迁移到标准 RVV store |
-| 固定 4 元素 | 可配置 VL | 扩展到 vlen 配置 |
+| `funct7=14` (vload_mem) | `vle8.v` | custom prototype 保留为 legacy/debug harness |
+| `funct7=15` (vstore_mem) | `vse8.v` | custom prototype 保留为 legacy/debug harness |
+| 固定 4 元素 | 可配置 VL | 标准 `vle8.v/vse8.v` 已按当前 `vl` 限制 active byte lanes |
 | 8-bit 元素 | 多种宽度 | 扩展到 16/32/64-bit |
 | unit-stride | 多种模式 | 扩展到 stride/gather/scatter |
 
@@ -255,6 +255,16 @@ DONE: 合并结果，写入 VRF，o_done 置 1
 当前基线通过 CPU memory owner 边界实现 VRF 与内存的交互。V1 实现仅支持 unit-stride 8-bit 访存，后续可逐步扩展到 RVV 标准。
 
 P0 收尾状态：当前 smoke 覆盖 `cop-vload-mem`、`cop-vstore-mem`、`cop-vload-store-mem`、`cop-vload-repeat-mem`、`cop-vstore-repeat-mem`；directed coverage 覆盖 pending-kill load、store AW/W/B owner path 和 AW/W 接受前 killed-store 无 bus side effect。后续 P1 不应扩大 memory side effect 语义，除非先完成 RVV store commit/kill 设计。
+
+Phase 4 标准 memory slice 已支持 `vle8.v/vse8.v`：
+
+1. 只识别 unit-stride `vm=1`、`width=000`、`mop=00`、`mew=0`、`nf=0` 编码。
+2. 只在 `SEW=8`、`LMUL=m1`、`vill=0` 下发起 memory request。
+3. `vl=0` 时 `vle8.v` 写 0 到目标 VRF，`vse8.v` 不发起 memory request。
+4. `0<vl<4` 时只访问 active byte lanes，inactive bytes 在 load result 中写 0。
+5. `vd/vs3` 当前仍映射到 4-entry COP-local VRF 低两位。
+6. memory request/response 继续复用 CPU memory owner 边界，kill/store directed coverage 继续作为安全门槛。
+7. directed tests 使用 static initialized memory，避免 stack store 留在 scalar cache 而 COP owner bypass 从 backing memory 读到旧值。
 
 关键设计决策：
 1. **CPU memory owner 边界**：scalar 和 COP 请求使用统一 owner 语义

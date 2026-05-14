@@ -25,7 +25,9 @@ module hcpu_vector_cop_decode(
     output            o_vor_vx_standard,
     output            o_vxor_vx_standard,
     output            o_vmv_v_v_standard,
-    output            o_vmv_v_x_standard
+    output            o_vmv_v_x_standard,
+    output            o_vle8_v_standard,
+    output            o_vse8_v_standard
 );
 
 localparam LANE_OP_ADD8 = 4'd0;
@@ -79,5 +81,7 @@ assign o_vor_vx_standard = (i_ins[6:0] == 7'b1010111) && (o_funct3 == 3'b100) &&
 assign o_vxor_vx_standard = (i_ins[6:0] == 7'b1010111) && (o_funct3 == 3'b100) && (o_funct7 == 7'b0010111);
 assign o_vmv_v_v_standard = (i_ins[6:0] == 7'b1010111) && (o_funct3 == 3'b000) && (o_funct7 == 7'b0101111);
 assign o_vmv_v_x_standard = (i_ins[6:0] == 7'b1010111) && (o_funct3 == 3'b100) && (o_funct7 == 7'b0101111);
+assign o_vle8_v_standard = (i_ins[6:0] == 7'b0000111) && (o_funct3 == 3'b000) && (i_ins[31:20] == 12'b000000100000);
+assign o_vse8_v_standard = (i_ins[6:0] == 7'b0100111) && (o_funct3 == 3'b000) && (i_ins[31:25] == 7'b0000001) && (i_ins[24:20] == 5'b00000);
 
 endmodule
