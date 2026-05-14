@@ -152,6 +152,8 @@ Current preferred first slice:
 - another intermediate safe step is allowed: compute pair-screen observability over the oldest two fetch entries without changing issue width
 - another intermediate safe step is allowed: compute decode-entrance slot-1 policy observability without changing issue width
 - another intermediate safe step is allowed: refine that policy so only `older ALU + younger branch` is directional slot-1 eligible
+- another intermediate safe step is allowed: expose the younger queued entry and derive a non-binding `slot0/slot1` packing skeleton without changing issue width
+- another intermediate safe step is allowed: decode that packed slot-1 surface for observability while still keeping only one live instruction on the execute path
 
 Done when:
 

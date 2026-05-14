@@ -238,6 +238,18 @@ Current directional slot1 step:
 - `older branch + younger ALU` remains observable but is blocked by policy.
 - If slot 1 were ever enabled by later RTL, the current skeleton would select the younger entry as slot 1 and classify it as the branch side.
 
+Current slot packing skeleton:
+
+- The fetch queue now exposes the younger queued entry as a non-binding observable input to future slot packing.
+- `hcpu` now derives an internal `slot0 = older`, `slot1 = younger branch` packing surface when the directional slot1 policy allows it.
+- This still does not change issue width or let slot 1 reach `idu_exu_regs`.
+
+Current slot1 decode surface:
+
+- `hcpu` now runs a non-binding second `hcpu_IDU` decode over the packed slot-1 instruction.
+- The slot-1 decode surface is assertion-checked to remain a non-writing branch decode.
+- The live single-issue path still uses only the original `idu1 -> idu_exu_regs` flow.
+
 Current pairing/hazard draft direction:
 
 - Near-term real slice stays `2-wide fetch/predecode` with single issue preserved.

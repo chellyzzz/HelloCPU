@@ -381,6 +381,10 @@ wire       ifu_pair_has_exclusive_backend;
 wire       ifu_pair_has_redirect_control;
 wire       ifu_pair_order_alu_then_branch;
 wire       ifu_pair_order_branch_then_alu;
+wire       ifu_pair_younger_valid;
+wire       [31:0] ifu_pair_younger_pc;
+wire       [31:0] ifu_pair_younger_ins;
+wire       ifu_pair_younger_predecode_brch;
 wire       decode_pair_visible;
 wire       decode_pair_allow_second;
 wire       decode_pair_select_slot1_youngest;
@@ -394,6 +398,14 @@ wire       decode_pair_block_older_branch_first;
 wire       decode_pair_block_downstream_busy;
 wire       decode_pair_block_cop_pipeline;
 wire       decode_pair_block_frontend_flush;
+wire       decode_slot0_valid;
+wire       [31:0] decode_slot0_pc;
+wire       decode_slot1_valid;
+wire       [31:0] decode_slot1_pc;
+wire       [31:0] decode_slot1_ins;
+wire       decode_slot1_is_branch;
+wire       decode_slot1_wen;
+wire       decode_slot1_brch;
 
 hcpu_CSR_RegisterFile Csrs(
     .clock                             (clock                     ),
@@ -560,7 +572,11 @@ hcpu_ifu_fetch_queue ifu_fetch_queue(
     .o_pair_has_exclusive_backend      (ifu_pair_has_exclusive_backend),
     .o_pair_has_redirect_control       (ifu_pair_has_redirect_control),
     .o_pair_order_alu_then_branch      (ifu_pair_order_alu_then_branch),
-    .o_pair_order_branch_then_alu      (ifu_pair_order_branch_then_alu)
+    .o_pair_order_branch_then_alu      (ifu_pair_order_branch_then_alu),
+    .o_pair_younger_valid              (ifu_pair_younger_valid),
+    .o_pair_younger_pc                 (ifu_pair_younger_pc),
+    .o_pair_younger_ins                (ifu_pair_younger_ins),
+    .o_pair_younger_predecode_brch     (ifu_pair_younger_predecode_brch)
 );
 
 hcpu_IDU idu1(
@@ -882,6 +898,57 @@ hcpu_decode_pair_policy decode_pair_policy(
     .o_block_cop_pipeline               (decode_pair_block_cop_pipeline     ),
     .o_block_frontend_flush             (decode_pair_block_frontend_flush   )
 );
+assign decode_slot0_valid = ifu2idu_valid;
+assign decode_slot0_pc = ifu2idu_pc;
+assign decode_slot1_valid = decode_pair_select_slot1_youngest && ifu_pair_younger_valid;
+assign decode_slot1_pc = decode_slot1_valid ? ifu_pair_younger_pc : 32'b0;
+assign decode_slot1_ins = decode_slot1_valid ? ifu_pair_younger_ins : 32'b0;
+assign decode_slot1_is_branch = decode_slot1_valid && decode_pair_select_slot1_branch &&
+                               ifu_pair_younger_predecode_brch;
+
+hcpu_IDU idu_slot1(
+    .clock                             (clock                     ),
+    .ins                               (decode_slot1_ins          ),
+    .reset                             (reset                     ),
+    .o_imm                             (                          ),
+    .o_rd                              (                          ),
+    .o_rs1                             (                          ),
+    .o_rs2                             (                          ),
+    .o_csr_addr                        (                          ),
+    .o_exu_opt                         (                          ),
+    .o_alu_opt                         (                          ),
+    .o_wen                             (decode_slot1_wen          ),
+    .o_csr_wen                         (                          ),
+    .o_src_sel1                        (                          ),
+    .o_src_sel2                        (                          ),
+    .o_mret                            (                          ),
+    .o_ecall                           (                          ),
+    .o_load                            (                          ),
+    .o_store                           (                          ),
+    .o_brch                            (decode_slot1_brch         ),
+    .o_jal                             (                          ),
+    .o_jalr                            (                          ),
+    .o_ebreak                          (                          ),
+    .o_fence_i                         (                          ),
+    .o_muldiv                          (                          ),
+    .o_is_cop_insn                     (                          )
+);
+
+`ifndef SYNTHESIS
+always @(*) begin
+    if (decode_slot1_valid && !decode_slot0_valid)
+        $fatal(1, "hcpu slot1 packing became visible without slot0");
+    if (decode_slot1_valid && !decode_slot1_is_branch)
+        $fatal(1, "hcpu slot1 packing lost expected younger branch classification");
+    if (decode_slot1_valid && !decode_slot1_brch)
+        $fatal(1, "hcpu slot1 decode surface no longer decodes the packed younger instruction as branch");
+    if (decode_slot1_valid && decode_slot1_wen)
+        $fatal(1, "hcpu slot1 decode surface incorrectly made the packed younger branch writable");
+    if (decode_slot1_valid && (decode_slot1_pc == decode_slot0_pc))
+        $fatal(1, "hcpu slot packing reused the older pc for slot1");
+end
+`endif
+
 assign cop_refetch_flush = cop_backend_commit_fire;
 assign cop_active_pc = cop_commit_active ? cop_inflight_pc : idu2exu_pc;
 assign exu_res = cop_pipeline_active ? cop_exu_res : scalar_exu_res;

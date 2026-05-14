@@ -587,6 +587,18 @@ Current directional refinement:
 2. `older branch + younger ALU` is an explicit observable block case
 3. this preserves age order and keeps redirect-sensitive behavior on the younger side of the first executable slot-1 candidate
 
+Current slot packing refinement:
+
+1. the fetch queue now exposes the younger queued entry so packing can be driven from real queue state rather than re-decoding outside the queue
+2. the top-level skeleton now derives `slot0 = older` and `slot1 = younger` only when the directional slot1 policy selects that younger branch
+3. slot 1 remains non-binding and does not feed the live single-issue decode-to-execute path
+
+Current slot1 decode refinement:
+
+1. the packed slot-1 instruction now passes through a second `hcpu_IDU` instance at top level
+2. this decode surface is used only for observability and assertion coverage, not for execution or queue dequeue side effects
+3. the current assertions require that any visible slot-1 decode still behaves like a non-writing younger branch
+
 This keeps the policy executable while preserving the current single-issue machine behavior.
 
 ## Immediate Follow-Up

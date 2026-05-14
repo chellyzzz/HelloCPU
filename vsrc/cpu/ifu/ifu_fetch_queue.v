@@ -113,7 +113,11 @@ module hcpu_ifu_fetch_queue (
     output                              o_pair_has_exclusive_backend,
     output                              o_pair_has_redirect_control,
     output                              o_pair_order_alu_then_branch,
-    output                              o_pair_order_branch_then_alu
+    output                              o_pair_order_branch_then_alu,
+    output                              o_pair_younger_valid,
+    output             [31:0]           o_pair_younger_pc,
+    output             [31:0]           o_pair_younger_ins,
+    output                              o_pair_younger_predecode_brch
 );
 
 localparam DEPTH = 2;
@@ -283,6 +287,10 @@ assign o_pair_has_exclusive_backend = o_pair_valid && pair_has_exclusive_backend
 assign o_pair_has_redirect_control = o_pair_valid && pair_has_redirect_control;
 assign o_pair_order_alu_then_branch = o_pair_valid && pair_order_alu_then_branch;
 assign o_pair_order_branch_then_alu = o_pair_valid && pair_order_branch_then_alu;
+assign o_pair_younger_valid = o_pair_valid;
+assign o_pair_younger_pc = o_pair_younger_valid ? pc_q[next_head] : 32'b0;
+assign o_pair_younger_ins = o_pair_younger_valid ? ins_q[next_head] : 32'b0;
+assign o_pair_younger_predecode_brch = o_pair_younger_valid && pair1_brch;
 
 integer i;
 always @(posedge clock or posedge reset) begin
