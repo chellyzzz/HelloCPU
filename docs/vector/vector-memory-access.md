@@ -266,6 +266,15 @@ Phase 4 标准 memory slice 已支持 `vle8.v/vse8.v`：
 6. memory request/response 继续复用 CPU memory owner 边界，kill/store directed coverage 继续作为安全门槛。
 7. directed tests 使用 static initialized memory，避免 stack store 留在 scalar cache 而 COP owner bypass 从 backing memory 读到旧值。
 
+Phase 6 标准 memory slice 已支持 `vle32.v/vse32.v`：
+
+1. 只识别 unit-stride `vm=1`、`width=110`、`mop=00`、`mew=0`、`nf=0` 编码。
+2. 只在 `SEW=32`、`LMUL=m1`、`vill=0`、`vl>0` 下发起 memory request。
+3. 为复用当前 COP memory owner 的 byte strobe，`vle32.v/vse32.v` 使用 4 个 byte-serial requests，而不是一个 word request。
+4. `vl=0` 时 `vle32.v` 写 0 到目标 VRF，`vse32.v` 不发起 memory request。
+5. `vd/vs3` 当前仍映射到 4-entry COP-local VRF 低两位。
+6. 不声明 scalar cache 与 COP bypass coherent；directed tests 继续使用 static initialized backing memory。
+
 关键设计决策：
 1. **CPU memory owner 边界**：scalar 和 COP 请求使用统一 owner 语义
 2. **COP busy 串行化**：V1 不支持多个 COP memory 请求在飞
