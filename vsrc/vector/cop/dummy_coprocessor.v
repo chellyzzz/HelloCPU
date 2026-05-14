@@ -55,6 +55,7 @@ wire        vtype_read;
 wire        vstate_add;
 wire        vsetivli_proto;
 wire        vsetivli_standard;
+wire        vadd_vv_standard;
 wire [31:0] scalar_lane_result;
 wire [31:0] vrf_op_result;
 wire [31:0] vlen_next_value;
@@ -62,6 +63,7 @@ wire [31:0] vtype_write_value;
 wire [31:0] vsetivli_vtype_value;
 wire [31:0] vtype_next_value;
 wire [31:0] vstate_add_result;
+wire [31:0] vadd_vv_result;
 
 hcpu_vector_cop_decode u_cop_decode(
     .i_ins(i_ins),
@@ -79,7 +81,8 @@ hcpu_vector_cop_decode u_cop_decode(
     .o_vtype_read(vtype_read),
     .o_vstate_add(vstate_add),
     .o_vsetivli_proto(vsetivli_proto),
-    .o_vsetivli_standard(vsetivli_standard)
+    .o_vsetivli_standard(vsetivli_standard),
+    .o_vadd_vv_standard(vadd_vv_standard)
 );
 
 hcpu_vector_lane_alu u_scalar_lane_alu(
@@ -116,9 +119,21 @@ assign vstate_add_result = vtype[31] ? 32'h80000000 :
                                (vlen > 32'd1) ? (i_src1[15:8]  + i_src2[15:8])  : 8'b0,
                                (vlen > 32'd0) ? (i_src1[7:0]   + i_src2[7:0])   : 8'b0
                            } : 32'h80000000;
+wire [1:0]  vadd_vd  = i_ins[8:7];
+wire [1:0]  vadd_vs1 = i_ins[16:15];
+wire [1:0]  vadd_vs2 = i_ins[21:20];
+assign vadd_vv_result = vtype[31] ? 32'h80000000 :
+                        (vtype[2:0] == 3'd2) ? ((vlen == 32'b0) ? 32'b0 : (vrf[vadd_vs2] + vrf[vadd_vs1])) :
+                        (vtype[2:0] == 3'd0) ? {
+                            (vlen > 32'd3) ? (vrf[vadd_vs2][31:24] + vrf[vadd_vs1][31:24]) : 8'b0,
+                            (vlen > 32'd2) ? (vrf[vadd_vs2][23:16] + vrf[vadd_vs1][23:16]) : 8'b0,
+                            (vlen > 32'd1) ? (vrf[vadd_vs2][15:8]  + vrf[vadd_vs1][15:8])  : 8'b0,
+                            (vlen > 32'd0) ? (vrf[vadd_vs2][7:0]   + vrf[vadd_vs1][7:0])   : 8'b0
+                        } : 32'h80000000;
 wire [1:0]  vrf_idx   = i_src2[1:0];
 wire        is_mem_op = is_mem_load || is_mem_store;
 wire [31:0] cop_result = vsetivli_any ? vlen_next_value :
+                          vadd_vv_standard ? vadd_vv_result :
                           (cop_funct3 == 3'b001) ? scalar_lane_result :
                           (cop_funct3 == 3'b010) ? scalar_lane_result :
                           (cop_funct3 == 3'b011) ? scalar_lane_result :
@@ -132,9 +147,11 @@ wire [31:0] cop_result = vsetivli_any ? vlen_next_value :
                           is_vrf_lane ? vrf_op_result :
                           is_vrf_op  ? vrf[vrf_idx] :
                           scalar_op;
-wire        vrf_write     = is_vrf_op && (cop_funct7 != 7'd4);
-wire [1:0]  vrf_write_idx = is_vrf_lane ? 2'd0 : vrf_idx;
-wire [31:0] vrf_write_value = is_vrf_lane ? vrf_op_result : i_src1;
+wire        vrf_write     = (is_vrf_op && (cop_funct7 != 7'd4)) || (vadd_vv_standard && !vtype[31]);
+wire [1:0]  vrf_write_idx = vadd_vv_standard ? vadd_vd :
+                            is_vrf_lane ? 2'd0 : vrf_idx;
+wire [31:0] vrf_write_value = vadd_vv_standard ? vadd_vv_result :
+                              is_vrf_lane ? vrf_op_result : i_src1;
 
 always @(posedge clock or posedge reset) begin
     if (reset) begin
