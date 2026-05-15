@@ -16,9 +16,13 @@ EMBENCH_DIR      = benchmark/embench-iot
 EMBENCH_BUILD_DIR = $(BUILD_DIR)/embench
 EMBENCH_CONFIG_DIR = $(EMBENCH_DIR)/examples/riscv32/ri5cyverilator
 EMBENCH_SUBSET   = crc32 matmult-int nettle-aes nettle-sha256 ud edn md5sum
+RVV_BENCH_DIR    = benchmark/rvv-subset-benchmark
+RVV_BENCH_BUILD_DIR = $(BUILD_DIR)/rvv-benchmark
+VECTOR_TEST_HELPERS = $(VECTOR_TEST_DIR)/rvv_test_helpers.h
 
 SCALAR_TESTS := $(basename $(notdir $(wildcard $(SCALAR_TEST_DIR)/*.c)))
 VECTOR_TESTS := $(basename $(notdir $(wildcard $(VECTOR_TEST_DIR)/*.c)))
+RVV_BENCHES  := $(basename $(notdir $(wildcard $(RVV_BENCH_DIR)/*.c)))
 
 SCALAR_BINS := $(addprefix $(SCALAR_BUILD_DIR)/,$(addsuffix .bin,$(SCALAR_TESTS)))
 VECTOR_BINS := $(addprefix $(VECTOR_BUILD_DIR)/,$(addsuffix .bin,$(VECTOR_TESTS)))
@@ -60,8 +64,14 @@ $(BUILD_DIR) $(SCALAR_BUILD_DIR) $(VECTOR_BUILD_DIR):
 $(EMBENCH_BUILD_DIR):
 	mkdir -p $@
 
+$(RVV_BENCH_BUILD_DIR):
+	mkdir -p $@
+
 print-embench-subset:
 	@echo $(EMBENCH_SUBSET)
+
+print-rvv-benchmarks:
+	@echo $(RVV_BENCHES)
 
 embench-build: | $(EMBENCH_BUILD_DIR)
 	@set -e; \
@@ -73,6 +83,18 @@ embench-build: | $(EMBENCH_BUILD_DIR)
 		$(CC) $(EMBENCH_CFLAGS) $(LDFLAGS) $(EMBENCH_COMMON_SRCS) $$srcs -o $(EMBENCH_BUILD_DIR)/$$b.elf; \
 		$(OBJCOPY) -O binary $(EMBENCH_BUILD_DIR)/$$b.elf $(EMBENCH_BUILD_DIR)/$$b.bin; \
 		$(OBJDUMP) -d $(EMBENCH_BUILD_DIR)/$$b.elf > $(EMBENCH_BUILD_DIR)/$$b.txt; \
+		done
+
+rvv-benchmark-build: | $(RVV_BENCH_BUILD_DIR)
+	@set -e; \
+	benchmarks="$(if $(ALL),$(ALL),$(RVV_BENCHES))"; \
+	for b in $$benchmarks; do \
+		echo "[rvv-benchmark-build] $$b"; \
+		src="$(RVV_BENCH_DIR)/$$b.c"; \
+		if [ ! -f "$$src" ]; then echo "Missing RVV benchmark source: $$src"; exit 1; fi; \
+		$(CC) $(CFLAGS) $(LDFLAGS) start.S lib/klib.c $$src -o $(RVV_BENCH_BUILD_DIR)/$$b.elf; \
+		$(OBJCOPY) -O binary $(RVV_BENCH_BUILD_DIR)/$$b.elf $(RVV_BENCH_BUILD_DIR)/$$b.bin; \
+		$(OBJDUMP) -d $(RVV_BENCH_BUILD_DIR)/$$b.elf > $(RVV_BENCH_BUILD_DIR)/$$b.txt; \
 	done
 
 $(SCALAR_BUILD_DIR)/%.bin: $(SCALAR_TEST_DIR)/%.c start.S lib/klib.c link.ld | $(SCALAR_BUILD_DIR)
@@ -80,7 +102,7 @@ $(SCALAR_BUILD_DIR)/%.bin: $(SCALAR_TEST_DIR)/%.c start.S lib/klib.c link.ld | $
 	$(OBJCOPY) -O binary $(SCALAR_BUILD_DIR)/$*.elf $@
 	$(OBJDUMP) -d $(SCALAR_BUILD_DIR)/$*.elf > $(SCALAR_BUILD_DIR)/$*.txt
 
-$(VECTOR_BUILD_DIR)/%.bin: $(VECTOR_TEST_DIR)/%.c start.S lib/klib.c link.ld | $(VECTOR_BUILD_DIR)
+$(VECTOR_BUILD_DIR)/%.bin: $(VECTOR_TEST_DIR)/%.c $(VECTOR_TEST_HELPERS) start.S lib/klib.c link.ld | $(VECTOR_BUILD_DIR)
 	$(CC) $(CFLAGS) $(LDFLAGS) start.S lib/klib.c $< -o $(VECTOR_BUILD_DIR)/$*.elf
 	$(OBJCOPY) -O binary $(VECTOR_BUILD_DIR)/$*.elf $@
 	$(OBJDUMP) -d $(VECTOR_BUILD_DIR)/$*.elf > $(VECTOR_BUILD_DIR)/$*.txt
@@ -88,4 +110,4 @@ $(VECTOR_BUILD_DIR)/%.bin: $(VECTOR_TEST_DIR)/%.c start.S lib/klib.c link.ld | $
 clean:
 	rm -rf $(BUILD_DIR)
 
-.PHONY: all clean scalar-tests vector-tests benchmark embench-build print-embench-subset
+.PHONY: all clean scalar-tests vector-tests benchmark embench-build print-embench-subset rvv-benchmark-build print-rvv-benchmarks

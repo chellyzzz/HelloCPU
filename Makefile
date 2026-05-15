@@ -35,7 +35,7 @@ VECTOR_TESTS := $(basename $(notdir $(wildcard $(SW_DIR)/tests/vector-tests/*.c)
 
 # === Targets ===
 
-.PHONY: all sim sw clean run_% run_all bench bench_only branch_trace predictor_sim ifu_idu_backpressure exu_wbu_flush exu_result_visibility cop_backend_flush idu_cop_regs commit_visible_ctrl ifu_fetch_queue decode_pair_policy top_fetch_queue_flush top_pc_update_flush top_slot1_observability cop_mem_pending_kill cop_mem_store_directed cop_mem_store_kill scalar_mem_pending_kill cop_vtype_kill backend_contract_checks embench-build embench-run embench-run-one
+.PHONY: all sim sw clean run_% run_all bench bench_only branch_trace predictor_sim ifu_idu_backpressure exu_wbu_flush exu_result_visibility cop_backend_flush idu_cop_regs commit_visible_ctrl ifu_fetch_queue decode_pair_policy top_fetch_queue_flush top_pc_update_flush top_slot1_observability cop_mem_pending_kill cop_mem_store_directed cop_mem_store_kill scalar_mem_pending_kill cop_vtype_kill backend_contract_checks rvv-subset-smoke rvv-bench-build rvv-bench-run rvv-bench-run-one embench-build embench-run embench-run-one
 
 all: sim sw
 
@@ -118,6 +118,24 @@ embench-run-one: sim
 	@mkdir -p $(BUILD_DIR)/embench
 	@echo "=== Embench: $(ALL) ==="
 	@set -o pipefail; $(BUILD_DIR)/V$(TOPNAME) $(SW_DIR)/build/embench/$(ALL).bin | tee $(BUILD_DIR)/embench/$(ALL).log
+
+rvv-bench-build: sim
+	$(MAKE) -C $(SW_DIR) rvv-benchmark-build ALL="$(ALL)"
+
+rvv-bench-run: rvv-bench-build
+	@mkdir -p $(BUILD_DIR)/rvv-benchmark
+	@for b in $(or $(ALL),$(shell $(MAKE) -s -C $(SW_DIR) print-rvv-benchmarks)); do \
+		echo "=== RVV benchmark: $$b ==="; \
+		$(BUILD_DIR)/V$(TOPNAME) $(SW_DIR)/build/rvv-benchmark/$$b.bin | tee $(BUILD_DIR)/rvv-benchmark/$$b.log; \
+		if [ $${PIPESTATUS[0]} -ne 0 ]; then exit $${PIPESTATUS[0]}; fi; \
+	done
+
+rvv-bench-run-one: sim
+	@if [ -z "$(ALL)" ]; then echo "Set ALL=<benchmark>"; exit 1; fi
+	$(MAKE) -C $(SW_DIR) rvv-benchmark-build ALL="$(ALL)"
+	@mkdir -p $(BUILD_DIR)/rvv-benchmark
+	@echo "=== RVV benchmark: $(ALL) ==="
+	@set -o pipefail; $(BUILD_DIR)/V$(TOPNAME) $(SW_DIR)/build/rvv-benchmark/$(ALL).bin | tee $(BUILD_DIR)/rvv-benchmark/$(ALL).log
 
 branch_trace: sim
 	$(MAKE) -C $(SW_DIR) benchmark ITER=$(ITER)
@@ -261,6 +279,25 @@ scalar_mem_pending_kill: sw
 	@$(BUILD_DIR)/Vscalar_mem_pending_kill_tb $(SW_DIR)/build/scalar/load-repeat.bin
 
 backend_contract_checks: exu_wbu_flush exu_result_visibility cop_backend_flush idu_cop_regs commit_visible_ctrl ifu_idu_backpressure scalar_mem_pending_kill cop_mem_pending_kill cop_mem_store_directed cop_mem_store_kill cop_vtype_kill
+
+rvv-subset-smoke:
+	$(MAKE) run ALL=rvv-acceptance-subset EXTRA_VERILATOR_FLAGS="$(EXTRA_VERILATOR_FLAGS)"
+	$(MAKE) run ALL=rvv-vadd-vv-basic EXTRA_VERILATOR_FLAGS="$(EXTRA_VERILATOR_FLAGS)"
+	$(MAKE) run ALL=rvv-vadd-vx-basic EXTRA_VERILATOR_FLAGS="$(EXTRA_VERILATOR_FLAGS)"
+	$(MAKE) run ALL=rvv-bitwise-vv-basic EXTRA_VERILATOR_FLAGS="$(EXTRA_VERILATOR_FLAGS)"
+	$(MAKE) run ALL=rvv-phase1-alu EXTRA_VERILATOR_FLAGS="$(EXTRA_VERILATOR_FLAGS)"
+	$(MAKE) run ALL=rvv-phase1-move EXTRA_VERILATOR_FLAGS="$(EXTRA_VERILATOR_FLAGS)"
+	$(MAKE) run ALL=rvv-phase5-exec EXTRA_VERILATOR_FLAGS="$(EXTRA_VERILATOR_FLAGS)"
+	$(MAKE) run ALL=rvv-phase7-mask-exec EXTRA_VERILATOR_FLAGS="$(EXTRA_VERILATOR_FLAGS)"
+	$(MAKE) run ALL=rvv-phase8-csr-state EXTRA_VERILATOR_FLAGS="$(EXTRA_VERILATOR_FLAGS)"
+	$(MAKE) run ALL=rvv-vle-vse8-basic EXTRA_VERILATOR_FLAGS="$(EXTRA_VERILATOR_FLAGS)"
+	$(MAKE) run ALL=rvv-vle-vse16-basic EXTRA_VERILATOR_FLAGS="$(EXTRA_VERILATOR_FLAGS)"
+	$(MAKE) run ALL=rvv-vle-vse32-basic EXTRA_VERILATOR_FLAGS="$(EXTRA_VERILATOR_FLAGS)"
+	$(MAKE) run ALL=rvv-phase12-vmul EXTRA_VERILATOR_FLAGS="$(EXTRA_VERILATOR_FLAGS)"
+	$(MAKE) run ALL=rvv-unsupported-opv EXTRA_VERILATOR_FLAGS="$(EXTRA_VERILATOR_FLAGS)"
+	$(MAKE) backend_contract_checks EXTRA_VERILATOR_FLAGS="$(EXTRA_VERILATOR_FLAGS)"
+	$(MAKE) decode_pair_policy EXTRA_VERILATOR_FLAGS="$(EXTRA_VERILATOR_FLAGS)"
+	$(MAKE) top_slot1_observability EXTRA_VERILATOR_FLAGS="$(EXTRA_VERILATOR_FLAGS)"
 
 # Wave for debugging
 wave:

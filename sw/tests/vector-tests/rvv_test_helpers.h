@@ -1,7 +1,7 @@
 #ifndef RVV_TEST_HELPERS_H
 #define RVV_TEST_HELPERS_H
 
-static inline unsigned rvv_vsetivli_e8(unsigned avl) {
+static inline unsigned rvv_vsetvli_e8(unsigned avl) {
   unsigned result;
   asm volatile (".insn i 0x57, 7, %0, %1, 0"
                 : "=r"(result)
@@ -9,7 +9,11 @@ static inline unsigned rvv_vsetivli_e8(unsigned avl) {
   return result;
 }
 
-static inline unsigned rvv_vsetivli_e32(unsigned avl) {
+static inline unsigned rvv_vsetivli_e8(unsigned avl) {
+  return rvv_vsetvli_e8(avl);
+}
+
+static inline unsigned rvv_vsetvli_e32(unsigned avl) {
   unsigned result;
   asm volatile (".insn i 0x57, 7, %0, %1, 2"
                 : "=r"(result)
@@ -17,12 +21,32 @@ static inline unsigned rvv_vsetivli_e32(unsigned avl) {
   return result;
 }
 
-static inline unsigned rvv_vsetivli_bad_lmul(unsigned avl) {
+static inline unsigned rvv_vsetivli_e32(unsigned avl) {
+  return rvv_vsetvli_e32(avl);
+}
+
+static inline unsigned rvv_vsetvli_e16(unsigned avl) {
   unsigned result;
   asm volatile (".insn i 0x57, 7, %0, %1, 1"
                 : "=r"(result)
                 : "r"(avl));
   return result;
+}
+
+static inline unsigned rvv_vsetivli_e16(unsigned avl) {
+  return rvv_vsetvli_e16(avl);
+}
+
+static inline unsigned rvv_vsetivli_bad_lmul(unsigned avl) {
+  unsigned result;
+  asm volatile (".insn i 0x57, 7, %0, %1, 8"
+                : "=r"(result)
+                : "r"(avl));
+  return result;
+}
+
+static inline unsigned rvv_vsetvli_bad_lmul(unsigned avl) {
+  return rvv_vsetivli_bad_lmul(avl);
 }
 
 static inline void rvv_vmv_v_x_v0(unsigned scalar) {
