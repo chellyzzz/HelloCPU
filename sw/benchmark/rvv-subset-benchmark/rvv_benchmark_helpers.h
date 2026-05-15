@@ -37,17 +37,14 @@ static inline unsigned rvv_vsetivli_e16(unsigned avl) {
   return rvv_vsetvli_e16(avl);
 }
 
-static inline unsigned rvv_debug_vrf_write(unsigned value, unsigned idx) {
-  unsigned result;
-  asm volatile (".insn r 0x0b, 0, 3, %0, %1, %2"
-                : "=r"(result)
-                : "r"(value), "r"(idx));
-  return result;
-}
-
 static inline void rvv_vle8_v1(unsigned base) {
   register unsigned base_reg asm("x10") = base;
   asm volatile (".word 0x02050087" :: "r"(base_reg) : "memory");
+}
+
+static inline void rvv_vle8_v2(unsigned base) {
+  register unsigned base_reg asm("x10") = base;
+  asm volatile (".word 0x02050107" :: "r"(base_reg) : "memory");
 }
 
 static inline void rvv_vse8_v1(unsigned base) {
@@ -58,6 +55,11 @@ static inline void rvv_vse8_v1(unsigned base) {
 static inline void rvv_vle32_v1(unsigned base) {
   register unsigned base_reg asm("x10") = base;
   asm volatile (".word 0x02056087" :: "r"(base_reg) : "memory");
+}
+
+static inline void rvv_vle32_v2(unsigned base) {
+  register unsigned base_reg asm("x10") = base;
+  asm volatile (".word 0x02056107" :: "r"(base_reg) : "memory");
 }
 
 static inline void rvv_vse32_v1(unsigned base) {

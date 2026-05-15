@@ -12,7 +12,7 @@ The final HelloCPU RVV target is benchmark-driven, not compliance-driven. It sho
 - Execute: current add/sub/bitwise/shift/move subset plus `vmul.vv` and `vmul.vx`.
 - Mask: execute mask through `v0`, compare-to-mask, and `vmerge` for threshold/select kernels.
 - Reduction: `vredsum.vs` only, for sum/checksum/dot-product tails.
-- Coherency: scalar initialization, vector memory, and scalar result checking must have a documented memory contract before RVV benchmarks are considered architectural tests.
+- Coherency: benchmarks use static backing data for vector loads and scalar-visible destinations for vector stores; this staged contract is covered by `rvv-phase15-memory-contract`.
 
 ## Supported State
 
@@ -22,12 +22,12 @@ The final HelloCPU RVV target is benchmark-driven, not compliance-driven. It sho
 - `vl`, `vtype`, and `vstart` are readable through CSR mirrors `0xc20`, `0xc21`, and `0x008`.
 - `vstart` is fixed at 0; restart is not supported.
 
-## Planned Target Additions
+## Remaining Cleanup
 
 - Internal signal naming cleanup from legacy `vsetivli` labels to `vsetvli` labels.
-- `vredsum.vs` as the only planned reduction.
+- True scalar cache and COP memory-bypass coherency remains deferred.
 
-These are target additions, not currently supported behavior.
+These cleanup items are not required for the frozen benchmark-driven subset.
 
 ## Supported Registers
 
@@ -99,16 +99,18 @@ The target subset should be sufficient for these small benchmarks:
 - `dot_i32_tiny`: `vle32`, `vmul`, scalar final check.
 - `threshold_u8`: `vle8`, compare mask, `vmerge`, `vse8`.
 
-The initial benchmark harness implements `vec_add_i32`, `vec_xor_u8`, `memcpy_vec`, `dot_i32_tiny`, and `threshold_u8` using the current supported subset. These tests use static initialized backing memory and may use `rvv_debug_*` only as harness assistance; this is not the final architectural benchmark path. Scalar/vector coherency remains a separate contract item before benchmarks become final acceptance tests.
+The benchmark harness implements `vec_add_i32`, `vec_xor_u8`, `memcpy_vec`, `dot_i32_tiny`, and `threshold_u8` using the current supported subset. Benchmark functional paths use standard RVV load/compute/store instructions rather than `rvv_debug_*` helpers. Static initialized backing memory remains the supported vector-load source until scalar cache and COP memory-bypass coherency is implemented.
 
 ## Scalar/Vector Memory Contract
 
-Until scalar cache and COP memory-bypass coherency is explicitly implemented, architectural RVV tests and benchmarks must use static initialized backing memory for vector loads and scalar-visible destinations for vector stores. They must not depend on a scalar store immediately feeding a vector load through coherent cache behavior. This keeps the current memory owner/kill contract testable while making the coherency gap explicit.
+Until scalar cache and COP memory-bypass coherency is explicitly implemented, architectural RVV tests and benchmarks must use static initialized backing memory for vector loads and scalar-visible destinations for vector stores. They must not depend on a scalar store immediately feeding a vector load through coherent cache behavior. `rvv-phase15-memory-contract` covers the supported staged contract: vector load from static backing memory followed by vector store to scalar-visible memory and scalar verification.
 
 ## Smoke Entry
 
 Use `make rvv-subset-smoke EXTRA_VERILATOR_FLAGS='-j 1'` as the fixed partial RVV regression entry. It covers focused RVV tests, subset acceptance, backend contract checks, decode pair policy, top slot1 observability, and COP/scalar memory owner/kill checks.
 
+Use `make rvv-final-acceptance EXTRA_VERILATOR_FLAGS='-j 1'` as the final benchmark-driven gate. It runs whitespace checks, the fixed partial RVV smoke, and the local RVV benchmark harness.
+
 ## Validation Contract
 
-The subset is considered stable when focused execute, mask, CSR, memory, acceptance, and memory owner/kill tests pass together, plus `git diff --check`.
+The subset is considered stable when `rvv-final-acceptance` passes. This gate intentionally accepts the staged scalar/vector memory contract and does not claim true scalar-store-to-vector-load coherency.

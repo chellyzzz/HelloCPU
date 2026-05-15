@@ -22,25 +22,25 @@ This document summarizes the work on `vector-next-rvv-state-p1` since the `f40f6
 - `SEW=8/16/32` are supported for the current benchmark-driven subset.
 - `LMUL>m1`, fractional LMUL, grouped register aliasing, `vstart` restart, precise vector exceptions, and full illegal trap integration remain out of scope.
 - Masked memory, strided/indexed/segment/fault-only-first memory, FP, widening/narrowing, saturating, divide/remainder, and full RVV compliance remain out of scope.
-- Scalar cache and COP memory-bypass coherency must be documented before RVV benchmarks become architectural acceptance tests.
+- Scalar cache and COP memory-bypass coherency uses the staged contract documented in `rvv-subset-freeze.md`: static backing vector loads plus vector stores to scalar-visible destinations are covered; scalar-store-to-vector-load coherence remains out of scope.
 
 ## Validation
 
 - Focused RVV tests cover `vsetvli`, ALU, bitwise, move, shift, multiply, compare/merge, mask, CSR mirror, vector memory, unsupported OP-V, and subset acceptance.
 - Directed owner/kill tests cover scalar pending memory kill, COP pending memory kill, COP store owner path, and pre-accept killed COP store behavior.
 - `make rvv-subset-smoke EXTRA_VERILATOR_FLAGS='-j 1'` is the fixed partial RVV smoke entry.
-- `make rvv-bench-run EXTRA_VERILATOR_FLAGS='-j 1'` runs the initial RVV benchmark harness.
-- `git diff --check` is clean for the branch changes.
+- `make rvv-bench-run EXTRA_VERILATOR_FLAGS='-j 1'` runs the local RVV benchmark harness.
+- `make rvv-final-acceptance EXTRA_VERILATOR_FLAGS='-j 1'` is the final benchmark-driven gate and includes `git diff --check`, smoke, and benchmarks.
 
 ## Next Development Plan
 
-- Extend `sw/benchmark/rvv-subset-benchmark/` beyond the initial `vec_add_i32`, `vec_xor_u8`, and `memcpy_vec` smoke kernels.
-- Freeze a one-command RVV smoke target covering focused tests, acceptance, benchmarks, and memory owner/kill tests.
-- The final benchmark-driven subset now includes compare/merge, `vredsum.vs`, and `threshold_u8`; remaining work is coherency hardening before architectural acceptance.
-- Document and test scalar/vector memory coherency before treating benchmarks as architectural tests.
+- Treat the benchmark-driven partial RVV subset as complete for this branch.
+- Keep true scalar-cache/COP-bypass coherency explicitly deferred unless a later phase updates the CPU/COP memory boundary.
+- Keep full RVV compliance, `LMUL>m1`, `vstart` restart, masked memory, and precise vector exceptions out of this merge.
 
 ## Merge Notes
 
 - Main touched RTL area: `vsrc/vector/cop/dummy_coprocessor.v` and existing CPU/COP/CSR wiring from the earlier phases.
 - Main touched software area: `sw/tests/vector-tests/` focused RVV tests and helpers.
 - Main touched docs area: `docs/vector/rvv-supported-subset.md`, `docs/vector/rvv-subset-freeze.md`, and `docs/vector/rvv-long-term-roadmap.md`.
+- Final gate: `make rvv-final-acceptance EXTRA_VERILATOR_FLAGS='-j 1'`.

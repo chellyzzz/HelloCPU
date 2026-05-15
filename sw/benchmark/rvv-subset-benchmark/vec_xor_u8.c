@@ -1,13 +1,14 @@
 #include "rvv_benchmark_helpers.h"
 
 static unsigned lhs = 0x10203040u;
+static unsigned rhs = 0x01020304u;
 static unsigned dst;
 
 int main() {
   if (rvv_vsetivli_e8(4) != 4) return 1;
 
   rvv_vle8_v1((unsigned)&lhs);
-  rvv_debug_vrf_write(0x01020304u, 2);
+  rvv_vle8_v2((unsigned)&rhs);
   rvv_vxor_v1_v1_v2();
   rvv_vse8_v1((unsigned)&dst);
 

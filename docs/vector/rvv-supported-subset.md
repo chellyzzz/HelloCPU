@@ -17,11 +17,11 @@
 
 当前 HelloCPU 声明支持一个冻结的 partial RVV integer subset，而不是完整 RVV。冻结声明见 `rvv-subset-freeze.md`；其他 RVV 能力仍属于 unsupported/deferred，不应静默执行成近似行为。
 
-标准 OP-V `vsetivli` 进入 RTL 前的 interface review 草案见 `rvv-standard-decode-p2-review.md`。
+标准 OP-V interface review 草案见 `rvv-standard-decode-p2-review.md`。
 
 第一批 RVV 已形成一个小而明确的整数子集；最终目标仍不是完整 RVV，而是支撑 `sw/benchmark/rvv-subset-benchmark/` 下的小型整数 benchmark：
 
-- `vsetivli` 和 `vsetvli`。
+- `vsetvli` rs1 AVL path。
 - `VLEN` 固定小宽度。
 - `SEW=8/16/32`。
 - `LMUL=m1`。
@@ -60,7 +60,7 @@
 | 指令 | 当前状态 | 第一批 RVV 目标 | 备注 |
 |------|----------|-----------------|------|
 | `vsetvli` | supported | planned | benchmark target；rs1 AVL path，受限 `SEW=8/16/32, LMUL=m1` 语义 |
-| `vsetivli` | unsupported | planned | internal legacy names remain, but immediate AVL encoding is not separately implemented |
+| `vsetivli` | unsupported | unsupported | internal legacy names remain, but immediate AVL encoding is not separately implemented |
 | `vsetvl` | unsupported | deferred | 可等 `vsetvli` 稳定后做 |
 
 ## 六、整数 ALU 指令
@@ -152,9 +152,9 @@ Phase 3 阶段性边界：`vl/vtype` 继续 COP-local，`vstart` 固定等价为
 | RVV decode illegal | unsupported | planned |
 | custom COP `vtype` prototype | supported by prototype tests | 保留到标准 `vset*` path 稳定 |
 | custom COP state consumer | supported by prototype tests | `vstate_add` 覆盖 `vl/vtype/vill` gating |
-| custom COP `vsetivli_p` | supported by prototype tests | 标准 `vsetivli` 前的低风险 prototype |
-| RVV `vsetivli` | supported by focused tests | 当前只支持最小 OP-V `vsetivli` |
-| other RVV `vset*` | unsupported | planned |
+| custom COP `vsetivli_p` | supported by prototype tests | 标准 `vsetvli` 前的低风险 prototype |
+| RVV `vsetvli` | supported by focused tests | 当前支持 rs1 AVL path |
+| other RVV `vset*` | unsupported | deferred |
 | RVV `vadd.vv` directed | supported by focused tests | 当前只支持 unmasked `vadd.vv` |
 | RVV `vadd.vx` directed | supported by focused tests | 当前只支持 unmasked `vadd.vx` |
 | RVV bitwise VV directed | supported by focused tests | 当前支持 unmasked `vand.vv/vor.vv/vxor.vv` |
@@ -167,12 +167,13 @@ Phase 3 阶段性边界：`vl/vtype` 继续 COP-local，`vstart` 固定等价为
 | RVV Phase 9/11 acceptance | supported by focused tests | `v0-v31` register addressing and frozen subset smoke |
 | RVV Phase 13 compare/merge | supported by focused tests | `vmseq/vmsne/vmslt/vmsltu` 和 `vmerge.vvm/vxm` |
 | RVV Phase 14 reduction | supported by focused tests | `vredsum.vs` |
+| RVV Phase 15 memory contract | supported by focused tests | static backing vector load + vector store to scalar-visible memory |
 | other RVV ALU directed | unsupported | planned |
 | RVV load/store directed | unsupported | planned |
 | RVV load/compute/store program | unsupported | planned |
 | RVV benchmark smoke | supported | planned | 当前 `vec_add_i32`、`vec_xor_u8`、`memcpy_vec`、`dot_i32_tiny`、`threshold_u8` |
 
-标准 RVV directed tests 应优先使用标准 `vsetivli` 和 `vmv.v.x` 做配置/初始化。`custom-0` VRF read/write 只作为 legacy/debug harness，用于结果读回、unsupported state guard 和尚无标准 init path 的旧测试。
+标准 RVV directed tests 应优先使用标准 `vsetvli` 和 `vmv.v.x` 做配置/初始化。`custom-0` VRF read/write 只作为 legacy/debug harness，用于结果读回、unsupported state guard 和尚无标准 init path 的旧测试。
 
 ## 十二、第一批支持声明草案
 
@@ -193,7 +194,7 @@ Phase 3 阶段性边界：`vl/vtype` 继续 COP-local，`vstart` 固定等价为
 - CSR-readable `vl`/`vtype`/`vstart` mirror，更新点为 COP commit-visible fire；`vstart` 固定为 0。
 - `vm=1` 全使能。
 - unsupported 指令和配置不执行近似语义。
-- 标准测试短期只把 custom VRF read/write 当 legacy/debug harness；新测试优先用标准 move 初始化，直到标准 load/store 或更完整 VRF observable path 可用。
+- 标准测试短期只把 custom VRF read/write 当 legacy/debug harness；benchmark 功能路径使用标准 RVV load/compute/store。
 
 任何超出以上范围的 RVV 功能，在 RTL 合入前都应先更新本文档。
 
@@ -211,10 +212,10 @@ Phase 3 阶段性边界：`vl/vtype` 继续 COP-local，`vstart` 固定等价为
 
 对应最终 ISA 范围：
 
-- 配置：`vsetvli`，仅 `SEW=8/16/32`、`LMUL=m1`；`vsetivli` 仍 planned。
+- 配置：`vsetvli`，仅 `SEW=8/16/32`、`LMUL=m1`；`vsetivli` 不属于本轮支持范围。
 - 寄存器：`v0-v31`，不支持 `LMUL>m1` 或 fractional LMUL alias。
 - Memory：unmasked unit-stride `vle8/vse8/vle16/vse16/vle32/vse32`。
 - Execute：当前 add/sub/bitwise/shift/move，加 `vmul.vv/vx`。
 - Mask：execute mask、`vmseq/vmsne/vmslt/vmsltu`、`vmerge`。
 - Reduction：`vredsum.vs`。
-- Contract：benchmark 成为架构测试前，必须先明确 scalar cache 与 COP memory bypass coherency。
+- Contract：当前 benchmark 使用 static backing vector load + vector store to scalar-visible memory；scalar store 立即喂 vector load 仍不声明 coherent。

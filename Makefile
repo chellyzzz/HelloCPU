@@ -35,7 +35,7 @@ VECTOR_TESTS := $(basename $(notdir $(wildcard $(SW_DIR)/tests/vector-tests/*.c)
 
 # === Targets ===
 
-.PHONY: all sim sw clean run_% run_all bench bench_only branch_trace predictor_sim ifu_idu_backpressure exu_wbu_flush exu_result_visibility cop_backend_flush idu_cop_regs commit_visible_ctrl ifu_fetch_queue decode_pair_policy top_fetch_queue_flush top_pc_update_flush top_slot1_observability cop_mem_pending_kill cop_mem_store_directed cop_mem_store_kill scalar_mem_pending_kill cop_vtype_kill backend_contract_checks rvv-subset-smoke rvv-bench-build rvv-bench-run rvv-bench-run-one embench-build embench-run embench-run-one
+.PHONY: all sim sw clean run_% run_all bench bench_only branch_trace predictor_sim ifu_idu_backpressure exu_wbu_flush exu_result_visibility cop_backend_flush idu_cop_regs commit_visible_ctrl ifu_fetch_queue decode_pair_policy top_fetch_queue_flush top_pc_update_flush top_slot1_observability cop_mem_pending_kill cop_mem_store_directed cop_mem_store_kill scalar_mem_pending_kill cop_vtype_kill backend_contract_checks rvv-subset-smoke rvv-final-acceptance rvv-bench-build rvv-bench-run rvv-bench-run-one embench-build embench-run embench-run-one
 
 all: sim sw
 
@@ -124,7 +124,7 @@ rvv-bench-build: sim
 
 rvv-bench-run: rvv-bench-build
 	@mkdir -p $(BUILD_DIR)/rvv-benchmark
-	@for b in $(or $(ALL),$(shell $(MAKE) -s -C $(SW_DIR) print-rvv-benchmarks)); do \
+	@for b in $(or $(ALL),$(shell $(MAKE) --no-print-directory -s -C $(SW_DIR) print-rvv-benchmarks)); do \
 		echo "=== RVV benchmark: $$b ==="; \
 		$(BUILD_DIR)/V$(TOPNAME) $(SW_DIR)/build/rvv-benchmark/$$b.bin | tee $(BUILD_DIR)/rvv-benchmark/$$b.log; \
 		if [ $${PIPESTATUS[0]} -ne 0 ]; then exit $${PIPESTATUS[0]}; fi; \
@@ -136,6 +136,11 @@ rvv-bench-run-one: sim
 	@mkdir -p $(BUILD_DIR)/rvv-benchmark
 	@echo "=== RVV benchmark: $(ALL) ==="
 	@set -o pipefail; $(BUILD_DIR)/V$(TOPNAME) $(SW_DIR)/build/rvv-benchmark/$(ALL).bin | tee $(BUILD_DIR)/rvv-benchmark/$(ALL).log
+
+rvv-final-acceptance:
+	git diff --check
+	$(MAKE) rvv-subset-smoke EXTRA_VERILATOR_FLAGS="$(EXTRA_VERILATOR_FLAGS)"
+	$(MAKE) rvv-bench-run EXTRA_VERILATOR_FLAGS="$(EXTRA_VERILATOR_FLAGS)"
 
 branch_trace: sim
 	$(MAKE) -C $(SW_DIR) benchmark ITER=$(ITER)
@@ -296,6 +301,7 @@ rvv-subset-smoke:
 	$(MAKE) run ALL=rvv-phase12-vmul EXTRA_VERILATOR_FLAGS="$(EXTRA_VERILATOR_FLAGS)"
 	$(MAKE) run ALL=rvv-phase13-mask-merge EXTRA_VERILATOR_FLAGS="$(EXTRA_VERILATOR_FLAGS)"
 	$(MAKE) run ALL=rvv-phase14-reduction EXTRA_VERILATOR_FLAGS="$(EXTRA_VERILATOR_FLAGS)"
+	$(MAKE) run ALL=rvv-phase15-memory-contract EXTRA_VERILATOR_FLAGS="$(EXTRA_VERILATOR_FLAGS)"
 	$(MAKE) run ALL=rvv-unsupported-opv EXTRA_VERILATOR_FLAGS="$(EXTRA_VERILATOR_FLAGS)"
 	$(MAKE) backend_contract_checks EXTRA_VERILATOR_FLAGS="$(EXTRA_VERILATOR_FLAGS)"
 	$(MAKE) decode_pair_policy EXTRA_VERILATOR_FLAGS="$(EXTRA_VERILATOR_FLAGS)"
