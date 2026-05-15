@@ -210,6 +210,9 @@ int main(int argc, char **argv) {
 
     if (killed_first_scalar_read && top->tb_scalar_mem_kill_pending) {
       observed_kill_pending = true;
+      if (!top->tb_scalar_mem_resp_pending) {
+        return fail("scalar killed request lost response-pending state while draining");
+      }
       top->tb_hold_read_resp = 0;
     }
 

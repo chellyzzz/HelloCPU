@@ -7,6 +7,7 @@ This note defines the current backend constraints that B-line may assume while `
 - current backend semantics already distinguish `accept`, `done`, and `commit-visible`
 - `flush/kill` beats `commit-visible`
 - top-level memory ownership remains V1 single-owner and single-entry
+- scalar and COP directed builds now both expose an explicit `response pending` seam for stale-completion checks
 - focused regressions cover scalar stale completion, COP stale completion, COP store kill, and commit-visible redirect gating
 
 ## Hard Constraints
@@ -40,6 +41,7 @@ This note defines the current backend constraints that B-line may assume while `
 ### 5. Completion arrival does not imply visibility
 
 - scalar and COP paths both follow `completion arrival != commit-visible`
+- scalar EXU now exports `o_mem_resp_pending` so its top-level directed contract uses the same `request / response-pending / response-visible` vocabulary already used more explicitly in COP memory
 - killed or stale completion must be absorbed before architectural visibility
 - frontend redirect and backend completion cause must remain separately owned
 

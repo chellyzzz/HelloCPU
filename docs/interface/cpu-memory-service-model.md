@@ -128,6 +128,7 @@ Current V1 code-facing boundary signals are now exposed at CPU top level through
 Important V1 semantic note:
 
 - `scalar_mem_req_valid` currently means **the scalar EXU entry owns an active memory request**, not a new decoupled one-cycle launch handshake.
+- scalar directed validation now also exposes an explicit pending-response seam so stale scalar completion is checked with the same `request / pending / visible` vocabulary used for COP memory.
 - `scalar_mem_resp_valid` means **the active scalar memory request has completed**.
 - `scalar_mem_resp_valid` is still a visibility boundary, not a raw completion pulse: killed or stale scalar LSU completion must be absorbed before response visibility.
 

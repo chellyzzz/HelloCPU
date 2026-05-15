@@ -106,6 +106,7 @@ module hcpu_EXU(
     output             [  31:0]         o_mem_req_addr             ,
     output             [  31:0]         o_mem_req_wdata            ,
     output             [   2:0]         o_mem_req_size             ,
+    output                              o_mem_resp_pending         ,
     output                              o_mem_resp_valid           ,
     output             [  31:0]         o_mem_resp_rdata           ,
   //exu -> wbu handshake
@@ -192,6 +193,7 @@ assign o_mem_req_store  = i_store;
 assign o_mem_req_addr   = alu_res;
 assign o_mem_req_wdata  = i_src2;
 assign o_mem_req_size   = mem_req_size;
+assign o_mem_resp_pending = ((if_lsu && i_pre_valid && !lsu_done) || lsu_kill_pending);
 assign o_mem_resp_valid = i_pre_valid && if_lsu && lsu_done && !lsu_result_killed;
 assign o_mem_resp_rdata = load_res;
 

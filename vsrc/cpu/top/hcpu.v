@@ -89,6 +89,7 @@ module hcpu
 `ifdef SCALAR_MEM_PENDING_KILL_TB
     ,input                              tb_scalar_flush            ,
     output                              tb_scalar_mem_req_valid    ,
+    output                              tb_scalar_mem_resp_pending ,
     output                              tb_scalar_mem_resp_valid   ,
     output                              tb_scalar_mem_service_req_valid,
     output                              tb_scalar_mem_kill_pending ,
@@ -198,6 +199,7 @@ wire                                    scalar_mem_req_store      ;
 wire                   [  31:0]         scalar_mem_req_addr       ;
 wire                   [  31:0]         scalar_mem_req_wdata      ;
 wire                   [   2:0]         scalar_mem_req_size       ;
+wire                                    scalar_mem_resp_pending   ;
 wire                                    scalar_mem_resp_valid     ;
 wire                   [  31:0]         scalar_mem_resp_rdata     ;
 wire                                    scalar_mem_service_req_valid;
@@ -957,6 +959,7 @@ hcpu_EXU exu1(
     .o_mem_req_addr                    (scalar_mem_req_addr       ),
     .o_mem_req_wdata                   (scalar_mem_req_wdata      ),
     .o_mem_req_size                    (scalar_mem_req_size       ),
+    .o_mem_resp_pending                (scalar_mem_resp_pending   ),
     .o_mem_resp_valid                  (scalar_mem_resp_valid     ),
     .o_mem_resp_rdata                  (scalar_mem_resp_rdata     ),
   //exu -> wbu handshake
@@ -1015,6 +1018,7 @@ assign tb_mem_service_addr = mem_service_req_addr;
 
 `ifdef SCALAR_MEM_PENDING_KILL_TB
 assign tb_scalar_mem_req_valid = scalar_mem_req_valid;
+assign tb_scalar_mem_resp_pending = scalar_mem_resp_pending;
 assign tb_scalar_mem_resp_valid = scalar_mem_resp_valid;
 assign tb_scalar_mem_service_req_valid = scalar_mem_service_req_valid;
 assign tb_scalar_mem_kill_pending = exu1.lsu_kill_pending;
