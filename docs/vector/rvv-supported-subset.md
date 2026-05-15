@@ -19,15 +19,17 @@
 
 标准 OP-V `vsetivli` 进入 RTL 前的 interface review 草案见 `rvv-standard-decode-p2-review.md`。
 
-第一批 RVV 目标是形成一个小而明确的整数子集：
+第一批 RVV 已形成一个小而明确的整数子集；最终目标仍不是完整 RVV，而是支撑 `sw/benchmark/rvv-benchmark/` 下的小型整数 benchmark：
 
-- `vsetvli` 或 `vsetivli`。
+- `vsetivli` 和 `vsetvli`。
 - `VLEN` 固定小宽度。
-- `SEW=8` 和/或 `SEW=32`。
+- `SEW=8/16/32`。
 - `LMUL=m1`。
 - 基础整数 ALU。
+- 最小整数乘法。
+- 最小 compare mask、`vmerge` 和 `vredsum.vs`。
 - unit-stride load/store。
-- 初期 `vm=1` 全使能，后续再加入基础 mask。
+- `vm=1` 全使能和 execute-class `vm=0` 基础 mask。
 
 ## 三、架构状态
 
@@ -46,7 +48,7 @@
 |------|----------|-----------------|------|
 | `VLEN` | supported | planned | 固定小宽度，当前每个 vector register 存 32-bit 数据 |
 | `ELEN=8` | prototype | planned | 当前 COP lane/memory 可作为验证基础 |
-| `ELEN=16` | unsupported | deferred | 第一批不做 |
+| `ELEN=16` | unsupported | planned | benchmark target；用于 16-bit load/store 和 ALU lane |
 | `ELEN=32` | prototype | planned | 当前 GPR/VRF 32-bit 原型可复用 |
 | `ELEN=64` | unsupported | deferred | RV32 基线下暂不做 |
 | `LMUL=m1` | supported | planned | 只支持 `m1`，标准寄存器字段可寻址 `v0-v31` |
@@ -57,7 +59,7 @@
 
 | 指令 | 当前状态 | 第一批 RVV 目标 | 备注 |
 |------|----------|-----------------|------|
-| `vsetvli` | unsupported | planned | 尚未接标准 decode |
+| `vsetvli` | unsupported | planned | benchmark target；与 `vsetivli` 共享受限 `SEW=8/16/32, LMUL=m1` 语义 |
 | `vsetivli` | supported | planned | 只支持 OP-V 最小 decode slice，未扩展到完整 RVV CSR/trap 语义 |
 | `vsetvl` | unsupported | deferred | 可等 `vsetvli` 稳定后做 |
 
@@ -85,10 +87,11 @@
 | `vsrl.vx` | supported | planned | 只支持 unmasked `vm=1`、`SEW=8/32`、`LMUL=m1`、COP-local VRF + scalar GPR rs1 |
 | `vsra.vv` | supported | planned | 只支持 unmasked `vm=1`、`SEW=8/32`、`LMUL=m1`、COP-local VRF |
 | `vsra.vx` | supported | planned | 只支持 unmasked `vm=1`、`SEW=8/32`、`LMUL=m1`、COP-local VRF + scalar GPR rs1 |
-| `vmul.vv` | prototype | deferred | 先不进第一批 RVV 子集 |
+| `vmul.vv` | prototype | planned | benchmark target；用于 tiny dot/matrix kernel |
+| `vmul.vx` | unsupported | planned | benchmark target；用于 scalar coefficient kernels |
 | divide/remainder | unsupported | unsupported | 第一批不支持 |
-| reduction | unsupported | deferred | 需要额外 datapath/state |
-| compare/set mask | unsupported | deferred | 等 mask state 稳定后做 |
+| `vredsum.vs` | unsupported | planned | benchmark target；唯一计划 reduction |
+| compare/set mask | unsupported | planned | benchmark target；优先 `vmseq/vmsne/vmslt/vmsltu` |
 
 ## 七、Move 与 Merge
 
@@ -97,7 +100,7 @@
 | `vmv.v.v` | supported | planned | 只支持 unmasked `vm=1`、`SEW=8/32`、`LMUL=m1`、COP-local VRF |
 | `vmv.v.x` | supported | planned | 只支持 unmasked `vm=1`、`SEW=8/32`、`LMUL=m1`、COP-local VRF + scalar GPR rs1 |
 | `vmv.v.i` | unsupported | deferred | immediate path 后置 |
-| `vmerge.*` | unsupported | deferred | 依赖 mask 语义 |
+| `vmerge.*` | unsupported | planned | benchmark target；用于 threshold/select kernels |
 
 ## 八、Load/Store 指令
 
@@ -105,8 +108,8 @@
 |------|----------|-----------------|------|
 | `vle8.v` | supported | planned | 只支持 unit-stride、unmasked `vm=1`、`SEW=8`、`LMUL=m1`、COP-local VRF |
 | `vse8.v` | supported | planned | 只支持 unit-stride、unmasked `vm=1`、`SEW=8`、`LMUL=m1`、COP-local VRF |
-| `vle16.v` | unsupported | deferred | 第一批不做 |
-| `vse16.v` | unsupported | deferred | 第一批不做 |
+| `vle16.v` | unsupported | planned | benchmark target；unit-stride、unmasked、`SEW=16` |
+| `vse16.v` | unsupported | planned | benchmark target；unit-stride、unmasked、`SEW=16` |
 | `vle32.v` | supported | planned | 只支持 unit-stride、unmasked `vm=1`、`SEW=32`、`LMUL=m1`、COP-local VRF，byte-serial memory requests |
 | `vse32.v` | supported | planned | 只支持 unit-stride、unmasked `vm=1`、`SEW=32`、`LMUL=m1`、COP-local VRF，byte-serial memory requests |
 | strided load/store | unsupported | deferred | 不属于第一批 |
@@ -164,6 +167,7 @@ Phase 3 阶段性边界：`vl/vtype` 继续 COP-local，`vstart` 固定等价为
 | other RVV ALU directed | unsupported | planned |
 | RVV load/store directed | unsupported | planned |
 | RVV load/compute/store program | unsupported | planned |
+| RVV benchmark smoke | unsupported | planned | `vec_add_i32`、`vec_xor_u8`、`memcpy_vec`、`dot_i32_tiny`、`threshold_u8` |
 
 标准 RVV directed tests 应优先使用标准 `vsetivli` 和 `vmv.v.x` 做配置/初始化。`custom-0` VRF read/write 只作为 legacy/debug harness，用于结果读回、unsupported state guard 和尚无标准 init path 的旧测试。
 
@@ -186,3 +190,25 @@ Phase 3 阶段性边界：`vl/vtype` 继续 COP-local，`vstart` 固定等价为
 - 标准测试短期只把 custom VRF read/write 当 legacy/debug harness；新测试优先用标准 move 初始化，直到标准 load/store 或更完整 VRF observable path 可用。
 
 任何超出以上范围的 RVV 功能，在 RTL 合入前都应先更新本文档。
+
+## 十三、Benchmark 驱动最终子集
+
+最终 partial RVV 子集以小型整数 benchmark 为验收目标，不以完整 RVV compliance 为目标。
+
+目标 benchmark：
+
+- `vec_add_i32`：覆盖 `vle32.v`、`vadd.vv/vx/vi`、`vse32.v`。
+- `vec_xor_u8`：覆盖 `vle8.v`、`vxor.vv/vx/vi`、`vse8.v`。
+- `memcpy_vec`：覆盖 unit-stride byte load/store 和 `vl` loop。
+- `dot_i32_tiny`：覆盖 `vle32.v`、`vmul.vv/vx`、`vadd` 或 `vredsum.vs`。
+- `threshold_u8`：覆盖 `vle8.v`、compare mask、`vmerge`、`vse8.v`。
+
+对应最终 ISA 范围：
+
+- 配置：`vsetivli`、`vsetvli`，仅 `SEW=8/16/32`、`LMUL=m1`。
+- 寄存器：`v0-v31`，不支持 `LMUL>m1` 或 fractional LMUL alias。
+- Memory：unmasked unit-stride `vle8/vse8/vle16/vse16/vle32/vse32`。
+- Execute：当前 add/sub/bitwise/shift/move，加 `vmul.vv/vx`。
+- Mask：execute mask、`vmseq/vmsne/vmslt/vmsltu`、`vmerge`。
+- Reduction：只计划 `vredsum.vs`。
+- Contract：benchmark 成为架构测试前，必须先明确 scalar cache 与 COP memory bypass coherency。

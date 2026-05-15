@@ -2,6 +2,18 @@
 
 This document freezes the current partial RVV target. The goal is not full RVV compliance; unsupported features must not silently execute as approximate behavior.
 
+## Final Target Scope
+
+The final HelloCPU RVV target is benchmark-driven, not compliance-driven. It should support small integer vector kernels under `sw/benchmark/rvv-benchmark/`, while avoiding full RVV features that do not help those kernels.
+
+- Configuration: `vsetivli` and `vsetvli`, with `SEW=8/16/32`, `LMUL=m1` only.
+- Registers: standard `v0` through `v31`, no grouped register aliasing.
+- Memory: unmasked unit-stride `vle8/vse8`, `vle16/vse16`, and `vle32/vse32`.
+- Execute: current add/sub/bitwise/shift/move subset plus `vmul.vv` and `vmul.vx`.
+- Mask: execute mask through `v0`, compare-to-mask, and `vmerge` for threshold/select kernels.
+- Reduction: `vredsum.vs` only, for sum/checksum/dot-product tails.
+- Coherency: scalar initialization, vector memory, and scalar result checking must have a documented memory contract before RVV benchmarks are considered architectural tests.
+
 ## Supported State
 
 - `vsetivli` with `SEW=8` or `SEW=32`, `LMUL=m1`.
@@ -9,6 +21,17 @@ This document freezes the current partial RVV target. The goal is not full RVV c
 - `vtype` sets `vill=1` for unsupported `vtypei`.
 - `vl`, `vtype`, and `vstart` are readable through CSR mirrors `0xc20`, `0xc21`, and `0x008`.
 - `vstart` is fixed at 0; restart is not supported.
+
+## Planned Target Additions
+
+- `vsetvli` with the same limited `SEW=8/16/32`, `LMUL=m1` policy as `vsetivli`.
+- `SEW=16` execution and unit-stride memory.
+- `vmul.vv` and `vmul.vx` for tiny dot-product and matrix kernels.
+- Compare mask operations: `vmseq`, `vmsne`, `vmslt`, and `vmsltu` in the forms needed by benchmark kernels.
+- `vmerge` for masked select/threshold kernels.
+- `vredsum.vs` as the only planned reduction.
+
+These are target additions, not currently supported behavior.
 
 ## Supported Registers
 
@@ -46,14 +69,25 @@ This document freezes the current partial RVV target. The goal is not full RVV c
 ## Unsupported And Deferred
 
 - Full RVV compliance.
-- `vsetvli`, `vsetvl`.
+- `vsetvl`.
 - `LMUL` other than `m1`, fractional LMUL, and grouped register aliasing.
-- `SEW=16`, `SEW=64`.
+- `SEW=64`.
 - `vstart` restart.
 - Strided, indexed, fault-only-first, and masked memory operations.
-- Compare/set-mask and mask load/store instructions.
+- Mask load/store instructions.
+- Reductions other than `vredsum.vs`.
 - Precise vector exceptions and full illegal instruction trap integration.
 - Scalar cache and COP memory-bypass coherency.
+
+## Benchmark Acceptance Targets
+
+The target subset should be sufficient for these small benchmarks:
+
+- `vec_add_i32`: `vle32`, `vadd`, `vse32`.
+- `vec_xor_u8`: `vle8`, `vxor`, `vse8`.
+- `memcpy_vec`: `vle8`, `vse8`.
+- `dot_i32_tiny`: `vle32`, `vmul`, `vadd` or `vredsum`, scalar final check.
+- `threshold_u8`: `vle8`, compare mask, `vmerge`, `vse8`.
 
 ## Validation Contract
 
