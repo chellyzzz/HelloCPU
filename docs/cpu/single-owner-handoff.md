@@ -11,9 +11,9 @@ The key reason for the ownership change is simple:
 
 ## Current Branch State
 
-- mainline base: `8cc7791`
-- current branch: `codex/b-line-predictor-rtl`
-- current branch head: `231ffc2`
+- mainline base: `master@7ec84cc`
+- current branch: `codex/lane1-future-contract`
+- current branch head: no new branch-local commit yet; work starts from the documented handoff base above
 
 Current unmerged branch checkpoints after `8cc7791`:
 
@@ -55,7 +55,8 @@ The intent of that stack is:
 
 - be visible when the oldest two fetch entries form a candidate pair
 - preserve truthful decode metadata even when blocked
-- preserve truthful RF/CSR-derived operand payload in the handoff and dispatch sink stages
+- preserve truthful RF/CSR-derived operand payload in the handoff stage
+- preserve truthful RF/CSR-derived operand payload in `pair_dispatch` only for fireable future-lane candidates
 - clear on `frontend_flush`
 - hold state across idle cycles
 
@@ -88,7 +89,7 @@ These should be treated as current design constraints unless the owner intention
 
 1. keep `ins` as the canonical decode truth source
 2. keep fetch-side predecode restricted to instruction-local fields
-3. keep blocked visible pairs observable instead of hiding them behind `allow_second`
+3. keep blocked visible pairs observable instead of hiding them behind `allow_second`, but only up to `pair_handoff`
 4. keep every new lane-1 boundary flush-cleared before widening behavior
 5. preserve truthful operand/CSR payload once the work moves beyond pure decode metadata
 6. only move one boundary forward at a time
@@ -137,6 +138,17 @@ Required outcomes:
 - decide which fields must survive into the future lane-1 contract
 - leave classification and block-reason detail behind if it is not needed beyond the handoff layer
 
+## Current Chosen Direction
+
+The current owner is taking `Option B` first.
+
+Immediate contract change:
+
+- `pair_handoff` remains the last boundary that mirrors blocked visible pairs and their block reasons
+- `pair_dispatch` only captures `fireable` handoff pairs (`allow_second == 1`)
+- `pair_dispatch` is therefore no longer the sink for blocked-pair observability
+- this keeps future lane-adjacent payload validation separate from frontend-only classification detail before defining a real `accept/kill` boundary
+
 ## Recommended Work Order For One Owner
 
 1. freeze the current contract and keep the branch green
@@ -156,7 +168,7 @@ Primary files for the next owner:
 - `vsrc/cpu/Registers/RegisterFile.v`
 - `vsrc/cpu/Registers/Csrs.v`
 - `sim/top_slot1_observability_tb.cpp`
-- `docs/cpu/b-line-status.md`
+- `docs/cpu/cpu-evolution-roadmap.md`
 - `docs/cpu/ifu-idu-handshake-analysis.md`
 - `docs/cpu/two-wide-preparation-checklist.md`
 

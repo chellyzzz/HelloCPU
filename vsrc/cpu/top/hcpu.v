@@ -1276,7 +1276,7 @@ assign decode_slot0_pc = ifu2idu_pc;
 assign frontend_pair_capture = decode_pair_visible && decode_slot0_valid && decode_pair_distinct_pc && !frontend_flush;
 assign pair_handoff_capture = frontend_pair_bundle_valid;
 assign pair_dispatch_ready = 1'b1;
-assign pair_dispatch_accept = pair_handoff_valid && pair_dispatch_ready;
+assign pair_dispatch_accept = pair_handoff_valid && pair_handoff_allow_second && pair_dispatch_ready;
 assign decode_slot1_valid = decode_pair_select_slot1_youngest && ifu_pair_younger_valid;
 assign decode_slot1_pc = decode_slot1_valid ? ifu_pair_younger_pc : 32'b0;
 assign decode_slot1_ins = decode_slot1_valid ? ifu_pair_younger_ins : 32'b0;
@@ -2132,14 +2132,22 @@ always @(*) begin
         $fatal(1, "hcpu pair handoff lost branch-then-alu ordering for the older-branch block case");
     if (pair_dispatch_accept && (!pair_handoff_slot0_valid || !pair_handoff_slot1_valid))
         $fatal(1, "hcpu pair dispatch accepted without a complete handoff pair");
+    if (pair_dispatch_accept && !pair_handoff_allow_second)
+        $fatal(1, "hcpu pair dispatch accepted a blocked handoff pair");
     if (pair_dispatch_valid && (!pair_dispatch_slot0_valid || !pair_dispatch_slot1_valid))
         $fatal(1, "hcpu pair dispatch lost one of its visible lanes");
+    if (pair_dispatch_valid && !pair_dispatch_allow_second)
+        $fatal(1, "hcpu pair dispatch kept a pair that was not fireable");
     if (pair_dispatch_valid && (pair_dispatch_slot0_pc == pair_dispatch_slot1_pc))
         $fatal(1, "hcpu pair dispatch reused one pc across both lanes");
     if (pair_dispatch_valid && pair_dispatch_slot0_csr_wen && !pair_dispatch_slot0_wen)
         $fatal(1, "hcpu pair dispatch slot0 csr write lost wen alignment");
     if (pair_dispatch_valid && pair_dispatch_slot1_csr_wen && !pair_dispatch_slot1_wen)
         $fatal(1, "hcpu pair dispatch slot1 csr write lost wen alignment");
+    if (pair_dispatch_valid && !pair_dispatch_candidate_alu_branch)
+        $fatal(1, "hcpu pair dispatch lost candidate alu-branch classification");
+    if (pair_dispatch_valid && !pair_dispatch_order_alu_then_branch)
+        $fatal(1, "hcpu pair dispatch lost ordered alu-then-branch classification");
     if (pair_dispatch_order_alu_then_branch && pair_dispatch_slot0_brch)
         $fatal(1, "hcpu pair dispatch lost older-alu classification for alu-then-branch ordering");
     if (pair_dispatch_order_alu_then_branch && !pair_dispatch_slot1_brch)

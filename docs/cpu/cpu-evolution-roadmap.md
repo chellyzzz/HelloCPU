@@ -10,12 +10,14 @@
 2. 逐步把微架构从“局部 patch 驱动”推进到“边界清晰、结构稳定”；
 3. 为未来的 COP / RVV / vector memory 扩展预留自然接口。
 
+本文档现在是**单人统筹的 CPU 优化主路线图**。旧工作流已清理，不再作为当前入口。
+
 本文档同时给出：
 
 - 当前阶段判断；
 - 长期优化主线；
 - 分阶段目标；
-- A/B 两条 CPU 线的职责分配。
+- 分阶段职责映射。
 
 ## 二、长期性能目标
 
@@ -36,42 +38,58 @@
 
 所以本文档后续路线分为两层：
 
-- **阶段 A：把当前单发射核做到接近它的合理上限**；
-- **阶段 B：为 IPC 2 目标做结构跃迁准备，并最终进入双发射顺序核。**
+- **阶段 1：把当前单发射核做到接近它的合理上限**；
+- **阶段 2：为 IPC 2 目标做结构跃迁准备，并最终进入双发射顺序核。**
 
-## 三、当前全局判断
+## 三、当前统一状态
 
-当前稳定点：`codex/b-line-predictor-rtl` on top of `41b0734`
+当前稳定点：`master@7ec84cc`
+当前工作分支：`codex/lane1-future-contract`
+当前统筹方式：单人 owner。
+最新已验证收口：
 
-当前 CoreMark `ITER=100`：
+- `pair_dispatch` 只接 fireable future-lane 候选
+- blocked visible pairs 继续停在 `pair_handoff`
+- `top_slot1_observability`、`top_pc_update_flush`、`backend_contract_checks` 保持绿色
+
+### 冻结性能参考
+
+下面的 `ITER=100` 结果仍是当前性能对照基线：
 
 | Metric | Value |
 |--------|-------|
-| CoreMark/MHz | 3.031 |
-| Total cycles | 32,990,370 |
-| IPC | 0.928 |
+| CoreMark/MHz | 3.032 |
+| Total cycles | 32,982,676 |
+| IPC | 0.900 |
 | Stall rate | 7.2% |
 
 当前 stall 构成：
 
 | Source | Cycles | % of stalls | 说明 |
 |--------|--------|-------------|------|
-| Frontend/empty | 1,841,129 | 77.6% | 仍主要是 redirect 之后的前端空泡 |
-| Control recovery | 521,535 | 22.0% | 单次 redirect 成本已降到 `2-cycle` |
+| Frontend/empty | 1,833,135 | 77.5% | 仍主要是 redirect 之后的前端空泡 |
+| Control recovery | 521,776 | 22.1% | 仍是主要的恢复成本来源 |
 | Other blocked backend | 0 | 0.0% | 当前统计下已不是热点 |
-| LSU wait | 6,832 | 0.3% | 已基本解决 |
-| DIV wait | 2,962 | 0.1% | 已基本解决 |
+| LSU wait | 6,913 | 0.3% | 已不再是主瓶颈 |
+| DIV wait | 2,896 | 0.1% | 已不再是主瓶颈 |
 
 ### 当前最重要的全局结论
 
-1. **LSU 已不是主瓶颈。** same-cycle load/store hit 已经把 LSU 从 6.98M cycles 降到 6.8K。
-2. **redirect recovery 3 -> 2 已经兑现。** 当前 `Redirect cost = 2 avg cycles`，说明这条 recovery 主线已经从“待验证假设”变成了“已验证收益”。
-3. **剩余大头仍在 redirect 链，但更偏向“减少剩余方向错误次数”。** `Frontend/empty + Control recovery` 仍然占几乎全部 true stall。
+1. **LSU 已不是主瓶颈。** same-cycle load/store hit 仍然有效，但当前主瓶颈已经转回 frontend boundary / recovery 链条。
+2. **CoreMark 再次确认恢复链是 2-cycle 参考。** 这次结果把吞吐拉到 `3.032 CoreMark/MHz`，说明边界收口没有破坏当前收益。
+3. **剩余大头仍在 frontend boundary / recovery 链条的清理。** 后续优先做边界收口、语义统一和低风险可证伪优化。
 4. **“Other backend” 目前不能直接当成性能热点。** 当前统计已经给出 `Other blocked backend = 0`。
-4. 后续优化不应再继续以 LSU 局部 patch 为主，而应转向：
-   - 前端预测与恢复；
+5. 后续优化不应再继续以 LSU 局部 patch 为主，而应转向：
+   - 前端边界与 future-lane contract；
    - backend 语义清晰化；
    - 面向未来向量扩展的统一接口。
+
+### Latest Validation Snapshot
+
+- `make bench_only ITER=100`: PASS, `3.032 CoreMark/MHz`, `32982676` cycles, `0.928 IPC`, `7.2%` stalls, redirect cost `2 avg cycles`.
+- `make run ALL=quick-sort`: PASS, `4340` cycles, `0.690 IPC`, `31.0%` stalls, redirect cost `3 avg cycles`.
+- Takeaway: the single-owner boundary cleanup is still safe; CoreMark improved about `+3.1%` over the previous freeze, while quick-sort remains control-heavy and still needs frontend/bubble reduction.
+- The `pair_dispatch` fireable-only contract did not introduce a regression on either workload.
 
 ### 重要决策原则
 
@@ -88,7 +106,7 @@
 这意味着：
 
 - frontend / redirect 仍然是当前最高优先级；
-- 但 `redirect recovery -1 cycle` 这件事已经完成，下一步不应继续在同一处反复打补丁；
+- 但 `redirect recovery` 这件事已经进入冻结参考区，下一步不应继续在同一处反复打补丁；
 - 后续必须用“先证明，再投入”的方式推进，而不是因为它最大就持续猛砸。
 
 因此整体策略应该是：
@@ -131,7 +149,7 @@
 
 如果跳出单点优化，HelloCPU 后续的长期性能提升应当沿着三条主线推进。
 
-### 主线 A：减少“发生多少次慢恢复”
+### 主线 1：减少“发生多少次慢恢复”
 
 这条线本质上是**降低 redirect 次数**：
 
@@ -142,7 +160,7 @@
 
 这是“减少问题发生次数”的路线。
 
-### 主线 B：减少“每次慢恢复要花多久”
+### 主线 2：减少“每次慢恢复要花多久”
 
 这条线本质上是**降低 redirect 单次成本**：
 
@@ -305,9 +323,11 @@
 
 这一阶段输出的不是单个 patch，而是对“IPC 2 目标是否真的可行”的系统性回答。
 
-## 六、A/B 分工
+## 六、统一工作流
 
-当 A/B/C 三线并行导致接口同步和整体验进方向成为瓶颈时，引入 D 线负责 architecture / integration control。D 线职责见 `docs/cpu/d-line-architecture-integration.md`。
+现在只有一个 owner，统一负责 frontend、backend、integration 和未来扩展边界。
+
+当并行工作流导致接口同步和整体验进方向成为瓶颈时，引入 D 线负责 architecture / integration control。D 线职责见 `docs/cpu/d-line-architecture-integration.md`。
 
 ## A 线：Backend Performance And Integration
 
@@ -418,33 +438,33 @@ B 线负责：
 - mul/div heavy
 - cop/vector mixed
 
-## 七、阶段化 A/B 任务映射
+## 七、阶段化工作流映射
 
 ### 阶段 1（收尾）
 
-- A：收尾 true stall / normal occupancy 口径
-- B：保留小步 predictor 补充优化，避免回归
+- 收尾 true stall / normal occupancy 口径
+- 保留小步 predictor 补充优化，避免回归
 
 ### 阶段 2（当前）
 
-- A：backend 接口统一、WBU/commit 语义清晰化
-- B：IFU/IDU/issue boundary 清晰化，准备更宽 issue
+- backend 接口统一、WBU/commit 语义清晰化
+- IFU/IDU/issue boundary 清晰化，准备更宽 issue
 
 ### 阶段 3
 
-- A：memory service model、store buffer、COP/vector memory 接口
-- B：fetch/decode queue、frontend decoupling、predictor 与 queue 协同
+- memory service model、store buffer、COP/vector memory 接口
+- fetch/decode queue、frontend decoupling、predictor 与 queue 协同
 
 其中 memory service model 的当前文档入口为 `docs/interface/cpu-memory-service-model.md`。
 
 ### 阶段 4
 
-- A：双发射 backend / dual writeback / bypass matrix
-- B：双发射 frontend / dual decode / issue arbitration
+- 双发射 backend / dual writeback / bypass matrix
+- 双发射 frontend / dual decode / issue arbitration
 
-## 八、跳出分工框架后的真正优先级
+## 八、跳出标签后的真正优先级
 
-如果完全不考虑 A/B 分工，只从全局收益排序，当前最合理的顺序是：
+如果完全不考虑旧工作流标签，只从全局收益排序，当前最合理的顺序是：
 
 1. **为 2-wide 做前后端边界准备**
 2. **统一 backend / memory / flush 语义**

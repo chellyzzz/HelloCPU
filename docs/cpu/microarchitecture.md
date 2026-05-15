@@ -180,11 +180,11 @@ Killed or stale completions are filtered before `commit-visible`.
 
 | Source | Cycles | % of stalls | Owner |
 |--------|--------|-------------|-------|
-| Frontend/empty | `2,339,440` | 69.0% | B |
-| Control recovery | `1,043,090` | 30.7% | B/D |
-| IFU held valid | `9,509` | 0.3% | A/B boundary done |
-| LSU wait | `6,826` | 0.2% | A done |
-| DIV wait | `2,962` | 0.1% | A done |
+| Frontend/empty | `1,833,135` | 77.5% | B |
+| Control recovery | `521,776` | 22.1% | B/D |
+| IFU held valid | `9,582` | 0.4% | frontend boundary done |
+| LSU wait | `6,913` | 0.3% | A done |
+| DIV wait | `2,896` | 0.1% | A done |
 | Other blocked backend | `0` | 0.0% | A done |
 
-This means HelloCPU is no longer limited by LSU/cache-hit latency. The current bottleneck is frontend redirect recovery: predictor work reduced redirect count, but each remaining redirect still costs about 3 cycles.
+This means HelloCPU is no longer limited by LSU/cache-hit latency. The current bottleneck is frontend redirect recovery: the long CoreMark run now holds at `2 avg cycles`, while short control-heavy workloads can still show `3-cycle` recovery on their own traces.

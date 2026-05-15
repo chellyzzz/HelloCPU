@@ -1,6 +1,6 @@
 # Post-Merge Stabilization Freeze
 
-This document records the current CPU mainline stabilization freeze after landing the reviewed A/C memory-owner work and B-line predictor/recovery work.
+This document records the current CPU mainline stabilization freeze after landing the reviewed memory-owner work and predictor/recovery work.
 
 ## Freeze Scope
 
@@ -10,9 +10,9 @@ This document records the current CPU mainline stabilization freeze after landin
 
 Landed content included in this freeze:
 
-1. A-line scalar memory-owner V1 boundary and top-level owner skeleton.
-2. C-line COP memory owner routing through the frozen V1 owner boundary.
-3. B-line tournament/loop predictor recovery and IFU/IDU registered-valid repair.
+1. scalar memory-owner V1 boundary and top-level owner skeleton.
+2. COP memory owner routing through the frozen V1 owner boundary.
+3. tournament/loop predictor recovery and IFU/IDU registered-valid repair.
 4. Legacy COP wiring cleanup in `vsrc/cpu/exu/exu.v` to match the merged interface shape.
 
 ## Frozen Decisions

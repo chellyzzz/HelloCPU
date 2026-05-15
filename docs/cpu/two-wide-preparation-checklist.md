@@ -1,5 +1,7 @@
 # 2-Wide Preparation Checklist
 
+This checklist supports the single-owner master plan in `docs/cpu/cpu-evolution-roadmap.md`.
+
 ## Goal
 
 This checklist defines the minimum preparation work before HelloCPU starts a real `2-wide in-order` RTL implementation.
@@ -37,7 +39,7 @@ Current working document:
 
 Done when:
 
-- A/B can answer boundary questions without reading RTL line by line
+ - the owner can answer boundary questions without reading RTL line by line
 - no stage relies on implicit timing assumptions that are not written down
 
 ### 2. Redirect And Flush Semantics
@@ -92,7 +94,7 @@ Done when:
 Current draft:
 
 - Stage 0 remains `2-wide fetch/predecode` with single issue preserved, so no execution-side pairing is required yet.
-- A-line backend constraints for the first issue-capable handoff are pinned in `docs/cpu/a-line-backend-constraints.md`; frontend work should treat that note as the backend truth source until those constraints change.
+- backend constraints for the first issue-capable handoff are pinned in `docs/cpu/cpu-evolution-roadmap.md`; frontend work should treat that plan as the current truth source until it changes.
 - The first issue-capable prototype must reject any same-cycle pair with slot-to-slot `RAW` dependence.
 - The first issue-capable prototype must reject any same-cycle pair with `WAW` to the same architectural `rd`.
 - The first issue-capable prototype must reject any pair that needs the same exclusive backend owner in the same cycle: `LSU`, `MUL/DIV`, `COP`, or redirect/control owner.
