@@ -235,15 +235,17 @@ Deliverables:
 2. tagged requests if needed
 3. vector memory scaling path
 
-Current stable point:
+Current phase-4 completed checkpoint:
 
 - queueing and request tags are still intentionally absent in V1.
 - the ownership policy, completion routing, and AXI-side service mux now live in one reusable module.
 - the single in-flight service-owned request is now explicit behind `vsrc/cpu/top/hcpu_memory_service_request_slot.v`.
 - the request slot now also makes store `accepted` versus store `launch-done` explicit, so pre-accept kill rules stay local to that single-entry slot instead of spread across top-level state logic.
 - single-entry slot occupancy and response-pending state are now also explicit in that slot, so `hcpu_memory_service` can treat request ownership separately from response visibility without introducing a queue yet.
+- scalar-side, COP-side, and unified service-facing top-level views now all expose aligned `request / response-pending / response-visible` vocabulary.
 - the AXI-side service mux has been split again behind `vsrc/cpu/top/hcpu_memory_service_axi_mux.v` so a later queue/store-buffer stage has an explicit insertion seam.
 - future vector memory can extend `hcpu_memory_service` as another service client instead of re-opening top-level `hcpu.v` policy wiring.
+- this is now intended to be a direct backend handoff checkpoint for B-line work that needs a stable memory-service truth source without assuming queueing or dual-dispatch.
 
 ## Non-Goals Right Now
 
@@ -257,13 +259,13 @@ This document explicitly does **not** propose immediate implementation of:
 
 Those belong to later phases.
 
-## Immediate A-Line Task
+## Next A-Line Task
 
 The next A-line step is:
 
-1. keep `accept / done / commit-visible` semantics aligned across scalar LSU and COP memory-facing backends
-2. preserve `true stall` vs `normal backend occupancy` as the only performance-facing counter split
-3. move from phase-1/2 boundary cleanup into phase-3 ownership-model design without breaking the current single-owner V1 rule
+1. preserve this shared top-level `request / response-pending / response-visible` vocabulary as the only backend truth source for future memory clients
+2. keep any later queue/store-buffer work behind the existing request-slot and AXI-mux seams without changing the V1 single-owner contract by accident
+3. preserve `true stall` vs `normal backend occupancy` as the only performance-facing counter split until a real overlap design exists
 
 ## Summary
 
@@ -274,5 +276,6 @@ What it now needs is a cleaner memory model so that:
 - scalar performance work remains stable
 - COP memory can land without ad-hoc hacks
 - future RVV/vector memory has a natural CPU-side attachment point
+- B-line issue-capable prep has a stable memory-service handoff contract to target
 
 That is the A-line memory task from this point onward.

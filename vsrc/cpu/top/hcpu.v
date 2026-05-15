@@ -74,6 +74,7 @@ module hcpu
     output                              tb_cop_mem_resp_valid      ,
     output                              tb_mem_owner_cop_active    ,
     output                              tb_mem_service_req_valid   ,
+    output                              tb_mem_service_resp_pending,
     output                              tb_mem_service_resp_valid  ,
     output             [   1:0]         tb_cop_mem_state           ,
     output                              tb_cop_mem_resp_pending    ,
@@ -95,6 +96,7 @@ module hcpu
     output                              tb_scalar_mem_kill_pending ,
     output                              tb_mem_owner_scalar_active ,
     output                              tb_mem_service_req_valid   ,
+    output                              tb_mem_service_resp_pending,
     output                              tb_mem_service_resp_valid  ,
     output                              tb_scalar_mem_ar_fire      ,
     output                              tb_scalar_mem_r_fire       ,
@@ -207,6 +209,7 @@ wire                                    scalar_mem_service_req_store;
 wire                   [  31:0]         scalar_mem_service_req_addr;
 wire                   [  31:0]         scalar_mem_service_req_wdata;
 wire                   [   2:0]         scalar_mem_service_req_size;
+wire                                    scalar_mem_service_resp_pending;
 wire                                    scalar_mem_service_resp_valid;
 wire                   [  31:0]         scalar_mem_service_resp_rdata;
 wire                                    cop_mem_service_req_valid   ;
@@ -214,6 +217,7 @@ wire                                    cop_mem_service_req_store   ;
 wire                   [  31:0]         cop_mem_service_req_addr    ;
 wire                   [  31:0]         cop_mem_service_req_wdata   ;
 wire                   [   2:0]         cop_mem_service_req_size    ;
+wire                                    cop_mem_service_resp_pending;
 wire                                    cop_mem_service_resp_valid  ;
 wire                   [  31:0]         cop_mem_service_resp_rdata  ;
 wire                                    mem_owner_scalar_active   ;
@@ -223,6 +227,7 @@ wire                                    mem_service_req_store     ;
 wire                   [  31:0]         mem_service_req_addr      ;
 wire                   [  31:0]         mem_service_req_wdata     ;
 wire                   [   2:0]         mem_service_req_size      ;
+wire                                    mem_service_resp_pending  ;
 wire                                    mem_service_resp_valid    ;
 wire                   [  31:0]         mem_service_resp_rdata    ;
 wire                                    scalar_exu2wbu_valid       ;
@@ -718,6 +723,7 @@ assign scalar_mem_service_req_store = scalar_mem_req_store;
 assign scalar_mem_service_req_addr = scalar_mem_req_addr;
 assign scalar_mem_service_req_wdata = scalar_mem_req_wdata;
 assign scalar_mem_service_req_size = scalar_mem_req_size;
+assign scalar_mem_service_resp_pending = scalar_mem_resp_pending;
 assign scalar_mem_service_resp_valid = scalar_mem_resp_valid;
 assign scalar_mem_service_resp_rdata = scalar_mem_resp_rdata;
 assign cop_mem_service_req_valid = COP_MEM_REQ_VALID;
@@ -734,6 +740,7 @@ hcpu_memory_service u_memory_service(
     .scalar_mem_req_addr               (scalar_mem_service_req_addr),
     .scalar_mem_req_wdata              (scalar_mem_service_req_wdata),
     .scalar_mem_req_size               (scalar_mem_service_req_size),
+    .scalar_mem_resp_pending           (scalar_mem_service_resp_pending),
     .scalar_mem_resp_valid             (scalar_mem_service_resp_valid),
     .scalar_mem_resp_rdata             (scalar_mem_service_resp_rdata),
     .cop_mem_req_valid                 (cop_mem_service_req_valid ),
@@ -777,6 +784,8 @@ hcpu_memory_service u_memory_service(
     .mem_service_req_addr              (mem_service_req_addr      ),
     .mem_service_req_wdata             (mem_service_req_wdata     ),
     .mem_service_req_size              (mem_service_req_size      ),
+    .cop_mem_service_resp_pending      (cop_mem_service_resp_pending),
+    .mem_service_resp_pending          (mem_service_resp_pending  ),
     .mem_service_resp_valid            (mem_service_resp_valid    ),
     .mem_service_resp_rdata            (mem_service_resp_rdata    ),
     .cop_mem_state                     (cop_mem_state             ),
@@ -1003,9 +1012,10 @@ assign tb_cop_mem_killed = cop_mem_killed_r;
 assign tb_cop_mem_resp_valid = cop_mem_service_resp_valid;
 assign tb_mem_owner_cop_active = mem_owner_cop_active;
 assign tb_mem_service_req_valid = mem_service_req_valid;
+assign tb_mem_service_resp_pending = mem_service_resp_pending;
 assign tb_mem_service_resp_valid = mem_service_resp_valid;
 assign tb_cop_mem_state = cop_mem_state;
-assign tb_cop_mem_resp_pending = cop_mem_slot_resp_pending;
+assign tb_cop_mem_resp_pending = cop_mem_service_resp_pending;
 assign tb_cop_mem_store = cop_mem_wen_r;
 assign tb_cop_mem_aw_fire = cop_mem_bus_active && cop_mem_aw_fire;
 assign tb_cop_mem_w_fire = cop_mem_bus_active && cop_mem_w_fire;
@@ -1024,6 +1034,7 @@ assign tb_scalar_mem_service_req_valid = scalar_mem_service_req_valid;
 assign tb_scalar_mem_kill_pending = exu1.lsu_kill_pending;
 assign tb_mem_owner_scalar_active = mem_owner_scalar_active;
 assign tb_mem_service_req_valid = mem_service_req_valid;
+assign tb_mem_service_resp_pending = mem_service_resp_pending;
 assign tb_mem_service_resp_valid = mem_service_resp_valid;
 assign tb_scalar_mem_ar_fire = !cop_mem_bus_active && LSU_ARB_AXI_ARVALID && LSU_SRAM_AXI_ARREADY;
 assign tb_scalar_mem_r_fire = !cop_mem_resp_active && LSU_ARB_AXI_RREADY && LSU_SRAM_AXI_RVALID && LSU_SRAM_AXI_RLAST;

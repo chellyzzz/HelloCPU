@@ -34,6 +34,7 @@ This note defines the current backend constraints that B-line may assume while `
 ### 4. Memory service remains single-entry
 
 - `hcpu_memory_service` still exposes one global memory owner at a time
+- scalar-side, COP-side, and unified top-level service views now all use the same `request / response-pending / response-visible` vocabulary
 - request ownership, completion arrival, and response visibility are now separated more explicitly, but they are not queued
 - current COP memory slot is still a single-entry skeleton, not a store buffer with overlap
 - no tagged requests, no multi-request overlap, no vector-memory arbitration are available in this contract
@@ -48,6 +49,7 @@ This note defines the current backend constraints that B-line may assume while `
 ## What B-Line May Assume Now
 
 - two visible decode lanes may be observed and classified in the frontend
+- backend truth-source for memory-side assumptions is the shared top-level vocabulary, not one backend-local implementation detail
 - pair classification may reject `RAW`, `WAW`, exclusive-owner conflicts, and redirect-hostile combinations before issue
 - single-issue fallback is the expected near-term handoff target
 - the only plausible first issue-capable candidate remains `simple ALU + branch`, and even that is blocked on RF/writeback and same-cycle accept review

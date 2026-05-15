@@ -213,6 +213,9 @@ int main(int argc, char **argv) {
       if (!top->tb_scalar_mem_resp_pending) {
         return fail("scalar killed request lost response-pending state while draining");
       }
+      if (!top->tb_mem_service_resp_pending) {
+        return fail("scalar killed request lost service response-pending state while draining");
+      }
       top->tb_hold_read_resp = 0;
     }
 

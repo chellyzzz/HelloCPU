@@ -7,6 +7,7 @@ module hcpu_memory_service(
     input              [  31:0]         scalar_mem_req_addr,
     input              [  31:0]         scalar_mem_req_wdata,
     input              [   2:0]         scalar_mem_req_size,
+    input                               scalar_mem_resp_pending,
     input                               scalar_mem_resp_valid,
     input              [  31:0]         scalar_mem_resp_rdata,
     input                               cop_mem_req_valid,
@@ -50,6 +51,8 @@ module hcpu_memory_service(
     output             [  31:0]         mem_service_req_addr,
     output             [  31:0]         mem_service_req_wdata,
     output             [   2:0]         mem_service_req_size,
+    output                              cop_mem_service_resp_pending,
+    output                              mem_service_resp_pending,
     output                              mem_service_resp_valid,
     output             [  31:0]         mem_service_resp_rdata,
     output reg         [   1:0]         cop_mem_state,
@@ -104,6 +107,7 @@ assign cop_mem_slot_resp_pending_o = cop_mem_slot_resp_pending;
 assign cop_mem_resp_active = cop_mem_bus_active || cop_mem_done_r;
 assign cop_mem_resp_valid = cop_mem_done_r && !cop_mem_killed_r;
 assign cop_mem_resp_rdata = cop_mem_rdata_r;
+assign cop_mem_service_resp_pending = cop_mem_slot_resp_pending;
 assign mem_owner_cop_active = cop_mem_bus_active;
 assign mem_owner_scalar_active = !mem_owner_cop_active && scalar_mem_req_valid;
 assign mem_service_req_valid = mem_owner_cop_active ? 1'b1 : scalar_mem_req_valid;
@@ -111,6 +115,7 @@ assign mem_service_req_store = mem_owner_cop_active ? cop_mem_wen_r : scalar_mem
 assign mem_service_req_addr = mem_owner_cop_active ? cop_mem_addr_r : scalar_mem_req_addr;
 assign mem_service_req_wdata = mem_owner_cop_active ? cop_mem_wdata_r : scalar_mem_req_wdata;
 assign mem_service_req_size = mem_owner_cop_active ? cop_mem_size_r : scalar_mem_req_size;
+assign mem_service_resp_pending = cop_mem_resp_active ? cop_mem_service_resp_pending : scalar_mem_resp_pending;
 assign mem_service_resp_valid = cop_mem_resp_active ? cop_mem_resp_valid : scalar_mem_resp_valid;
 assign mem_service_resp_rdata = cop_mem_resp_active ? cop_mem_resp_rdata : scalar_mem_resp_rdata;
 assign cop_mem_new_req = cop_mem_req_valid && !cop_mem_slot_valid && !cop_mem_done_r && !mem_owner_scalar_active;
