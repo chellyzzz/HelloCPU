@@ -1,7 +1,7 @@
 # B-Line Status
 
-Branch: `cpu-mainline-branch`
-Baseline: `8837032 docs: consolidate CPU planning into evolution roadmap and add ROI guardrails for redirect work`
+Branch: `codex/b-line-predictor-rtl`
+Baseline: `8cc7791 merge mainline before frontend widening follow-up`
 Current mode: **2-wide preparation ownership**
 
 ## Current Mission
@@ -30,6 +30,56 @@ Tracking document: `docs/cpu/two-wide-preparation-checklist.md`.
 - `CoreMark ITER=100` 数据
 - 中间指标下降证明
 - 不破坏 future dual-issue / COP memory / vector memory 边界
+
+## Since Mainline `8cc7791`
+
+Current branch summary from the last mainline sync to the current frontend branch head:
+
+- Base: `8cc7791`
+- Current head: `231ffc2`
+- Direction: keep the machine single-issue and non-committing for lane 1 while pushing the frontend-only `2-wide` skeleton one boundary at a time toward a future dispatch contract.
+
+Work completed in this span:
+
+1. decode entrance policy and directional slot-1 eligibility
+   - landed the executable decode-entrance policy skeleton and narrowed the first future pairing candidate to `older ALU + younger branch`
+   - made the blocked cases explicit with stable policy block reasons instead of leaving them as implicit timing behavior
+
+2. packed slot-1 observability and truthful decode metadata
+   - exposed the younger queue entry into a non-binding `slot0/slot1` packing surface
+   - added a second decode path for the younger lane so visible-but-blocked pairs still preserve truthful lane-1 decode state
+   - extended top-level observability to require `visible + fireable`, `visible + blocked`, and `visible + flushed`
+
+3. lane-1 transport and endpoint closure
+   - added a non-binding shadow transport register and an always-ready endpoint stub for slot 1
+   - closed capture / hold / flush-clear behavior with top-level coverage before moving to dual-lane bundle transport
+
+4. non-executing frontend pair bundle
+   - captured the oldest and younger visible queue entries into a two-lane frontend bundle with predictor metadata, decode payload, and pair-policy snapshot
+   - kept slot0 sourced from the live scalar decode path and slot1 sourced from an unconditional younger decode path so blocked pairs stay truthful
+
+5. near-`idu_exu` pair handoff surface
+   - added a registered `pair_handoff` sink above the frontend bundle, plus dedicated non-binding RF and CSR read taps for truthful lane-1 operand and CSR payload
+   - moved slot0/slot1 `src1/src2` payload onto the same pre-`idu_exu` source-selection intent as the live scalar lane
+
+6. dispatch-ready sink surface
+   - added an always-ready, non-executing `pair_dispatch` sink above `pair_handoff`
+   - trimmed that sink to dispatch-adjacent payload plus minimal pair classification, leaving detailed frontend block reasons at the handoff layer
+
+What stayed intentionally unchanged:
+
+- no decode queue
+- no dual dispatch
+- no dual execute allocation
+- no dual writeback
+- no dual commit
+- no lane-1 backpressure into the real backend
+
+Validated checkpoints in this span:
+
+- `make top_slot1_observability`: PASS
+- `make top_pc_update_flush`: PASS
+- `make run ALL=sum`: PASS
 
 ## V1 Architecture Decision
 
