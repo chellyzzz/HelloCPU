@@ -417,6 +417,7 @@ wire       decode_pair_block_older_branch_first /* verilator public_flat */;
 wire       decode_pair_block_downstream_busy /* verilator public_flat */;
 wire       decode_pair_block_cop_pipeline /* verilator public_flat */;
 wire       decode_pair_block_frontend_flush /* verilator public_flat */;
+wire       decode_pair_distinct_pc;
 wire      decode_slot0_valid /* verilator public_flat */;
 wire [31:0] decode_slot0_pc /* verilator public_flat */;
 wire      frontend_pair_capture /* verilator public_flat */;
@@ -1234,9 +1235,10 @@ hcpu_memory_service u_memory_service(
     .cop_mem_r_fire                    (cop_mem_r_fire            )
 );
 assign scalar_issue = idu2exu_valid && !idu2exu_is_cop_insn && !cop_pipeline_active;
+assign decode_pair_distinct_pc = ifu_pair_younger_valid && (ifu2idu_pc != ifu_pair_younger_pc);
 
 hcpu_decode_pair_policy decode_pair_policy(
-    .i_pair_valid                       (ifu_pair_valid                     ),
+    .i_pair_valid                       (ifu_pair_valid && decode_pair_distinct_pc),
     .i_pair_candidate_alu_branch        (ifu_pair_candidate_alu_branch      ),
     .i_pair_has_raw                     (ifu_pair_has_raw                   ),
     .i_pair_has_waw                     (ifu_pair_has_waw                   ),
@@ -1264,7 +1266,7 @@ hcpu_decode_pair_policy decode_pair_policy(
 );
 assign decode_slot0_valid = ifu2idu_valid;
 assign decode_slot0_pc = ifu2idu_pc;
-assign frontend_pair_capture = decode_pair_visible && decode_slot0_valid && ifu_pair_younger_valid && !frontend_flush;
+assign frontend_pair_capture = decode_pair_visible && decode_slot0_valid && decode_pair_distinct_pc && !frontend_flush;
 assign pair_handoff_capture = frontend_pair_bundle_valid;
 assign pair_dispatch_ready = 1'b1;
 assign pair_dispatch_accept = pair_handoff_valid && pair_dispatch_ready;
