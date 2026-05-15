@@ -161,6 +161,7 @@ Current preferred first slice:
 - another intermediate safe step is allowed: add a non-executing dual-lane frontend bundle and policy snapshot surface, as long as it is fed only by queue/predecode truth sources, clears on flush, and still does not reach execute/commit
 - another intermediate safe step is allowed: enrich that frontend bundle with truthful per-lane decode payload sourced from the live older decode path and an unconditional younger decode path, as long as it remains non-executing and flush-cleared
 - another intermediate safe step is allowed: capture that frontend bundle into a near-`idu_exu` non-executing handoff register surface, as long as operand/CSR payload stay truthful to existing RF/CSR sources, the surface clears on flush, adds no backpressure, and still never reaches execute/commit
+- another intermediate safe step is allowed: capture that handoff into an always-ready non-executing dispatch sink surface, as long as it keeps only dispatch-adjacent payload plus minimal pair classification, drops detailed frontend block reasons, adds no backpressure, and still never reaches execute/commit
 
 Done when:
 

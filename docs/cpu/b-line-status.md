@@ -306,13 +306,21 @@ Current pair-handoff surface:
 - Top-level validation now requires handoff capture, hold, flush-clear, and self-consistent `fireable` vs `blocked` accounting, so the frontend-only path now closes through policy, packing, decode, bundle, and a registered handoff sink surface.
 - Current validation for this checkpoint: `make top_slot1_observability`, `make top_pc_update_flush`, and `make run ALL=sum` all PASS.
 
+Current dispatch-ready sink surface:
+
+- `hcpu` now captures `pair_handoff` into an always-ready, still non-executing `pair_dispatch` sink surface that is narrower than the handoff contract: it keeps dispatch-adjacent per-lane payload plus minimal pair classification, but leaves detailed frontend block reasons behind.
+- This sink still never allocates a real backend slot, adds no backpressure, clears on `frontend_flush`, and holds its payload across idle cycles, making it the first explicit dispatch-shaped contract above the current handoff stage.
+- The preserved classification is limited to `candidate_alu_branch`, `allow_second`, and directional order, which is enough to keep the future `older ALU + younger branch` path structurally visible without claiming any real dual-dispatch semantics.
+- Top-level coverage now requires dispatch capture, hold, flush-clear, and self-consistent `fireable` vs `blocked` accounting against `pair_handoff` truth.
+- Current validation for this checkpoint remains: `make top_slot1_observability`, `make top_pc_update_flush`, and `make run ALL=sum` all PASS.
+
 Current pairing/hazard draft direction:
 
 - Near-term real slice stays `2-wide fetch/predecode` with single issue preserved.
 - First issue-capable prototype rejects `RAW`, `WAW`, and shared exclusive-backend pairs by default.
 - Until writeback bandwidth changes, treat two normal writers in one cycle as out of scope.
 - The only future pairing candidate worth studying first is `simple ALU + branch`.
-- The next narrow structural target after the current handoff checkpoint is to define the first dispatch-ready contract for this surface without letting lane 1 allocate a real backend slot yet.
+- The next narrow structural target after the current dispatch-ready sink checkpoint is to decide whether lane 1 needs a real `accept/kill` dispatch boundary or whether the next safe step should stay at sink-only observability while trimming the payload further toward a future `idu_exu` lane contract.
 
 ### B-Task-1: IFU/IDU pass-through protocol specification document
 

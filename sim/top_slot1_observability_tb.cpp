@@ -195,6 +195,11 @@ struct Slot1Coverage {
   uint64_t pair_handoff_capture_blocked_events = 0;
   uint64_t pair_handoff_hold_cycles = 0;
   uint64_t pair_handoff_flush_clear_events = 0;
+  uint64_t pair_dispatch_capture_events = 0;
+  uint64_t pair_dispatch_capture_fireable_events = 0;
+  uint64_t pair_dispatch_capture_blocked_events = 0;
+  uint64_t pair_dispatch_hold_cycles = 0;
+  uint64_t pair_dispatch_flush_clear_events = 0;
 };
 
 int main(int argc, char **argv) {
@@ -542,6 +547,69 @@ int main(int argc, char **argv) {
     const bool pre_pair_handoff_block_downstream_busy = root->sim_top__DOT__cpu__DOT__pair_handoff_block_downstream_busy;
     const bool pre_pair_handoff_block_cop_pipeline = root->sim_top__DOT__cpu__DOT__pair_handoff_block_cop_pipeline;
     const bool pre_pair_handoff_block_frontend_flush = root->sim_top__DOT__cpu__DOT__pair_handoff_block_frontend_flush;
+    const bool pre_pair_dispatch_valid = root->sim_top__DOT__cpu__DOT__pair_dispatch_valid;
+    const bool pre_pair_dispatch_slot0_valid = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_valid;
+    const uint32_t pre_pair_dispatch_slot0_pc = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_pc;
+    const uint32_t pre_pair_dispatch_slot0_ins = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_ins;
+    const uint32_t pre_pair_dispatch_slot0_src1 = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_src1;
+    const uint32_t pre_pair_dispatch_slot0_src2 = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_src2;
+    const uint32_t pre_pair_dispatch_slot0_imm = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_imm;
+    const uint32_t pre_pair_dispatch_slot0_src_sel1 = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_src_sel1;
+    const uint32_t pre_pair_dispatch_slot0_src_sel2 = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_src_sel2;
+    const uint32_t pre_pair_dispatch_slot0_rd = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_rd;
+    const uint32_t pre_pair_dispatch_slot0_csr_addr = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_csr_addr;
+    const uint32_t pre_pair_dispatch_slot0_exu_opt = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_exu_opt;
+    const uint32_t pre_pair_dispatch_slot0_alu_opt = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_alu_opt;
+    const bool pre_pair_dispatch_slot0_wen = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_wen;
+    const bool pre_pair_dispatch_slot0_csr_wen = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_csr_wen;
+    const bool pre_pair_dispatch_slot0_mret = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_mret;
+    const bool pre_pair_dispatch_slot0_ecall = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_ecall;
+    const bool pre_pair_dispatch_slot0_load = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_load;
+    const bool pre_pair_dispatch_slot0_store = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_store;
+    const bool pre_pair_dispatch_slot0_brch = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_brch;
+    const bool pre_pair_dispatch_slot0_jal = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_jal;
+    const bool pre_pair_dispatch_slot0_jalr = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_jalr;
+    const bool pre_pair_dispatch_slot0_ebreak = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_ebreak;
+    const bool pre_pair_dispatch_slot0_fence_i = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_fence_i;
+    const bool pre_pair_dispatch_slot0_muldiv = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_muldiv;
+    const bool pre_pair_dispatch_slot0_is_cop_insn = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_is_cop_insn;
+    const bool pre_pair_dispatch_slot0_predict_taken = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_predict_taken;
+    const uint32_t pre_pair_dispatch_slot0_predict_target = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_predict_target;
+    const bool pre_pair_dispatch_slot0_predict_btb_hit = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_predict_btb_hit;
+    const uint32_t pre_pair_dispatch_slot0_rs1_addr = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_rs1_addr;
+    const bool pre_pair_dispatch_slot1_valid = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_valid;
+    const uint32_t pre_pair_dispatch_slot1_pc = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_pc;
+    const uint32_t pre_pair_dispatch_slot1_ins = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_ins;
+    const uint32_t pre_pair_dispatch_slot1_src1 = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_src1;
+    const uint32_t pre_pair_dispatch_slot1_src2 = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_src2;
+    const uint32_t pre_pair_dispatch_slot1_imm = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_imm;
+    const uint32_t pre_pair_dispatch_slot1_src_sel1 = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_src_sel1;
+    const uint32_t pre_pair_dispatch_slot1_src_sel2 = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_src_sel2;
+    const uint32_t pre_pair_dispatch_slot1_rd = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_rd;
+    const uint32_t pre_pair_dispatch_slot1_csr_addr = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_csr_addr;
+    const uint32_t pre_pair_dispatch_slot1_exu_opt = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_exu_opt;
+    const uint32_t pre_pair_dispatch_slot1_alu_opt = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_alu_opt;
+    const bool pre_pair_dispatch_slot1_wen = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_wen;
+    const bool pre_pair_dispatch_slot1_csr_wen = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_csr_wen;
+    const bool pre_pair_dispatch_slot1_mret = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_mret;
+    const bool pre_pair_dispatch_slot1_ecall = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_ecall;
+    const bool pre_pair_dispatch_slot1_load = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_load;
+    const bool pre_pair_dispatch_slot1_store = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_store;
+    const bool pre_pair_dispatch_slot1_brch = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_brch;
+    const bool pre_pair_dispatch_slot1_jal = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_jal;
+    const bool pre_pair_dispatch_slot1_jalr = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_jalr;
+    const bool pre_pair_dispatch_slot1_ebreak = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_ebreak;
+    const bool pre_pair_dispatch_slot1_fence_i = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_fence_i;
+    const bool pre_pair_dispatch_slot1_muldiv = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_muldiv;
+    const bool pre_pair_dispatch_slot1_is_cop_insn = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_is_cop_insn;
+    const bool pre_pair_dispatch_slot1_predict_taken = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_predict_taken;
+    const uint32_t pre_pair_dispatch_slot1_predict_target = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_predict_target;
+    const bool pre_pair_dispatch_slot1_predict_btb_hit = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_predict_btb_hit;
+    const uint32_t pre_pair_dispatch_slot1_rs1_addr = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_rs1_addr;
+    const bool pre_pair_dispatch_candidate_alu_branch = root->sim_top__DOT__cpu__DOT__pair_dispatch_candidate_alu_branch;
+    const bool pre_pair_dispatch_allow_second = root->sim_top__DOT__cpu__DOT__pair_dispatch_allow_second;
+    const bool pre_pair_dispatch_order_alu_then_branch = root->sim_top__DOT__cpu__DOT__pair_dispatch_order_alu_then_branch;
+    const bool pre_pair_dispatch_order_branch_then_alu = root->sim_top__DOT__cpu__DOT__pair_dispatch_order_branch_then_alu;
 
     top->clock = 1;
     top->eval();
@@ -1519,6 +1587,283 @@ int main(int argc, char **argv) {
                      "pair handoff holds frontend-flush block reason stable");
     }
 
+    if (pre_frontend_flush) {
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_valid == 0,
+                     "frontend flush clears the pair dispatch surface");
+      if (pre_pair_dispatch_valid || pre_pair_handoff_valid) {
+        coverage.pair_dispatch_flush_clear_events++;
+      }
+    } else if (pre_pair_handoff_valid) {
+      coverage.pair_dispatch_capture_events++;
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_valid == 1,
+                     "pair handoff captures into the pair dispatch surface");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_valid == pre_pair_handoff_slot0_valid,
+                     "pair dispatch keeps slot0 valid");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_pc == pre_pair_handoff_slot0_pc,
+                     "pair dispatch captures slot0 pc");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_ins == pre_pair_handoff_slot0_ins,
+                     "pair dispatch captures slot0 instruction");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_src1 == pre_pair_handoff_slot0_src1,
+                     "pair dispatch captures slot0 src1");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_src2 == pre_pair_handoff_slot0_src2,
+                     "pair dispatch captures slot0 src2");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_imm == pre_pair_handoff_slot0_imm,
+                     "pair dispatch captures slot0 immediate");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_src_sel1 == pre_pair_handoff_slot0_src_sel1,
+                     "pair dispatch captures slot0 src_sel1");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_src_sel2 == pre_pair_handoff_slot0_src_sel2,
+                     "pair dispatch captures slot0 src_sel2");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_rd == pre_pair_handoff_slot0_rd,
+                     "pair dispatch captures slot0 rd");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_csr_addr == pre_pair_handoff_slot0_csr_addr,
+                     "pair dispatch captures slot0 csr_addr");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_exu_opt == pre_pair_handoff_slot0_exu_opt,
+                     "pair dispatch captures slot0 exu_opt");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_alu_opt == pre_pair_handoff_slot0_alu_opt,
+                     "pair dispatch captures slot0 alu_opt");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_wen == pre_pair_handoff_slot0_wen,
+                     "pair dispatch captures slot0 wen");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_csr_wen == pre_pair_handoff_slot0_csr_wen,
+                     "pair dispatch captures slot0 csr_wen");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_mret == pre_pair_handoff_slot0_mret,
+                     "pair dispatch captures slot0 mret");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_ecall == pre_pair_handoff_slot0_ecall,
+                     "pair dispatch captures slot0 ecall");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_load == pre_pair_handoff_slot0_load,
+                     "pair dispatch captures slot0 load");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_store == pre_pair_handoff_slot0_store,
+                     "pair dispatch captures slot0 store");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_brch == pre_pair_handoff_slot0_brch,
+                     "pair dispatch captures slot0 brch");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_jal == pre_pair_handoff_slot0_jal,
+                     "pair dispatch captures slot0 jal");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_jalr == pre_pair_handoff_slot0_jalr,
+                     "pair dispatch captures slot0 jalr");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_ebreak == pre_pair_handoff_slot0_ebreak,
+                     "pair dispatch captures slot0 ebreak");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_fence_i == pre_pair_handoff_slot0_fence_i,
+                     "pair dispatch captures slot0 fence_i");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_muldiv == pre_pair_handoff_slot0_muldiv,
+                     "pair dispatch captures slot0 muldiv");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_is_cop_insn == pre_pair_handoff_slot0_is_cop_insn,
+                     "pair dispatch captures slot0 cop class");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_predict_taken == pre_pair_handoff_slot0_predict_taken,
+                     "pair dispatch captures slot0 predict_taken");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_predict_target == pre_pair_handoff_slot0_predict_target,
+                     "pair dispatch captures slot0 predict_target");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_predict_btb_hit == pre_pair_handoff_slot0_predict_btb_hit,
+                     "pair dispatch captures slot0 btb_hit");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_rs1_addr == pre_pair_handoff_slot0_rs1_addr,
+                     "pair dispatch captures slot0 rs1_addr");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_valid == pre_pair_handoff_slot1_valid,
+                     "pair dispatch keeps slot1 valid");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_pc == pre_pair_handoff_slot1_pc,
+                     "pair dispatch captures slot1 pc");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_ins == pre_pair_handoff_slot1_ins,
+                     "pair dispatch captures slot1 instruction");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_src1 == pre_pair_handoff_slot1_src1,
+                     "pair dispatch captures slot1 src1");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_src2 == pre_pair_handoff_slot1_src2,
+                     "pair dispatch captures slot1 src2");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_imm == pre_pair_handoff_slot1_imm,
+                     "pair dispatch captures slot1 immediate");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_src_sel1 == pre_pair_handoff_slot1_src_sel1,
+                     "pair dispatch captures slot1 src_sel1");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_src_sel2 == pre_pair_handoff_slot1_src_sel2,
+                     "pair dispatch captures slot1 src_sel2");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_rd == pre_pair_handoff_slot1_rd,
+                     "pair dispatch captures slot1 rd");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_csr_addr == pre_pair_handoff_slot1_csr_addr,
+                     "pair dispatch captures slot1 csr_addr");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_exu_opt == pre_pair_handoff_slot1_exu_opt,
+                     "pair dispatch captures slot1 exu_opt");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_alu_opt == pre_pair_handoff_slot1_alu_opt,
+                     "pair dispatch captures slot1 alu_opt");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_wen == pre_pair_handoff_slot1_wen,
+                     "pair dispatch captures slot1 wen");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_csr_wen == pre_pair_handoff_slot1_csr_wen,
+                     "pair dispatch captures slot1 csr_wen");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_mret == pre_pair_handoff_slot1_mret,
+                     "pair dispatch captures slot1 mret");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_ecall == pre_pair_handoff_slot1_ecall,
+                     "pair dispatch captures slot1 ecall");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_load == pre_pair_handoff_slot1_load,
+                     "pair dispatch captures slot1 load");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_store == pre_pair_handoff_slot1_store,
+                     "pair dispatch captures slot1 store");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_brch == pre_pair_handoff_slot1_brch,
+                     "pair dispatch captures slot1 brch");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_jal == pre_pair_handoff_slot1_jal,
+                     "pair dispatch captures slot1 jal");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_jalr == pre_pair_handoff_slot1_jalr,
+                     "pair dispatch captures slot1 jalr");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_ebreak == pre_pair_handoff_slot1_ebreak,
+                     "pair dispatch captures slot1 ebreak");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_fence_i == pre_pair_handoff_slot1_fence_i,
+                     "pair dispatch captures slot1 fence_i");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_muldiv == pre_pair_handoff_slot1_muldiv,
+                     "pair dispatch captures slot1 muldiv");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_is_cop_insn == pre_pair_handoff_slot1_is_cop_insn,
+                     "pair dispatch captures slot1 cop class");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_predict_taken == pre_pair_handoff_slot1_predict_taken,
+                     "pair dispatch captures slot1 predict_taken");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_predict_target == pre_pair_handoff_slot1_predict_target,
+                     "pair dispatch captures slot1 predict_target");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_predict_btb_hit == pre_pair_handoff_slot1_predict_btb_hit,
+                     "pair dispatch captures slot1 btb_hit");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_rs1_addr == pre_pair_handoff_slot1_rs1_addr,
+                     "pair dispatch captures slot1 rs1_addr");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_candidate_alu_branch == pre_pair_handoff_candidate_alu_branch,
+                     "pair dispatch captures candidate classification");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_allow_second == pre_pair_handoff_allow_second,
+                     "pair dispatch captures fireability");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_order_alu_then_branch == pre_pair_handoff_order_alu_then_branch,
+                     "pair dispatch captures alu-then-branch order");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_order_branch_then_alu == pre_pair_handoff_order_branch_then_alu,
+                     "pair dispatch captures branch-then-alu order");
+      if (pre_pair_dispatch_valid &&
+          root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_pc == pre_pair_dispatch_slot0_pc &&
+          root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_pc == pre_pair_dispatch_slot1_pc &&
+          root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_src1 == pre_pair_dispatch_slot0_src1 &&
+          root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_src1 == pre_pair_dispatch_slot1_src1 &&
+          root->sim_top__DOT__cpu__DOT__pair_dispatch_allow_second == pre_pair_dispatch_allow_second) {
+        coverage.pair_dispatch_hold_cycles++;
+      }
+      if (pre_pair_handoff_allow_second) {
+        coverage.pair_dispatch_capture_fireable_events++;
+      } else {
+        coverage.pair_dispatch_capture_blocked_events++;
+      }
+    } else if (pre_pair_dispatch_valid) {
+      coverage.pair_dispatch_hold_cycles++;
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_valid == 1,
+                     "pair dispatch holds valid without flush");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_valid == pre_pair_dispatch_slot0_valid,
+                     "pair dispatch holds slot0 valid stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_pc == pre_pair_dispatch_slot0_pc,
+                     "pair dispatch holds slot0 pc stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_ins == pre_pair_dispatch_slot0_ins,
+                     "pair dispatch holds slot0 instruction stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_src1 == pre_pair_dispatch_slot0_src1,
+                     "pair dispatch holds slot0 src1 stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_src2 == pre_pair_dispatch_slot0_src2,
+                     "pair dispatch holds slot0 src2 stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_imm == pre_pair_dispatch_slot0_imm,
+                     "pair dispatch holds slot0 immediate stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_src_sel1 == pre_pair_dispatch_slot0_src_sel1,
+                     "pair dispatch holds slot0 src_sel1 stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_src_sel2 == pre_pair_dispatch_slot0_src_sel2,
+                     "pair dispatch holds slot0 src_sel2 stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_rd == pre_pair_dispatch_slot0_rd,
+                     "pair dispatch holds slot0 rd stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_csr_addr == pre_pair_dispatch_slot0_csr_addr,
+                     "pair dispatch holds slot0 csr_addr stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_exu_opt == pre_pair_dispatch_slot0_exu_opt,
+                     "pair dispatch holds slot0 exu_opt stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_alu_opt == pre_pair_dispatch_slot0_alu_opt,
+                     "pair dispatch holds slot0 alu_opt stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_wen == pre_pair_dispatch_slot0_wen,
+                     "pair dispatch holds slot0 wen stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_csr_wen == pre_pair_dispatch_slot0_csr_wen,
+                     "pair dispatch holds slot0 csr_wen stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_mret == pre_pair_dispatch_slot0_mret,
+                     "pair dispatch holds slot0 mret stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_ecall == pre_pair_dispatch_slot0_ecall,
+                     "pair dispatch holds slot0 ecall stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_load == pre_pair_dispatch_slot0_load,
+                     "pair dispatch holds slot0 load stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_store == pre_pair_dispatch_slot0_store,
+                     "pair dispatch holds slot0 store stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_brch == pre_pair_dispatch_slot0_brch,
+                     "pair dispatch holds slot0 brch stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_jal == pre_pair_dispatch_slot0_jal,
+                     "pair dispatch holds slot0 jal stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_jalr == pre_pair_dispatch_slot0_jalr,
+                     "pair dispatch holds slot0 jalr stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_ebreak == pre_pair_dispatch_slot0_ebreak,
+                     "pair dispatch holds slot0 ebreak stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_fence_i == pre_pair_dispatch_slot0_fence_i,
+                     "pair dispatch holds slot0 fence_i stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_muldiv == pre_pair_dispatch_slot0_muldiv,
+                     "pair dispatch holds slot0 muldiv stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_is_cop_insn == pre_pair_dispatch_slot0_is_cop_insn,
+                     "pair dispatch holds slot0 cop stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_predict_taken == pre_pair_dispatch_slot0_predict_taken,
+                     "pair dispatch holds slot0 predict_taken stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_predict_target == pre_pair_dispatch_slot0_predict_target,
+                     "pair dispatch holds slot0 predict_target stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_predict_btb_hit == pre_pair_dispatch_slot0_predict_btb_hit,
+                     "pair dispatch holds slot0 btb_hit stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_rs1_addr == pre_pair_dispatch_slot0_rs1_addr,
+                     "pair dispatch holds slot0 rs1_addr stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_valid == pre_pair_dispatch_slot1_valid,
+                     "pair dispatch holds slot1 valid stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_pc == pre_pair_dispatch_slot1_pc,
+                     "pair dispatch holds slot1 pc stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_ins == pre_pair_dispatch_slot1_ins,
+                     "pair dispatch holds slot1 instruction stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_src1 == pre_pair_dispatch_slot1_src1,
+                     "pair dispatch holds slot1 src1 stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_src2 == pre_pair_dispatch_slot1_src2,
+                     "pair dispatch holds slot1 src2 stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_imm == pre_pair_dispatch_slot1_imm,
+                     "pair dispatch holds slot1 immediate stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_src_sel1 == pre_pair_dispatch_slot1_src_sel1,
+                     "pair dispatch holds slot1 src_sel1 stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_src_sel2 == pre_pair_dispatch_slot1_src_sel2,
+                     "pair dispatch holds slot1 src_sel2 stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_rd == pre_pair_dispatch_slot1_rd,
+                     "pair dispatch holds slot1 rd stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_csr_addr == pre_pair_dispatch_slot1_csr_addr,
+                     "pair dispatch holds slot1 csr_addr stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_exu_opt == pre_pair_dispatch_slot1_exu_opt,
+                     "pair dispatch holds slot1 exu_opt stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_alu_opt == pre_pair_dispatch_slot1_alu_opt,
+                     "pair dispatch holds slot1 alu_opt stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_wen == pre_pair_dispatch_slot1_wen,
+                     "pair dispatch holds slot1 wen stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_csr_wen == pre_pair_dispatch_slot1_csr_wen,
+                     "pair dispatch holds slot1 csr_wen stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_mret == pre_pair_dispatch_slot1_mret,
+                     "pair dispatch holds slot1 mret stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_ecall == pre_pair_dispatch_slot1_ecall,
+                     "pair dispatch holds slot1 ecall stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_load == pre_pair_dispatch_slot1_load,
+                     "pair dispatch holds slot1 load stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_store == pre_pair_dispatch_slot1_store,
+                     "pair dispatch holds slot1 store stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_brch == pre_pair_dispatch_slot1_brch,
+                     "pair dispatch holds slot1 brch stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_jal == pre_pair_dispatch_slot1_jal,
+                     "pair dispatch holds slot1 jal stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_jalr == pre_pair_dispatch_slot1_jalr,
+                     "pair dispatch holds slot1 jalr stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_ebreak == pre_pair_dispatch_slot1_ebreak,
+                     "pair dispatch holds slot1 ebreak stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_fence_i == pre_pair_dispatch_slot1_fence_i,
+                     "pair dispatch holds slot1 fence_i stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_muldiv == pre_pair_dispatch_slot1_muldiv,
+                     "pair dispatch holds slot1 muldiv stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_is_cop_insn == pre_pair_dispatch_slot1_is_cop_insn,
+                     "pair dispatch holds slot1 cop stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_predict_taken == pre_pair_dispatch_slot1_predict_taken,
+                     "pair dispatch holds slot1 predict_taken stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_predict_target == pre_pair_dispatch_slot1_predict_target,
+                     "pair dispatch holds slot1 predict_target stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_predict_btb_hit == pre_pair_dispatch_slot1_predict_btb_hit,
+                     "pair dispatch holds slot1 btb_hit stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_rs1_addr == pre_pair_dispatch_slot1_rs1_addr,
+                     "pair dispatch holds slot1 rs1_addr stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_candidate_alu_branch == pre_pair_dispatch_candidate_alu_branch,
+                     "pair dispatch holds candidate classification stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_allow_second == pre_pair_dispatch_allow_second,
+                     "pair dispatch holds fireability stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_order_alu_then_branch == pre_pair_dispatch_order_alu_then_branch,
+                     "pair dispatch holds alu-then-branch order stable");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_order_branch_then_alu == pre_pair_dispatch_order_branch_then_alu,
+                     "pair dispatch holds branch-then-alu order stable");
+    }
+
     top->clock = 0;
     top->eval();
     main_time++;
@@ -1583,6 +1928,19 @@ int main(int argc, char **argv) {
   fail |= expect(coverage.pair_handoff_capture_events ==
                      (coverage.pair_handoff_capture_fireable_events + coverage.pair_handoff_capture_blocked_events),
                  "pair handoff fireable and blocked accounting stays self-consistent");
+  fail |= expect(coverage.pair_dispatch_capture_events > 0,
+                 "pair dispatch captures at least one visible pair");
+  fail |= expect(coverage.pair_dispatch_capture_fireable_events > 0,
+                 "pair dispatch captures at least one fireable pair");
+  fail |= expect(coverage.pair_dispatch_capture_blocked_events > 0,
+                 "pair dispatch captures at least one blocked pair");
+  fail |= expect(coverage.pair_dispatch_hold_cycles > 0,
+                 "pair dispatch holds a captured pair across at least one cycle");
+  fail |= expect(coverage.pair_dispatch_flush_clear_events > 0,
+                 "pair dispatch is cleared by at least one flush event");
+  fail |= expect(coverage.pair_dispatch_capture_events ==
+                     (coverage.pair_dispatch_capture_fireable_events + coverage.pair_dispatch_capture_blocked_events),
+                 "pair dispatch fireable and blocked accounting stays self-consistent");
 
   delete top;
 
@@ -1591,7 +1949,7 @@ int main(int argc, char **argv) {
   }
 
   std::printf("PASS: top-level slot1 observability remains non-binding and branch-only "
-              "(slot1-events=%llu, fireable=%llu, blocked=%llu, blocked-nonflush=%llu, flushed=%llu, shadow-captures=%llu, shadow-fireable=%llu, shadow-blocked=%llu, shadow-hold=%llu, shadow-flush-clear=%llu, endpoint-captures=%llu, endpoint-fireable=%llu, endpoint-blocked=%llu, endpoint-hold=%llu, endpoint-flush-clear=%llu, pair-captures=%llu, pair-fireable=%llu, pair-blocked=%llu, pair-hold=%llu, pair-flush-clear=%llu, handoff-captures=%llu, handoff-fireable=%llu, handoff-blocked=%llu, handoff-hold=%llu, handoff-flush-clear=%llu)\n",
+              "(slot1-events=%llu, fireable=%llu, blocked=%llu, blocked-nonflush=%llu, flushed=%llu, shadow-captures=%llu, shadow-fireable=%llu, shadow-blocked=%llu, shadow-hold=%llu, shadow-flush-clear=%llu, endpoint-captures=%llu, endpoint-fireable=%llu, endpoint-blocked=%llu, endpoint-hold=%llu, endpoint-flush-clear=%llu, pair-captures=%llu, pair-fireable=%llu, pair-blocked=%llu, pair-hold=%llu, pair-flush-clear=%llu, handoff-captures=%llu, handoff-fireable=%llu, handoff-blocked=%llu, handoff-hold=%llu, handoff-flush-clear=%llu, dispatch-captures=%llu, dispatch-fireable=%llu, dispatch-blocked=%llu, dispatch-hold=%llu, dispatch-flush-clear=%llu)\n",
               static_cast<unsigned long long>(coverage.slot1_visible_events),
               static_cast<unsigned long long>(coverage.slot1_fireable_events),
               static_cast<unsigned long long>(coverage.slot1_blocked_events),
@@ -1616,6 +1974,11 @@ int main(int argc, char **argv) {
               static_cast<unsigned long long>(coverage.pair_handoff_capture_fireable_events),
               static_cast<unsigned long long>(coverage.pair_handoff_capture_blocked_events),
               static_cast<unsigned long long>(coverage.pair_handoff_hold_cycles),
-              static_cast<unsigned long long>(coverage.pair_handoff_flush_clear_events));
+              static_cast<unsigned long long>(coverage.pair_handoff_flush_clear_events),
+              static_cast<unsigned long long>(coverage.pair_dispatch_capture_events),
+              static_cast<unsigned long long>(coverage.pair_dispatch_capture_fireable_events),
+              static_cast<unsigned long long>(coverage.pair_dispatch_capture_blocked_events),
+              static_cast<unsigned long long>(coverage.pair_dispatch_hold_cycles),
+              static_cast<unsigned long long>(coverage.pair_dispatch_flush_clear_events));
   return 0;
 }

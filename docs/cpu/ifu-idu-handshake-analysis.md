@@ -650,12 +650,20 @@ Current pair-handoff refinement:
 3. slot0 and slot1 operand payload now follow the same pre-`idu_exu` source selection intent as the live scalar lane: `ecall/mret` remap `src1`, CSR-source selection remaps `src2`, and the younger lane uses dedicated non-binding RF/CSR read taps to keep the handoff truthful without driving execution
 4. top-level regression now checks handoff capture, hold, flush-clear, and self-consistent `fireable` vs `blocked` accounting, extending the executable frontend contract one stage closer to a future dispatch boundary
 
+Current dispatch-ready sink refinement:
+
+1. the top level now captures `pair_handoff` into an always-ready `pair_dispatch` sink surface that represents the first dispatch-shaped contract above the current frontend-owned handoff
+2. this sink is still non-executing and non-allocating: it clears on `frontend_flush`, holds state across idle cycles, never backpressures `pair_handoff`, and never drives the real backend
+3. the carried fields are intentionally narrower than the handoff contract: per-lane dispatch payload and predictor metadata remain, while detailed frontend block reasons stop at `pair_handoff`
+4. only minimal pair classification is preserved into this sink: `candidate_alu_branch`, `allow_second`, and directional order remain visible so the future narrow pairing candidate is still structurally checkable
+5. top-level regression now checks dispatch capture, hold, flush-clear, and self-consistent `fireable` vs `blocked` accounting against the handoff source
+
 This keeps the policy executable while preserving the current single-issue machine behavior.
 
 ## Immediate Follow-Up
 
 The next useful follow-up items are:
 
-1. define the first dispatch-ready contract for the current pair handoff without letting lane 1 enter the real backend
-2. decide which handoff fields are mandatory for a future `idu_exu`-adjacent sink and which can remain frontend-only observability
+1. decide whether the next safe step is a real lane-1 `accept/kill` boundary or a further payload trim on the dispatch sink without backend allocation
+2. define which `pair_dispatch` fields are the irreducible future `idu_exu` lane contract and which can remain at the handoff-only layer
 3. keep broader assertion growth tied to real new boundary semantics rather than adding speculative checks early
