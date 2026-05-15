@@ -25,8 +25,6 @@ The final HelloCPU RVV target is benchmark-driven, not compliance-driven. It sho
 ## Planned Target Additions
 
 - Internal signal naming cleanup from legacy `vsetivli` labels to `vsetvli` labels.
-- Compare mask operations: `vmseq`, `vmsne`, `vmslt`, and `vmsltu` in the forms needed by benchmark kernels.
-- `vmerge` for masked select/threshold kernels.
 - `vredsum.vs` as the only planned reduction.
 
 These are target additions, not currently supported behavior.
@@ -48,18 +46,32 @@ These are target additions, not currently supported behavior.
 - `vsll.vv`, `vsll.vx`.
 - `vsrl.vv`, `vsrl.vx`.
 - `vsra.vv`, `vsra.vx`.
+- `vmul.vv`, `vmul.vx`.
 - `vmv.v.v`, `vmv.v.x`.
+
+## Supported Compare And Merge
+
+- `vmseq.vv`, `vmsne.vv`, `vmsltu.vv`, `vmslt.vv`.
+- `vmseq.vx`, `vmsne.vx`, `vmsltu.vx`, `vmslt.vx`.
+- Compare results are packed as mask bits into the destination vector register; `v0` is the supported consumer mask source.
+- `vmerge.vvm` and `vmerge.vxm` select between `vs2` and `vs1`/scalar using `v0` mask bits.
+
+## Supported Reduction
+
+- `vredsum.vs` with `vm=1` and the current `SEW=8/16/32`, `LMUL=m1` subset.
+- The reduction result is written to `vd` lane 0; higher lanes are cleared.
 
 ## Supported Mask Behavior
 
 - Execute-class `vm=0` is supported using `v0` as the mask source.
 - Masked-off lanes are undisturbed and preserve the old `vd` lane.
-- `SEW=8` uses mask bits `[3:0]`; `SEW=32` uses mask bit 0.
+- `SEW=8` uses mask bits `[3:0]`; `SEW=16` uses mask bits `[1:0]`; `SEW=32` uses mask bit 0.
 - Masked vector memory is not supported.
 
 ## Supported Memory Instructions
 
 - `vle8.v`, `vse8.v` unit-stride, unmasked.
+- `vle16.v`, `vse16.v` unit-stride, unmasked.
 - `vle32.v`, `vse32.v` unit-stride, unmasked.
 - `vle32.v` and `vse32.v` use byte-serial memory requests to reuse the current COP memory owner/strobe boundary.
 - `vl=0` loads write zero; `vl=0` stores issue no memory request.
@@ -87,7 +99,7 @@ The target subset should be sufficient for these small benchmarks:
 - `dot_i32_tiny`: `vle32`, `vmul`, scalar final check.
 - `threshold_u8`: `vle8`, compare mask, `vmerge`, `vse8`.
 
-The initial benchmark harness implements `vec_add_i32`, `vec_xor_u8`, `memcpy_vec`, and `dot_i32_tiny` using the current supported subset. These tests use static initialized backing memory and may use `rvv_debug_*` only as harness assistance; this is not the final architectural benchmark path. Scalar/vector coherency remains a separate contract item before benchmarks become final acceptance tests.
+The initial benchmark harness implements `vec_add_i32`, `vec_xor_u8`, `memcpy_vec`, `dot_i32_tiny`, and `threshold_u8` using the current supported subset. These tests use static initialized backing memory and may use `rvv_debug_*` only as harness assistance; this is not the final architectural benchmark path. Scalar/vector coherency remains a separate contract item before benchmarks become final acceptance tests.
 
 ## Scalar/Vector Memory Contract
 

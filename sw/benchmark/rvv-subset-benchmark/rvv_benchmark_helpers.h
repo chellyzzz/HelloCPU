@@ -73,4 +73,17 @@ static inline void rvv_vxor_v1_v1_v2(void) {
   asm volatile (".word 0x2e2080d7" ::: "memory");
 }
 
+static inline void rvv_vmsltu_vx_v0_v1(unsigned scalar) {
+  register unsigned scalar_reg asm("x10") = scalar;
+  asm volatile (".word 0x6a154057" :: "r"(scalar_reg) : "memory");
+}
+
+static inline void rvv_vmerge_vxm_v1_v1_x0(void) {
+  asm volatile (".word 0x5c1040d7" ::: "memory");
+}
+
+static inline void rvv_vredsum_vs_v1_v2_v3(void) {
+  asm volatile (".word 0x0221a0d7" ::: "memory");
+}
+
 #endif

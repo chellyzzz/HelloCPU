@@ -64,6 +64,89 @@ function [31:0] merge_masked_result;
     end
 endfunction
 
+function cmp_lane_result;
+    input [31:0] lhs;
+    input [31:0] rhs;
+    input [2:0]  sew;
+    input [1:0]  op;
+    reg signed [7:0]  lhs_s8;
+    reg signed [7:0]  rhs_s8;
+    reg signed [15:0] lhs_s16;
+    reg signed [15:0] rhs_s16;
+    reg signed [31:0] lhs_s32;
+    reg signed [31:0] rhs_s32;
+    begin
+        lhs_s8 = lhs[7:0];
+        rhs_s8 = rhs[7:0];
+        lhs_s16 = lhs[15:0];
+        rhs_s16 = rhs[15:0];
+        lhs_s32 = lhs;
+        rhs_s32 = rhs;
+        if (sew == 3'd0) begin
+            cmp_lane_result = (op == 2'd0) ? (lhs[7:0] == rhs[7:0]) :
+                              (op == 2'd1) ? (lhs[7:0] != rhs[7:0]) :
+                              (op == 2'd2) ? (lhs[7:0] < rhs[7:0]) :
+                              (lhs_s8 < rhs_s8);
+        end else if (sew == 3'd1) begin
+            cmp_lane_result = (op == 2'd0) ? (lhs[15:0] == rhs[15:0]) :
+                              (op == 2'd1) ? (lhs[15:0] != rhs[15:0]) :
+                              (op == 2'd2) ? (lhs[15:0] < rhs[15:0]) :
+                              (lhs_s16 < rhs_s16);
+        end else begin
+            cmp_lane_result = (op == 2'd0) ? (lhs == rhs) :
+                              (op == 2'd1) ? (lhs != rhs) :
+                              (op == 2'd2) ? (lhs < rhs) :
+                              (lhs_s32 < rhs_s32);
+        end
+    end
+endfunction
+
+function [31:0] merge_select_result;
+    input [31:0] if_mask_set;
+    input [31:0] if_mask_clear;
+    input [31:0] mask_value;
+    input [31:0] active_vl;
+    input [2:0]  sew;
+    begin
+        merge_select_result = 32'b0;
+        if (sew == 3'd2) begin
+            merge_select_result = ((active_vl > 32'd0) && mask_value[0]) ? if_mask_set : if_mask_clear;
+        end else if (sew == 3'd1) begin
+            merge_select_result = {
+                ((active_vl > 32'd1) && mask_value[1]) ? if_mask_set[31:16] : if_mask_clear[31:16],
+                ((active_vl > 32'd0) && mask_value[0]) ? if_mask_set[15:0]  : if_mask_clear[15:0]
+            };
+        end else begin
+            merge_select_result = {
+                ((active_vl > 32'd3) && mask_value[3]) ? if_mask_set[31:24] : if_mask_clear[31:24],
+                ((active_vl > 32'd2) && mask_value[2]) ? if_mask_set[23:16] : if_mask_clear[23:16],
+                ((active_vl > 32'd1) && mask_value[1]) ? if_mask_set[15:8]  : if_mask_clear[15:8],
+                ((active_vl > 32'd0) && mask_value[0]) ? if_mask_set[7:0]   : if_mask_clear[7:0]
+            };
+        end
+    end
+endfunction
+
+function [31:0] sew_lane_value;
+    input [31:0] value;
+    input [2:0]  sew;
+    input [1:0]  lane;
+    begin
+        if (sew == 3'd2) begin
+            sew_lane_value = value;
+        end else if (sew == 3'd1) begin
+            sew_lane_value = (lane == 2'd1) ? {16'b0, value[31:16]} : {16'b0, value[15:0]};
+        end else begin
+            case (lane)
+                2'd0: sew_lane_value = {24'b0, value[7:0]};
+                2'd1: sew_lane_value = {24'b0, value[15:8]};
+                2'd2: sew_lane_value = {24'b0, value[23:16]};
+                default: sew_lane_value = {24'b0, value[31:24]};
+            endcase
+        end
+    end
+endfunction
+
 reg         busy;
 reg [1:0]   countdown;
 reg [31:0]  latched_res;
@@ -124,6 +207,17 @@ wire        vsub_vv_standard;
 wire        vsub_vx_standard;
 wire        vmul_vv_standard;
 wire        vmul_vx_standard;
+wire        vmseq_vv_standard;
+wire        vmsne_vv_standard;
+wire        vmsltu_vv_standard;
+wire        vmslt_vv_standard;
+wire        vmseq_vx_standard;
+wire        vmsne_vx_standard;
+wire        vmsltu_vx_standard;
+wire        vmslt_vx_standard;
+wire        vmerge_vv_standard;
+wire        vmerge_vx_standard;
+wire        vredsum_vs_standard;
 wire        vsll_vv_standard;
 wire        vsll_vx_standard;
 wire        vsrl_vv_standard;
@@ -158,6 +252,9 @@ wire [31:0] vsub_vv_result;
 wire [31:0] vsub_vx_result;
 wire [31:0] vmul_vv_result;
 wire [31:0] vmul_vx_result;
+wire [31:0] vcmp_result;
+wire [31:0] vmerge_result;
+wire [31:0] vredsum_result;
 wire [31:0] vshift_vv_raw_result;
 wire [31:0] vshift_vv_result;
 wire [31:0] vshift_vx_raw_result;
@@ -198,6 +295,17 @@ hcpu_vector_cop_decode u_cop_decode(
     .o_vsub_vx_standard(vsub_vx_standard),
     .o_vmul_vv_standard(vmul_vv_standard),
     .o_vmul_vx_standard(vmul_vx_standard),
+    .o_vmseq_vv_standard(vmseq_vv_standard),
+    .o_vmsne_vv_standard(vmsne_vv_standard),
+    .o_vmsltu_vv_standard(vmsltu_vv_standard),
+    .o_vmslt_vv_standard(vmslt_vv_standard),
+    .o_vmseq_vx_standard(vmseq_vx_standard),
+    .o_vmsne_vx_standard(vmsne_vx_standard),
+    .o_vmsltu_vx_standard(vmsltu_vx_standard),
+    .o_vmslt_vx_standard(vmslt_vx_standard),
+    .o_vmerge_vv_standard(vmerge_vv_standard),
+    .o_vmerge_vx_standard(vmerge_vx_standard),
+    .o_vredsum_vs_standard(vredsum_vs_standard),
     .o_vsll_vv_standard(vsll_vv_standard),
     .o_vsll_vx_standard(vsll_vx_standard),
     .o_vsrl_vv_standard(vsrl_vv_standard),
@@ -321,6 +429,52 @@ assign vmul_vx_result = vtype[31] ? 32'h80000000 :
                             (vlen > 32'd1) ? (vrf[vadd_vs2][15:8]  * vadd_x_byte) : 8'b0,
                             (vlen > 32'd0) ? (vrf[vadd_vs2][7:0]   * vadd_x_byte) : 8'b0
                         } : 32'h80000000;
+wire compare_standard = vmseq_vv_standard || vmsne_vv_standard || vmsltu_vv_standard || vmslt_vv_standard ||
+                        vmseq_vx_standard || vmsne_vx_standard || vmsltu_vx_standard || vmslt_vx_standard;
+wire compare_op_eq = vmseq_vv_standard || vmseq_vx_standard;
+wire compare_op_ne = vmsne_vv_standard || vmsne_vx_standard;
+wire compare_op_ltu = vmsltu_vv_standard || vmsltu_vx_standard;
+wire compare_vx_form = vmseq_vx_standard || vmsne_vx_standard || vmsltu_vx_standard || vmslt_vx_standard;
+wire [31:0] compare_rhs_scalar = (vtype[2:0] == 3'd2) ? i_src1 :
+                                 (vtype[2:0] == 3'd1) ? {16'b0, i_src1[15:0]} :
+                                                        {24'b0, i_src1[7:0]};
+wire [31:0] compare_lhs_lane0 = sew_lane_value(vrf[vadd_vs2], vtype[2:0], 2'd0);
+wire [31:0] compare_lhs_lane1 = sew_lane_value(vrf[vadd_vs2], vtype[2:0], 2'd1);
+wire [31:0] compare_lhs_lane2 = sew_lane_value(vrf[vadd_vs2], vtype[2:0], 2'd2);
+wire [31:0] compare_lhs_lane3 = sew_lane_value(vrf[vadd_vs2], vtype[2:0], 2'd3);
+wire [31:0] compare_rhs_lane0 = compare_vx_form ? compare_rhs_scalar : sew_lane_value(vrf[vadd_vs1], vtype[2:0], 2'd0);
+wire [31:0] compare_rhs_lane1 = compare_vx_form ? compare_rhs_scalar : sew_lane_value(vrf[vadd_vs1], vtype[2:0], 2'd1);
+wire [31:0] compare_rhs_lane2 = compare_vx_form ? compare_rhs_scalar : sew_lane_value(vrf[vadd_vs1], vtype[2:0], 2'd2);
+wire [31:0] compare_rhs_lane3 = compare_vx_form ? compare_rhs_scalar : sew_lane_value(vrf[vadd_vs1], vtype[2:0], 2'd3);
+wire compare_lane0 = cmp_lane_result(compare_lhs_lane0, compare_rhs_lane0, vtype[2:0], compare_op_eq ? 2'd0 : compare_op_ne ? 2'd1 : compare_op_ltu ? 2'd2 : 2'd3);
+wire compare_lane1 = cmp_lane_result(compare_lhs_lane1, compare_rhs_lane1, vtype[2:0], compare_op_eq ? 2'd0 : compare_op_ne ? 2'd1 : compare_op_ltu ? 2'd2 : 2'd3);
+wire compare_lane2 = cmp_lane_result(compare_lhs_lane2, compare_rhs_lane2, vtype[2:0], compare_op_eq ? 2'd0 : compare_op_ne ? 2'd1 : compare_op_ltu ? 2'd2 : 2'd3);
+wire compare_lane3 = cmp_lane_result(compare_lhs_lane3, compare_rhs_lane3, vtype[2:0], compare_op_eq ? 2'd0 : compare_op_ne ? 2'd1 : compare_op_ltu ? 2'd2 : 2'd3);
+assign vcmp_result = vtype[31] ? 32'h80000000 :
+                     (vtype[2:0] == 3'd2) ? {31'b0, compare_lane0} :
+                     (vtype[2:0] == 3'd1) ? {30'b0, compare_lane1, compare_lane0} :
+                     {28'b0, compare_lane3, compare_lane2, compare_lane1, compare_lane0};
+wire vmerge_standard = vmerge_vv_standard || vmerge_vx_standard;
+wire [31:0] vmerge_scalar_source = (vtype[2:0] == 3'd2) ? i_src1 :
+                                   (vtype[2:0] == 3'd1) ? {i_src1[15:0], i_src1[15:0]} :
+                                                          {4{i_src1[7:0]}};
+wire [31:0] vmerge_mask_set_source = vmerge_vx_standard ? vmerge_scalar_source : vrf[vadd_vs1];
+assign vmerge_result = vtype[31] ? 32'h80000000 :
+                       merge_select_result(vmerge_mask_set_source, vrf[vadd_vs2], vrf[0], vlen, vtype[2:0]);
+wire [31:0] vredsum_e8 = {24'b0, vrf[vadd_vs1][7:0]} +
+                         ((vlen > 32'd0) ? {24'b0, vrf[vadd_vs2][7:0]} : 32'b0) +
+                         ((vlen > 32'd1) ? {24'b0, vrf[vadd_vs2][15:8]} : 32'b0) +
+                         ((vlen > 32'd2) ? {24'b0, vrf[vadd_vs2][23:16]} : 32'b0) +
+                         ((vlen > 32'd3) ? {24'b0, vrf[vadd_vs2][31:24]} : 32'b0);
+wire [31:0] vredsum_e16 = {16'b0, vrf[vadd_vs1][15:0]} +
+                          ((vlen > 32'd0) ? {16'b0, vrf[vadd_vs2][15:0]} : 32'b0) +
+                          ((vlen > 32'd1) ? {16'b0, vrf[vadd_vs2][31:16]} : 32'b0);
+wire [31:0] vredsum_e32 = vrf[vadd_vs1] + ((vlen > 32'd0) ? vrf[vadd_vs2] : 32'b0);
+assign vredsum_result = vtype[31] ? 32'h80000000 :
+                        (vtype[2:0] == 3'd2) ? vredsum_e32 :
+                        (vtype[2:0] == 3'd1) ? {16'b0, vredsum_e16[15:0]} :
+                        (vtype[2:0] == 3'd0) ? {24'b0, vredsum_e8[7:0]} :
+                        32'h80000000;
 wire vbit_vv_standard = vand_vv_standard || vor_vv_standard || vxor_vv_standard;
 assign vbit_vv_raw_result = vand_vv_standard ? (vrf[vadd_vs2] & vrf[vadd_vs1]) :
                             vor_vv_standard ? (vrf[vadd_vs2] | vrf[vadd_vs1]) :
@@ -428,7 +582,10 @@ wire [31:0] cop_result = vsetivli_any ? vlen_next_value :
                            vsub_vx_standard ? vsub_vx_result :
                            vmul_vv_standard ? vmul_vv_result :
                            vmul_vx_standard ? vmul_vx_result :
-                          vbit_vv_standard ? vbit_vv_result :
+                           compare_standard ? vcmp_result :
+                           vmerge_standard ? vmerge_result :
+                           vredsum_vs_standard ? vredsum_result :
+                           vbit_vv_standard ? vbit_vv_result :
                           vbit_vx_standard ? vbit_vx_result :
                           vbit_vi_standard ? vbit_vi_result :
                           vshift_vv_standard ? vshift_vv_result :
@@ -448,8 +605,9 @@ wire [31:0] cop_result = vsetivli_any ? vlen_next_value :
                           is_vrf_op  ? vrf[vrf_idx] :
                           scalar_op;
 wire        standard_vrf_write = vadd_vv_standard || vadd_vx_standard || vadd_vi_standard ||
-                                 vsub_vv_standard || vsub_vx_standard || vmul_vv_standard || vmul_vx_standard || vbit_vv_standard || vbit_vx_standard ||
-                                 vbit_vi_standard || vshift_vv_standard || vshift_vx_standard || vmv_standard || standard_mem_zero_load;
+                                  vsub_vv_standard || vsub_vx_standard || vmul_vv_standard || vmul_vx_standard || vbit_vv_standard || vbit_vx_standard ||
+                                  vbit_vi_standard || vshift_vv_standard || vshift_vx_standard || compare_standard || vmerge_standard ||
+                                  vredsum_vs_standard || vmv_standard || standard_mem_zero_load;
 wire        vrf_write     = (is_vrf_op && (cop_funct7 != 7'd4)) || (standard_vrf_write && !vtype[31]);
 wire [4:0]  vrf_write_idx = standard_mem_zero_load ? i_ins[11:7] :
                             standard_vrf_write ? vadd_vd :
@@ -458,10 +616,13 @@ wire [31:0] vrf_write_unmasked_value = vadd_vv_standard ? vadd_vv_result :
                                        vadd_vx_standard ? vadd_vx_result :
                                        vadd_vi_standard ? vadd_vi_result :
                                         vsub_vv_standard ? vsub_vv_result :
-                                        vsub_vx_standard ? vsub_vx_result :
-                                        vmul_vv_standard ? vmul_vv_result :
-                                        vmul_vx_standard ? vmul_vx_result :
-                                       vbit_vv_standard ? vbit_vv_result :
+                                         vsub_vx_standard ? vsub_vx_result :
+                                         vmul_vv_standard ? vmul_vv_result :
+                                         vmul_vx_standard ? vmul_vx_result :
+                                        compare_standard ? vcmp_result :
+                                        vmerge_standard ? vmerge_result :
+                                        vredsum_vs_standard ? vredsum_result :
+                                        vbit_vv_standard ? vbit_vv_result :
                                        vbit_vx_standard ? vbit_vx_result :
                                        vbit_vi_standard ? vbit_vi_result :
                                        vshift_vv_standard ? vshift_vv_result :
@@ -473,7 +634,8 @@ wire [31:0] vrf_write_value = (vadd_vv_standard || vadd_vx_standard || vadd_vi_s
                                vsub_vv_standard || vsub_vx_standard || vbit_vv_standard || vbit_vx_standard ||
                                vmul_vv_standard || vmul_vx_standard ||
                                vbit_vi_standard || vshift_vv_standard || vshift_vx_standard || vmv_standard) ? vrf_write_masked_value :
-                              standard_mem_zero_load ? 32'b0 :
+                               (compare_standard || vmerge_standard || vredsum_vs_standard) ? vrf_write_unmasked_value :
+                               standard_mem_zero_load ? 32'b0 :
                               is_vrf_lane ? vrf_op_result : i_src1;
 
 always @(posedge clock or posedge reset) begin

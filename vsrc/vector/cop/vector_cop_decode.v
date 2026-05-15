@@ -31,6 +31,17 @@ module hcpu_vector_cop_decode(
     output            o_vsub_vx_standard,
     output            o_vmul_vv_standard,
     output            o_vmul_vx_standard,
+    output            o_vmseq_vv_standard,
+    output            o_vmsne_vv_standard,
+    output            o_vmsltu_vv_standard,
+    output            o_vmslt_vv_standard,
+    output            o_vmseq_vx_standard,
+    output            o_vmsne_vx_standard,
+    output            o_vmsltu_vx_standard,
+    output            o_vmslt_vx_standard,
+    output            o_vmerge_vv_standard,
+    output            o_vmerge_vx_standard,
+    output            o_vredsum_vs_standard,
     output            o_vsll_vv_standard,
     output            o_vsll_vx_standard,
     output            o_vsrl_vv_standard,
@@ -103,14 +114,25 @@ assign o_vsub_vv_standard = (i_ins[6:0] == 7'b1010111) && (o_funct3 == 3'b000) &
 assign o_vsub_vx_standard = (i_ins[6:0] == 7'b1010111) && (o_funct3 == 3'b100) && (i_ins[31:26] == 6'b000010);
 assign o_vmul_vv_standard = (i_ins[6:0] == 7'b1010111) && (o_funct3 == 3'b010) && (i_ins[31:26] == 6'b100101);
 assign o_vmul_vx_standard = (i_ins[6:0] == 7'b1010111) && (o_funct3 == 3'b110) && (i_ins[31:26] == 6'b100101);
+assign o_vmseq_vv_standard = (i_ins[6:0] == 7'b1010111) && (o_funct3 == 3'b000) && (i_ins[31:26] == 6'b011000);
+assign o_vmsne_vv_standard = (i_ins[6:0] == 7'b1010111) && (o_funct3 == 3'b000) && (i_ins[31:26] == 6'b011001);
+assign o_vmsltu_vv_standard = (i_ins[6:0] == 7'b1010111) && (o_funct3 == 3'b000) && (i_ins[31:26] == 6'b011010);
+assign o_vmslt_vv_standard = (i_ins[6:0] == 7'b1010111) && (o_funct3 == 3'b000) && (i_ins[31:26] == 6'b011011);
+assign o_vmseq_vx_standard = (i_ins[6:0] == 7'b1010111) && (o_funct3 == 3'b100) && (i_ins[31:26] == 6'b011000);
+assign o_vmsne_vx_standard = (i_ins[6:0] == 7'b1010111) && (o_funct3 == 3'b100) && (i_ins[31:26] == 6'b011001);
+assign o_vmsltu_vx_standard = (i_ins[6:0] == 7'b1010111) && (o_funct3 == 3'b100) && (i_ins[31:26] == 6'b011010);
+assign o_vmslt_vx_standard = (i_ins[6:0] == 7'b1010111) && (o_funct3 == 3'b100) && (i_ins[31:26] == 6'b011011);
+assign o_vmerge_vv_standard = (i_ins[6:0] == 7'b1010111) && (o_funct3 == 3'b000) && (i_ins[31:26] == 6'b010111) && (i_ins[25] == 1'b0);
+assign o_vmerge_vx_standard = (i_ins[6:0] == 7'b1010111) && (o_funct3 == 3'b100) && (i_ins[31:26] == 6'b010111) && (i_ins[25] == 1'b0);
+assign o_vredsum_vs_standard = (i_ins[6:0] == 7'b1010111) && (o_funct3 == 3'b010) && (i_ins[31:26] == 6'b000000);
 assign o_vsll_vv_standard = (i_ins[6:0] == 7'b1010111) && (o_funct3 == 3'b000) && (i_ins[31:26] == 6'b100101);
 assign o_vsll_vx_standard = (i_ins[6:0] == 7'b1010111) && (o_funct3 == 3'b100) && (i_ins[31:26] == 6'b100101);
 assign o_vsrl_vv_standard = (i_ins[6:0] == 7'b1010111) && (o_funct3 == 3'b000) && (i_ins[31:26] == 6'b101000);
 assign o_vsrl_vx_standard = (i_ins[6:0] == 7'b1010111) && (o_funct3 == 3'b100) && (i_ins[31:26] == 6'b101000);
 assign o_vsra_vv_standard = (i_ins[6:0] == 7'b1010111) && (o_funct3 == 3'b000) && (i_ins[31:26] == 6'b101001);
 assign o_vsra_vx_standard = (i_ins[6:0] == 7'b1010111) && (o_funct3 == 3'b100) && (i_ins[31:26] == 6'b101001);
-assign o_vmv_v_v_standard = (i_ins[6:0] == 7'b1010111) && (o_funct3 == 3'b000) && (i_ins[31:26] == 6'b010111);
-assign o_vmv_v_x_standard = (i_ins[6:0] == 7'b1010111) && (o_funct3 == 3'b100) && (i_ins[31:26] == 6'b010111);
+assign o_vmv_v_v_standard = (i_ins[6:0] == 7'b1010111) && (o_funct3 == 3'b000) && (i_ins[31:26] == 6'b010111) && (i_ins[25] == 1'b1);
+assign o_vmv_v_x_standard = (i_ins[6:0] == 7'b1010111) && (o_funct3 == 3'b100) && (i_ins[31:26] == 6'b010111) && (i_ins[25] == 1'b1);
 assign o_vle8_v_standard = (i_ins[6:0] == 7'b0000111) && (o_funct3 == 3'b000) && (i_ins[31:20] == 12'b000000100000);
 assign o_vse8_v_standard = (i_ins[6:0] == 7'b0100111) && (o_funct3 == 3'b000) && (i_ins[31:25] == 7'b0000001) && (i_ins[24:20] == 5'b00000);
 assign o_vle16_v_standard = (i_ins[6:0] == 7'b0000111) && (o_funct3 == 3'b101) && (i_ins[31:20] == 12'b000000100000);

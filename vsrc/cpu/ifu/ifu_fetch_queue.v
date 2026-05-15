@@ -42,6 +42,7 @@ wire type_vsetivli = (opcode == TYPE_OPV) && (func3 == 3'b111) && (i_ins[31] == 
 wire type_vaddvv = (opcode == TYPE_OPV) && (func3 == 3'b000) && (i_ins[31:26] == 6'b000000);
 wire type_vaddvx = (opcode == TYPE_OPV) && (func3 == 3'b100) && (i_ins[31:26] == 6'b000000);
 wire type_vaddvi = (opcode == TYPE_OPV) && (func3 == 3'b011) && (i_ins[31:26] == 6'b000000);
+wire type_vredsumvs = (opcode == TYPE_OPV) && (func3 == 3'b010) && (i_ins[31:26] == 6'b000000);
 wire type_vbitvv = (opcode == TYPE_OPV) && (func3 == 3'b000) &&
                    ((i_ins[31:26] == 6'b001001) || (i_ins[31:26] == 6'b001010) || (i_ins[31:26] == 6'b001011));
 wire type_vbitvx = (opcode == TYPE_OPV) && (func3 == 3'b100) &&
@@ -52,12 +53,20 @@ wire type_vsubvv = (opcode == TYPE_OPV) && (func3 == 3'b000) && (i_ins[31:26] ==
 wire type_vsubvx = (opcode == TYPE_OPV) && (func3 == 3'b100) && (i_ins[31:26] == 6'b000010);
 wire type_vmulvv = (opcode == TYPE_OPV) && (func3 == 3'b010) && (i_ins[31:26] == 6'b100101);
 wire type_vmulvx = (opcode == TYPE_OPV) && (func3 == 3'b110) && (i_ins[31:26] == 6'b100101);
+wire type_vcmpvv = (opcode == TYPE_OPV) && (func3 == 3'b000) &&
+                   ((i_ins[31:26] == 6'b011000) || (i_ins[31:26] == 6'b011001) ||
+                    (i_ins[31:26] == 6'b011010) || (i_ins[31:26] == 6'b011011));
+wire type_vcmpvx = (opcode == TYPE_OPV) && (func3 == 3'b100) &&
+                   ((i_ins[31:26] == 6'b011000) || (i_ins[31:26] == 6'b011001) ||
+                    (i_ins[31:26] == 6'b011010) || (i_ins[31:26] == 6'b011011));
 wire type_vshiftvv = (opcode == TYPE_OPV) && (func3 == 3'b000) &&
                      ((i_ins[31:26] == 6'b100101) || (i_ins[31:26] == 6'b101000) || (i_ins[31:26] == 6'b101001));
 wire type_vshiftvx = (opcode == TYPE_OPV) && (func3 == 3'b100) &&
                      ((i_ins[31:26] == 6'b100101) || (i_ins[31:26] == 6'b101000) || (i_ins[31:26] == 6'b101001));
-wire type_vmvvv = (opcode == TYPE_OPV) && (func3 == 3'b000) && (i_ins[31:26] == 6'b010111);
-wire type_vmvvx = (opcode == TYPE_OPV) && (func3 == 3'b100) && (i_ins[31:26] == 6'b010111);
+wire type_vmergevv = (opcode == TYPE_OPV) && (func3 == 3'b000) && (i_ins[31:26] == 6'b010111) && (i_ins[25] == 1'b0);
+wire type_vmergevx = (opcode == TYPE_OPV) && (func3 == 3'b100) && (i_ins[31:26] == 6'b010111) && (i_ins[25] == 1'b0);
+wire type_vmvvv = (opcode == TYPE_OPV) && (func3 == 3'b000) && (i_ins[31:26] == 6'b010111) && (i_ins[25] == 1'b1);
+wire type_vmvvx = (opcode == TYPE_OPV) && (func3 == 3'b100) && (i_ins[31:26] == 6'b010111) && (i_ins[25] == 1'b1);
 wire type_vle8v = (opcode == TYPE_VLOAD) && (func3 == 3'b000) && (i_ins[31:20] == 12'b000000100000);
 wire type_vse8v = (opcode == TYPE_VSTORE) && (func3 == 3'b000) && (i_ins[31:25] == 7'b0000001) && (i_ins[24:20] == 5'b00000);
 wire type_vle16v = (opcode == TYPE_VLOAD) && (func3 == 3'b101) && (i_ins[31:20] == 12'b000000100000);
@@ -67,16 +76,18 @@ wire type_vse32v = (opcode == TYPE_VSTORE) && (func3 == 3'b110) && (i_ins[31:25]
 wire valid_ins = type_i || type_i_load || type_r || type_lui || type_auipc ||
                  type_jal || type_jalr || type_s || type_b || type_ebrk || type_cop || type_vsetivli ||
                  type_vaddvv || type_vaddvx || type_vaddvi || type_vbitvv || type_vbitvx || type_vbitvi ||
-                 type_vsubvv || type_vsubvx || type_vmulvv || type_vmulvx || type_vshiftvv || type_vshiftvx || type_vmvvv || type_vmvvx ||
+                 type_vredsumvs || type_vsubvv || type_vsubvx || type_vmulvv || type_vmulvx || type_vcmpvv || type_vcmpvx ||
+                 type_vshiftvv || type_vshiftvx || type_vmergevv || type_vmergevx || type_vmvvv || type_vmvvx ||
                  type_vle8v || type_vse8v || type_vle16v || type_vse16v || type_vle32v || type_vse32v ||
                  (opcode == TYPE_FENCE);
 
 wire [4:0] sidecar_rs1_addr = (type_auipc || type_lui || type_jal || type_vaddvv || type_vaddvi ||
-                               type_vbitvv || type_vbitvi || type_vsubvv || type_vmulvv || type_vshiftvv || type_vmvvv) ? 5'b0 : rs1;
+                               type_vbitvv || type_vbitvi || type_vsubvv || type_vmulvv || type_vcmpvv || type_vredsumvs || type_vshiftvv || type_vmergevv || type_vmvvv) ? 5'b0 : rs1;
 wire [4:0] sidecar_rs2_addr = (type_r || type_b || type_s || type_cop) ? rs2 : 5'b0;
 wire sidecar_wen = valid_ins && !(type_s || type_b || opcode == TYPE_FENCE || type_vaddvv || type_vaddvx ||
                                   type_vaddvi || type_vbitvv || type_vbitvx || type_vmvvv || type_vmvvx ||
-                                  type_vbitvi || type_vsubvv || type_vsubvx || type_vmulvv || type_vmulvx || type_vshiftvv || type_vshiftvx ||
+                                  type_vbitvi || type_vsubvv || type_vsubvx || type_vmulvv || type_vmulvx || type_vcmpvv || type_vcmpvx || type_vredsumvs ||
+                                  type_vshiftvv || type_vshiftvx || type_vmergevv || type_vmergevx ||
                                   type_vle8v || type_vse8v || type_vle16v || type_vse16v || type_vle32v || type_vse32v);
 wire sidecar_csr_wen = type_ebrk && |func3;
 wire sidecar_ecall = type_ebrk && (func3 == 3'b000) && (rs2[1:0] == 2'b00);
@@ -98,7 +109,8 @@ assign o_predecode_bundle = {
     sidecar_fence_i,
     type_m,
     type_cop || type_vsetivli || type_vaddvv || type_vaddvx || type_vaddvi || type_vbitvv || type_vbitvx ||
-    type_vbitvi || type_vsubvv || type_vsubvx || type_vmulvv || type_vmulvx || type_vshiftvv || type_vshiftvx || type_vmvvv || type_vmvvx ||
+    type_vbitvi || type_vsubvv || type_vsubvx || type_vmulvv || type_vmulvx || type_vcmpvv || type_vcmpvx || type_vredsumvs ||
+    type_vshiftvv || type_vshiftvx || type_vmergevv || type_vmergevx || type_vmvvv || type_vmvvx ||
     type_vle8v || type_vse8v || type_vle16v || type_vse16v || type_vle32v || type_vse32v,
     sidecar_ecall,
     sidecar_mret,
