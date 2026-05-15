@@ -197,6 +197,15 @@ int main(int argc, char **argv) {
     if (top->tb_cop_mem_b_fire) b_fire_count++;
 
     if (!killed_blocked_store && top->tb_cop_mem_bus_active && top->tb_cop_mem_store) {
+      if (!top->tb_cop_mem_service_req_valid) {
+        return fail("blocked COP store did not remain visible at service boundary");
+      }
+      if (!top->tb_mem_owner_cop_active || !top->tb_mem_service_req_valid) {
+        return fail("blocked COP store did not own service boundary");
+      }
+      if (top->tb_mem_service_addr != top->tb_cop_mem_addr) {
+        return fail("blocked COP store service address did not match owner address");
+      }
       if (aw_fire_count != 0 || w_fire_count != 0 || b_fire_count != 0) {
         return fail("COP store reached bus before pre-accept kill");
       }
@@ -219,6 +228,9 @@ int main(int argc, char **argv) {
     }
 
     if (observed_later_store && top->tb_cop_mem_resp_valid) {
+      if (!top->tb_mem_service_resp_valid) {
+        return fail("later COP store response did not reach service response boundary");
+      }
       observed_later_response = true;
     }
   }

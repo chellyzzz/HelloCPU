@@ -1,7 +1,7 @@
 # B-Line Status
 
-Branch: `cpu-mainline-branch`
-Baseline: `8837032 docs: consolidate CPU planning into evolution roadmap and add ROI guardrails for redirect work`
+Branch: `codex/b-line-predictor-rtl`
+Baseline: `8cc7791 merge mainline before frontend widening follow-up`
 Current mode: **2-wide preparation ownership**
 
 ## Current Mission
@@ -30,6 +30,56 @@ Tracking document: `docs/cpu/two-wide-preparation-checklist.md`.
 - `CoreMark ITER=100` 数据
 - 中间指标下降证明
 - 不破坏 future dual-issue / COP memory / vector memory 边界
+
+## Since Mainline `8cc7791`
+
+Current branch summary from the last mainline sync to the current frontend branch head:
+
+- Base: `8cc7791`
+- Current head: `231ffc2`
+- Direction: keep the machine single-issue and non-committing for lane 1 while pushing the frontend-only `2-wide` skeleton one boundary at a time toward a future dispatch contract.
+
+Work completed in this span:
+
+1. decode entrance policy and directional slot-1 eligibility
+   - landed the executable decode-entrance policy skeleton and narrowed the first future pairing candidate to `older ALU + younger branch`
+   - made the blocked cases explicit with stable policy block reasons instead of leaving them as implicit timing behavior
+
+2. packed slot-1 observability and truthful decode metadata
+   - exposed the younger queue entry into a non-binding `slot0/slot1` packing surface
+   - added a second decode path for the younger lane so visible-but-blocked pairs still preserve truthful lane-1 decode state
+   - extended top-level observability to require `visible + fireable`, `visible + blocked`, and `visible + flushed`
+
+3. lane-1 transport and endpoint closure
+   - added a non-binding shadow transport register and an always-ready endpoint stub for slot 1
+   - closed capture / hold / flush-clear behavior with top-level coverage before moving to dual-lane bundle transport
+
+4. non-executing frontend pair bundle
+   - captured the oldest and younger visible queue entries into a two-lane frontend bundle with predictor metadata, decode payload, and pair-policy snapshot
+   - kept slot0 sourced from the live scalar decode path and slot1 sourced from an unconditional younger decode path so blocked pairs stay truthful
+
+5. near-`idu_exu` pair handoff surface
+   - added a registered `pair_handoff` sink above the frontend bundle, plus dedicated non-binding RF and CSR read taps for truthful lane-1 operand and CSR payload
+   - moved slot0/slot1 `src1/src2` payload onto the same pre-`idu_exu` source-selection intent as the live scalar lane
+
+6. dispatch-ready sink surface
+   - added an always-ready, non-executing `pair_dispatch` sink above `pair_handoff`
+   - trimmed that sink to dispatch-adjacent payload plus minimal pair classification, leaving detailed frontend block reasons at the handoff layer
+
+What stayed intentionally unchanged:
+
+- no decode queue
+- no dual dispatch
+- no dual execute allocation
+- no dual writeback
+- no dual commit
+- no lane-1 backpressure into the real backend
+
+Validated checkpoints in this span:
+
+- `make top_slot1_observability`: PASS
+- `make top_pc_update_flush`: PASS
+- `make run ALL=sum`: PASS
 
 ## V1 Architecture Decision
 
@@ -220,12 +270,107 @@ Current landed RTL slice:
 - The sidecar does not change execution semantics yet; dequeue still feeds the existing single-issue decode / register-read path.
 - Queue-level directed validation and top-level smoke regressions now cover this structure.
 
+Current pairing-screen RTL slice:
+
+- The fetch queue now also computes a non-binding pair screen over the two visible queue entries.
+- Current observability is draft-only: `pair_valid`, `pair_candidate_alu_branch`, `pair_has_raw`, `pair_has_waw`, `pair_has_dual_writeback`, `pair_has_exclusive_backend`, `pair_has_redirect_control`.
+- These signals do not affect issue behavior yet; they are only the first executable skeleton for future pairing policy.
+
+Current decode-policy RTL slice:
+
+- `vsrc/cpu/idu/decode_pair_policy.v` now turns queue pair-screen observability plus decode/backend entrance state into a non-binding slot-1 policy result.
+- Current outputs are `pair_visible`, `allow_second`, and explicit block reasons for `raw`, `waw`, `dual_writeback`, `exclusive_backend`, `redirect_control`, `downstream_busy`, `cop_pipeline`, and `frontend_flush`.
+- This still does not change issue width; it only makes the decode entrance policy executable and testable.
+
+Current directional slot1 step:
+
+- The executable policy now treats only `older ALU + younger branch` as slot-1 eligible.
+- `older branch + younger ALU` remains observable but is blocked by policy.
+- If slot 1 were ever enabled by later RTL, the current skeleton would select the younger entry as slot 1 and classify it as the branch side.
+
+Current slot packing skeleton:
+
+- The fetch queue now exposes the younger queued entry as a non-binding observable input to future slot packing.
+- `hcpu` now derives an internal `slot0 = older`, `slot1 = younger branch` packing surface when the directional slot1 policy allows it.
+- This still does not change issue width or let slot 1 reach `idu_exu_regs`.
+
+Current slot1 decode surface:
+
+- `hcpu` now runs a non-binding second `hcpu_IDU` decode over the packed slot-1 instruction.
+- The slot-1 decode surface is assertion-checked to remain a non-writing branch decode.
+- The live single-issue path still uses only the original `idu1 -> idu_exu_regs` flow.
+
+Current slot1 observability refinement:
+
+- `slot1` packing visibility is now decoupled from `allow_second` so the surface stays observable even when downstream backpressure blocks any real second-lane fire.
+- `allow_second` remains the stricter execution gate for any future real dual-lane enable.
+- A new top-level regression now watches the live packed slot-1 surface on `if-else.bin` and confirms that it remains branch-only and non-binding.
+
+Current slot1 decode metadata surface:
+
+- The younger fetch-queue sidecar now exposes `rd`, `rs1`, `rs2`, and `wen` for the packed slot-1 candidate.
+- The non-binding slot-1 decode surface now exposes `imm`, `rd`, `rs1`, `rs2`, and `exu_opt` in addition to `pc`, `ins`, `brch`, and `wen`.
+- Top-level assertions and regression coverage now check that slot-1 decode metadata matches the younger queue sidecar while remaining non-binding.
+
+Current top-level coverage stable point:
+
+- `top_slot1_observability` now requires three live categories on `if-else.bin`: `visible + fireable`, `visible + blocked`, and `visible + flushed`.
+- The coverage test also checks that blocked accounting is self-consistent and that flush-time visibility still never upgrades into a real second-lane fire.
+- This is the first top-level regression point that exercises slot-1 observability as a state machine surface rather than only as a structural decode snapshot.
+
+Current slot1 shadow transport surface:
+
+- `hcpu` now captures visible slot-1 metadata into a non-binding shadow register surface that is cleared by `frontend_flush` and never participates in execute or commit.
+- The shadow surface now carries `pc`, `ins`, `imm`, `rd`, `rs1`, `rs2`, `exu_opt`, `alu_opt`, `src_sel1`, `src_sel2`, `wen`, `brch`, and younger branch prediction metadata.
+- The younger sidecar and the shadow lane now also keep the remaining branch-only class bits explicit: `csr_wen`, `load`, `store`, `jal`, `jalr`, `fence_i`, `muldiv`, `is_cop_insn`, `ecall`, `mret`, `ebreak`, and zero `csr_addr`.
+- Top-level coverage now requires shadow capture, shadow hold, and shadow flush-clear events in addition to the visible/fireable/blocked/flushed observability states.
+
+Current slot1 shadow endpoint surface:
+
+- `hcpu` now also exposes an always-ready, non-executing slot-1 endpoint stub that accepts every visible shadow-transport event without adding backpressure.
+- The endpoint captures the same branch-only payload as the shadow lane, holds it across idle cycles, and clears on `frontend_flush`.
+- Top-level coverage now requires endpoint capture, endpoint hold, and endpoint flush-clear behavior, so lane 1 has both a source-side shadow surface and a sink-side endpoint surface.
+
+Current fetch-queue contract refinement:
+
+- Under `PROTOCOL_ASSERT`, a full stalled fetch queue must now keep the full pair-screen result, younger predict metadata, and younger predecode bundle stable until dequeue or flush.
+- The directed fetch-queue regression now checks that a blocked overwrite attempt leaves the younger truth source unchanged.
+
+Current frontend pair-bundle surface:
+
+- `hcpu` now captures a non-executing two-lane frontend bundle whenever the oldest and younger queue entries are both visible.
+- This bundle now carries slot0/slot1 `pc`, `ins`, predictor metadata, decoded control payload (`imm`, `csr_addr`, `exu_opt`, `alu_opt`, `src_sel1`, `src_sel2`, class bits), and the current pair-policy snapshot.
+- The bundle is cleared by `frontend_flush`, holds across idle cycles, and remains entirely outside execute/commit.
+- Slot0 decode metadata is sourced from the live scalar IDU path, while slot1 bundle metadata is sourced from a new unconditional younger-entry decode surface so even blocked visible pairs retain truthful lane-1 decode state.
+
+Current frontend policy-snapshot refinement:
+
+- The pair bundle now preserves `candidate_alu_branch`, `allow_second`, directional order, and all current block reasons in one stable frontend-owned surface.
+- Top-level coverage now checks bundle capture, hold, flush-clear, and self-consistent `fireable` vs `blocked` accounting.
+
+Current pair-handoff surface:
+
+- `hcpu` now captures the frontend pair bundle into a second non-executing register surface that behaves like a sink-side `frontend bundle -> near-idu_exu handoff` checkpoint.
+- This handoff keeps the two-lane `pc`, `ins`, predictor metadata, decode payload, and policy snapshot stable across idle cycles, clears on `frontend_flush`, and still never reaches execute or commit.
+- Slot0 and slot1 `src1/src2` payload are now sourced from truthful pre-`idu_exu` selection rules rather than a fragile same-cycle decode mirror: `ecall/mret` redirect sources are folded into `src1`, CSR source override is folded into `src2`, and lane 1 uses dedicated non-binding RF/CSR read taps.
+- Top-level validation now requires handoff capture, hold, flush-clear, and self-consistent `fireable` vs `blocked` accounting, so the frontend-only path now closes through policy, packing, decode, bundle, and a registered handoff sink surface.
+- Current validation for this checkpoint: `make top_slot1_observability`, `make top_pc_update_flush`, and `make run ALL=sum` all PASS.
+
+Current dispatch-ready sink surface:
+
+- `hcpu` now captures `pair_handoff` into an always-ready, still non-executing `pair_dispatch` sink surface that is narrower than the handoff contract: it keeps dispatch-adjacent per-lane payload plus minimal pair classification, but leaves detailed frontend block reasons behind.
+- This sink still never allocates a real backend slot, adds no backpressure, clears on `frontend_flush`, and holds its payload across idle cycles, making it the first explicit dispatch-shaped contract above the current handoff stage.
+- The preserved classification is limited to `candidate_alu_branch`, `allow_second`, and directional order, which is enough to keep the future `older ALU + younger branch` path structurally visible without claiming any real dual-dispatch semantics.
+- Top-level coverage now requires dispatch capture, hold, flush-clear, and self-consistent `fireable` vs `blocked` accounting against `pair_handoff` truth.
+- Current validation for this checkpoint remains: `make top_slot1_observability`, `make top_pc_update_flush`, and `make run ALL=sum` all PASS.
+
 Current pairing/hazard draft direction:
 
 - Near-term real slice stays `2-wide fetch/predecode` with single issue preserved.
 - First issue-capable prototype rejects `RAW`, `WAW`, and shared exclusive-backend pairs by default.
 - Until writeback bandwidth changes, treat two normal writers in one cycle as out of scope.
 - The only future pairing candidate worth studying first is `simple ALU + branch`.
+- The next narrow structural target after the current dispatch-ready sink checkpoint is to decide whether lane 1 needs a real `accept/kill` dispatch boundary or whether the next safe step should stay at sink-only observability while trimming the payload further toward a future `idu_exu` lane contract.
 
 ### B-Task-1: IFU/IDU pass-through protocol specification document
 

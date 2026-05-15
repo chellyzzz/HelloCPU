@@ -194,6 +194,15 @@ int main(int argc, char **argv) {
     tick(top);
 
     if (top->tb_cop_mem_bus_active && top->tb_cop_mem_store) {
+      if (!top->tb_cop_mem_service_req_valid) {
+        return fail("COP store request did not remain visible at service boundary");
+      }
+      if (!top->tb_mem_owner_cop_active || !top->tb_mem_service_req_valid) {
+        return fail("COP store owner boundary was not active");
+      }
+      if (top->tb_mem_service_addr != top->tb_cop_mem_addr) {
+        return fail("COP store service address did not match owner address");
+      }
       observed_store_owner = true;
     }
 
@@ -227,6 +236,9 @@ int main(int argc, char **argv) {
     if (top->tb_cop_mem_resp_valid) {
       if (!observed_b_fire) {
         return fail("COP store response appeared before B completion");
+      }
+      if (!top->tb_mem_service_resp_valid) {
+        return fail("COP store visible response did not reach service response boundary");
       }
       observed_store_response = true;
     }

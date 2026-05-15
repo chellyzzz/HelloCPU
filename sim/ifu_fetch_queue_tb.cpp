@@ -60,6 +60,80 @@ static int expect_predecode(Vhcpu_ifu_fetch_queue *top,
   return fail;
 }
 
+static int expect_pair_screen(Vhcpu_ifu_fetch_queue *top,
+                              bool valid,
+                              bool candidate_alu_branch,
+                              bool has_raw,
+                              bool has_waw,
+                              bool has_dual_writeback,
+                              bool has_exclusive_backend,
+                              bool has_redirect_control,
+                              bool order_alu_then_branch,
+                              bool order_branch_then_alu,
+                              const char *context) {
+  int fail = 0;
+  fail |= expect(top->o_pair_valid == valid, context);
+  fail |= expect(top->o_pair_candidate_alu_branch == candidate_alu_branch, context);
+  fail |= expect(top->o_pair_has_raw == has_raw, context);
+  fail |= expect(top->o_pair_has_waw == has_waw, context);
+  fail |= expect(top->o_pair_has_dual_writeback == has_dual_writeback, context);
+  fail |= expect(top->o_pair_has_exclusive_backend == has_exclusive_backend, context);
+  fail |= expect(top->o_pair_has_redirect_control == has_redirect_control, context);
+  fail |= expect(top->o_pair_order_alu_then_branch == order_alu_then_branch, context);
+  fail |= expect(top->o_pair_order_branch_then_alu == order_branch_then_alu, context);
+  return fail;
+}
+
+static int expect_pair_younger(Vhcpu_ifu_fetch_queue *top,
+                               bool valid,
+                               uint32_t pc,
+                               uint32_t ins,
+                               bool predict_taken,
+                               uint32_t predict_target,
+                               bool predict_btb_hit,
+                               uint32_t rd,
+                               uint32_t rs1,
+                               uint32_t rs2,
+                               bool wen,
+                               bool csr_wen,
+                               bool load,
+                               bool store,
+                               bool brch,
+                               bool jal,
+                               bool jalr,
+                               bool fence_i,
+                               bool muldiv,
+                               bool is_cop,
+                               bool ecall,
+                               bool mret,
+                               bool ebreak,
+                               const char *context) {
+  int fail = 0;
+  fail |= expect(top->o_pair_younger_valid == valid, context);
+  fail |= expect(top->o_pair_younger_pc == pc, context);
+  fail |= expect(top->o_pair_younger_ins == ins, context);
+  fail |= expect(top->o_pair_younger_predict_taken == predict_taken, context);
+  fail |= expect(top->o_pair_younger_predict_target == predict_target, context);
+  fail |= expect(top->o_pair_younger_predict_btb_hit == predict_btb_hit, context);
+  fail |= expect(top->o_pair_younger_predecode_rd == rd, context);
+  fail |= expect(top->o_pair_younger_predecode_rs1_addr == rs1, context);
+  fail |= expect(top->o_pair_younger_predecode_rs2_addr == rs2, context);
+  fail |= expect(top->o_pair_younger_predecode_wen == wen, context);
+  fail |= expect(top->o_pair_younger_predecode_csr_wen == csr_wen, context);
+  fail |= expect(top->o_pair_younger_predecode_load == load, context);
+  fail |= expect(top->o_pair_younger_predecode_store == store, context);
+  fail |= expect(top->o_pair_younger_predecode_brch == brch, context);
+  fail |= expect(top->o_pair_younger_predecode_jal == jal, context);
+  fail |= expect(top->o_pair_younger_predecode_jalr == jalr, context);
+  fail |= expect(top->o_pair_younger_predecode_fence_i == fence_i, context);
+  fail |= expect(top->o_pair_younger_predecode_muldiv == muldiv, context);
+  fail |= expect(top->o_pair_younger_predecode_is_cop_insn == is_cop, context);
+  fail |= expect(top->o_pair_younger_predecode_ecall == ecall, context);
+  fail |= expect(top->o_pair_younger_predecode_mret == mret, context);
+  fail |= expect(top->o_pair_younger_predecode_ebreak == ebreak, context);
+  return fail;
+}
+
 int main(int argc, char **argv) {
   Verilated::commandArgs(argc, argv);
   Vhcpu_ifu_fetch_queue *top = new Vhcpu_ifu_fetch_queue;
@@ -80,6 +154,18 @@ int main(int argc, char **argv) {
   constexpr uint32_t pc_d = 0x3000001cu;
   constexpr uint32_t ins_d = 0x0000100fu;  // fence.i
   constexpr uint32_t target_d = 0x30000100u >> 2;
+
+  constexpr uint32_t pc_e = 0x30000020u;
+  constexpr uint32_t ins_e = 0x00100093u;  // addi x1, x0, 1
+  constexpr uint32_t target_e = 0x30000140u >> 2;
+
+  constexpr uint32_t pc_f = 0x30000024u;
+  constexpr uint32_t ins_f = 0x00108113u;  // addi x2, x1, 1
+  constexpr uint32_t target_f = 0x30000180u >> 2;
+
+  constexpr uint32_t pc_g = 0x30000028u;
+  constexpr uint32_t ins_g = 0x00200113u;  // addi x2, x0, 2
+  constexpr uint32_t target_g = 0x300001c0u >> 2;
 
   top->reset = 1;
   top->flush = 0;
@@ -131,6 +217,12 @@ int main(int argc, char **argv) {
   fail |= expect_predecode(top, 5, 6, 0, true, false, false, false, false, false,
                            false, false, false, false, false, false, false,
                            "stall preserves first predecode entry");
+  fail |= expect_pair_screen(top, true, true, false, false, false, false, false, true, false,
+                             "addi plus branch is visible as the first pairing candidate");
+  fail |= expect_pair_younger(top, true, pc_b, ins_b, false, target_b, false,
+                              8, 1, 2, false, false, false, false, true,
+                              false, false, false, false, false, false, false, false,
+                              "branch becomes the younger pairing entry");
 
   top->i_pc = pc_c;
   top->i_ins = ins_c;
@@ -142,6 +234,12 @@ int main(int argc, char **argv) {
 
   fail |= expect(top->o_pc == pc_a, "full queue rejects overwrite without dequeue");
   fail |= expect(top->o_ins == ins_a, "full queue keeps oldest instruction without dequeue");
+  fail |= expect_pair_screen(top, true, true, false, false, false, false, false, true, false,
+                             "full stalled queue preserves pair screen truth source");
+  fail |= expect_pair_younger(top, true, pc_b, ins_b, false, target_b, false,
+                              8, 1, 2, false, false, false, false, true,
+                              false, false, false, false, false, false, false, false,
+                              "full stalled queue preserves younger sidecar truth source");
 
   top->i_pc = pc_c;
   top->i_ins = ins_c;
@@ -161,6 +259,12 @@ int main(int argc, char **argv) {
   fail |= expect_predecode(top, 8, 1, 2, false, false, false, false, true, false,
                            false, false, false, false, false, false, false,
                            "branch predecode preserved after replace");
+  fail |= expect_pair_screen(top, true, false, false, false, false, true, false, false, false,
+                             "branch plus load is blocked by exclusive backend use");
+  fail |= expect_pair_younger(top, true, pc_c, ins_c, true, target_c, false,
+                              7, 4, 0, true, false, true, false, false,
+                              false, false, false, false, false, false, false, false,
+                              "load becomes the younger entry after replace");
 
   top->i_enq_valid = 0;
   tick(top);
@@ -181,6 +285,12 @@ int main(int argc, char **argv) {
 
   fail |= expect(top->o_deq_valid == 0, "queue empties after final dequeue");
   fail |= expect(top->o_enq_ready == 1, "queue is ready again after draining");
+  fail |= expect_pair_screen(top, false, false, false, false, false, false, false, false, false,
+                             "empty queue has no pair screen result");
+  fail |= expect_pair_younger(top, false, 0, 0, false, 0, false,
+                              0, 0, 0, false, false, false, false, false,
+                              false, false, false, false, false, false, false, false,
+                              "empty queue has no younger pairing entry");
 
   top->i_deq_ready = 0;
   top->i_enq_valid = 1;
@@ -251,6 +361,40 @@ int main(int argc, char **argv) {
   fail |= expect_predecode(top, 0, 0, 0, false, false, false, false, false, false,
                            false, true, false, false, false, false, false,
                            "fence.i predecode captured");
+
+  top->i_pc = pc_e;
+  top->i_ins = ins_e;
+  top->i_predict_taken = 0;
+  top->i_predict_target = target_e;
+  top->i_predict_btb_hit = 0;
+  tick(top);
+  top->eval();
+
+  fail |= expect_pair_screen(top, true, false, false, false, false, false, true, false, false,
+                             "fence.i plus addi is pairing-hostile because of redirect control");
+
+  top->i_deq_ready = 1;
+  top->i_pc = pc_f;
+  top->i_ins = ins_f;
+  top->i_predict_taken = 0;
+  top->i_predict_target = target_f;
+  top->i_predict_btb_hit = 0;
+  tick(top);
+  top->eval();
+
+  fail |= expect_pair_screen(top, true, false, true, false, true, false, false, false, false,
+                             "back-to-back addi pair reports raw and dual-writeback pressure");
+
+  top->i_pc = pc_g;
+  top->i_ins = ins_g;
+  top->i_predict_taken = 0;
+  top->i_predict_target = target_g;
+  top->i_predict_btb_hit = 0;
+  tick(top);
+  top->eval();
+
+  fail |= expect_pair_screen(top, true, false, false, true, true, false, false, false, false,
+                             "same-rd addi pair reports WAW and dual-writeback pressure");
 
   delete top;
   if (fail) {

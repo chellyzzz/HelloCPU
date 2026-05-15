@@ -128,6 +128,7 @@ Current V1 code-facing boundary signals are now exposed at CPU top level through
 Important V1 semantic note:
 
 - `scalar_mem_req_valid` currently means **the scalar EXU entry owns an active memory request**, not a new decoupled one-cycle launch handshake.
+- scalar directed validation now also exposes an explicit pending-response seam so stale scalar completion is checked with the same `request / pending / visible` vocabulary used for COP memory.
 - `scalar_mem_resp_valid` means **the active scalar memory request has completed**.
 - `scalar_mem_resp_valid` is still a visibility boundary, not a raw completion pulse: killed or stale scalar LSU completion must be absorbed before response visibility.
 
@@ -143,9 +144,16 @@ This is intentional. The current step is to expose a clean boundary first, witho
 Current A-3 preparation in `vsrc/cpu/top/hcpu.v` now makes one more boundary explicit:
 
 - `scalar_mem_service_*`: scalar-side service-facing request/response view
+- `cop_mem_service_*`: COP-side service-facing request/response view under the same V1 single-owner rule
 - `mem_service_*`: top-level single-owner memory service view after scalar/COP ownership selection
 
 This is still V1 single-owner behavior. The value is not more overlap yet; it is that later scalar LSU evolution can target a clearer service boundary without first untangling ownership naming.
+
+The current regression protection for this boundary now covers both behavior and mapping:
+
+- `make scalar_mem_pending_kill` checks scalar request ownership, stale-completion filtering, and `scalar_mem_service_* -> mem_service_*` request/response visibility.
+- `make cop_mem_pending_kill` checks killed COP read drain behavior and `cop_mem_service_* -> mem_service_*` response visibility.
+- `make cop_mem_store_directed` and `make cop_mem_store_kill` check COP store owner routing and pre-accept kill behavior through the same service boundary.
 
 ### COP memory tomorrow
 
@@ -186,6 +194,8 @@ Deliverables:
 2. Distinguish normal backend occupancy from true memory stall in counters
 3. Keep current scalar LSU RTL stable
 
+Current status: landed and regression-protected.
+
 ### Phase 2: top-level service boundary
 
 Deliverables:
@@ -196,6 +206,13 @@ Deliverables:
 
 No queueing yet. No dual ownership yet.
 
+Current status: landed in V1 form.
+
+- scalar LSU attaches through `scalar_mem_service_*`
+- COP memory attaches through `cop_mem_service_*`
+- top-level single-owner selection is expressed as `mem_service_*`
+- directed regressions now verify both owner selection and response visibility at that boundary
+
 ### Phase 3: first reusable ownership model
 
 Deliverables:
@@ -204,6 +221,12 @@ Deliverables:
 2. Single-owner arbitration policy
 3. Clear completion routing to scalar or COP/vector side
 
+Current status: landed.
+
+- `hcpu_memory_service` now owns the V1 single-owner scalar/COP selection.
+- `hcpu_memory_service` owns the COP memory completion state machine.
+- `hcpu_memory_service` also owns the concrete LSU AXI-side service mux for that V1 model.
+
 ### Phase 4: structural expansion
 
 Deliverables:
@@ -211,6 +234,18 @@ Deliverables:
 1. store buffer / request queue if needed
 2. tagged requests if needed
 3. vector memory scaling path
+
+Current phase-4 completed checkpoint:
+
+- queueing and request tags are still intentionally absent in V1.
+- the ownership policy, completion routing, and AXI-side service mux now live in one reusable module.
+- the single in-flight service-owned request is now explicit behind `vsrc/cpu/top/hcpu_memory_service_request_slot.v`.
+- the request slot now also makes store `accepted` versus store `launch-done` explicit, so pre-accept kill rules stay local to that single-entry slot instead of spread across top-level state logic.
+- single-entry slot occupancy and response-pending state are now also explicit in that slot, so `hcpu_memory_service` can treat request ownership separately from response visibility without introducing a queue yet.
+- scalar-side, COP-side, and unified service-facing top-level views now all expose aligned `request / response-pending / response-visible` vocabulary.
+- the AXI-side service mux has been split again behind `vsrc/cpu/top/hcpu_memory_service_axi_mux.v` so a later queue/store-buffer stage has an explicit insertion seam.
+- future vector memory can extend `hcpu_memory_service` as another service client instead of re-opening top-level `hcpu.v` policy wiring.
+- this is now intended to be a direct backend handoff checkpoint for B-line work that needs a stable memory-service truth source without assuming queueing or dual-dispatch.
 
 ## Non-Goals Right Now
 
@@ -224,13 +259,13 @@ This document explicitly does **not** propose immediate implementation of:
 
 Those belong to later phases.
 
-## Immediate A-Line Task
+## Next A-Line Task
 
 The next A-line step is:
 
-1. keep `accept / done / commit-visible` semantics aligned across scalar LSU and COP memory-facing backends
-2. preserve `true stall` vs `normal backend occupancy` as the only performance-facing counter split
-3. prepare for later scalar LSU service-model evolution without breaking the current single-owner V1 rule
+1. preserve this shared top-level `request / response-pending / response-visible` vocabulary as the only backend truth source for future memory clients
+2. keep any later queue/store-buffer work behind the existing request-slot and AXI-mux seams without changing the V1 single-owner contract by accident
+3. preserve `true stall` vs `normal backend occupancy` as the only performance-facing counter split until a real overlap design exists
 
 ## Summary
 
@@ -241,5 +276,6 @@ What it now needs is a cleaner memory model so that:
 - scalar performance work remains stable
 - COP memory can land without ad-hoc hacks
 - future RVV/vector memory has a natural CPU-side attachment point
+- B-line issue-capable prep has a stable memory-service handoff contract to target
 
 That is the A-line memory task from this point onward.

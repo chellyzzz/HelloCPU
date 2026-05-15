@@ -199,6 +199,15 @@ int main(int argc, char **argv) {
     if (top->tb_cop_mem_bus_active) cop_active_count++;
 
     if (!killed_first_cop_read && top->tb_cop_mem_ar_fire) {
+      if (!top->tb_cop_mem_service_req_valid) {
+        return fail("COP request did not remain visible at service boundary");
+      }
+      if (!top->tb_mem_owner_cop_active || !top->tb_mem_service_req_valid) {
+        return fail("COP service owner boundary was not active on COP request");
+      }
+      if (top->tb_mem_service_addr != top->tb_cop_mem_addr) {
+        return fail("COP service request address did not match COP request");
+      }
       if (top->tb_araddr != top->tb_cop_mem_addr) {
         return fail("COP AR fire did not match master AR address");
       }
@@ -211,7 +220,13 @@ int main(int argc, char **argv) {
 
     if (killed_first_cop_read && top->tb_cop_mem_killed && top->tb_cop_mem_state == 2) {
       observed_killed_drain = true;
-      if (top->tb_cop_mem_resp_valid) {
+      if (!top->tb_cop_mem_resp_pending) {
+        return fail("killed COP read lost response-pending state while draining");
+      }
+      if (!top->tb_mem_service_resp_pending) {
+        return fail("killed COP read lost service response-pending state while draining");
+      }
+      if (top->tb_cop_mem_resp_valid || top->tb_mem_service_resp_valid) {
         return fail("killed COP memory exposed response while draining");
       }
       for (int i = 0; i < 4; i++) tick(top);
@@ -220,7 +235,7 @@ int main(int argc, char **argv) {
 
     if (observed_killed_drain && !observed_stale_r_fire && top->tb_cop_mem_r_fire) {
       observed_stale_r_fire = true;
-      if (top->tb_cop_mem_resp_valid) {
+      if (top->tb_cop_mem_resp_valid || top->tb_mem_service_resp_valid) {
         return fail("stale completion reached COP response");
       }
     }
@@ -230,6 +245,9 @@ int main(int argc, char **argv) {
     }
 
     if (armed_second_response && top->tb_cop_mem_resp_valid) {
+      if (!top->tb_mem_service_resp_valid) {
+        return fail("COP visible response did not reach service response boundary");
+      }
       observed_second_cop_response = true;
     }
   }

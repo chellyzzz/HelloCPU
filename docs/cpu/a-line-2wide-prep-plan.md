@@ -19,7 +19,7 @@ At this point, further branch hit-rate tuning has entered a smaller-yield zone. 
 |----------|------|------|------------|---------------|
 | P0 | Audit `accept/done/commit` semantics | Make backend receive / complete / commit boundaries explicit | `vsrc/cpu/exu/exu.v`, `vsrc/cpu/top/hcpu.v`, `vsrc/cpu/wbu/wbu.v` | Each backend path clearly identifies accept, functional completion, and architectural commit. First audit pass complete in `docs/cpu/a-line-backend-contract-audit.md`. |
 | P0 | Normalize `kill/flush/completion` handling | Prevent stale completion from re-entering post-redirect control flow | `vsrc/cpu/exu/exu.v`, `vsrc/cpu/top/hcpu.v` | Killed or stale completions are absorbed consistently and cannot fire redirect or commit-visible side effects. First cleanup pass landed in `exu_wbu_regs.v`, `wbu.v`, and `exu.v`. |
-| P0 | Freeze scalar/COP owner contract | Preserve V1 memory-owner boundary while preparing for wider frontend behavior | `vsrc/cpu/top/hcpu.v`, `docs/interface/cpu-memory-service-model.md` | Scalar and COP request/response/kill responsibility is explicit and stable |
+| P0 | Freeze scalar/COP owner contract | Preserve V1 memory-owner boundary while preparing for wider frontend behavior | `vsrc/cpu/top/hcpu.v`, `docs/interface/cpu-memory-service-model.md` | Scalar and COP request/response-pending/response-visible/kill responsibility is explicit and stable |
 | P0 | Add directed stale-completion regressions | Cover the most fragile redirect/completion edge cases | `sim/*`, directed regression entry points | Key stale-completion and flush corner cases are reproducible and pass reliably |
 | P1 | Map backend constraints for `2-wide` prep | Tell B-line exactly which backend assumptions must remain true | `docs/cpu/*` | Single-result, single-commit, and inflight ownership assumptions are documented |
 | P1 | Defer low-yield datapath tuning | Keep effort focused on structure, not small local benchmark gains | Planning / coordination only | LSU/DIV/predictor micro-tuning is explicitly out of current A-line scope |
@@ -80,6 +80,10 @@ Some decoupling should happen now, but only where it lowers future `2-wide` inte
 The current goal is not to redesign the backend into a wide machine now.
 
 The current goal is to make the existing single-issue backend clean enough that a future wider frontend can drive it safely without hidden assumptions around completion, kill, or commit ordering.
+
+Current backend handoff note:
+
+- `docs/cpu/a-line-backend-constraints.md`
 
 ## Recommended Execution Order
 

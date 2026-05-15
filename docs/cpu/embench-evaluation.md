@@ -145,12 +145,12 @@ That is exactly the stage where cleaner boundaries and wider-issue preparation b
 3. Expand toward a larger subset or full suite later, but do not block current architecture judgment on official full-suite scoring.
 4. Bias next architecture work toward boundary cleanup and wider-issue preparation rather than another round of benchmark-specific local tuning.
 
-## Known Bring-Up Failure
+## Additional Bring-Up Result
 
-`aha-mont64` is currently excluded from the default subset.
+`aha-mont64` now passes after fixing back-to-back `MULH/MULHU/MULHSU` result handling in the high-multiply path.
 
 | Benchmark | Result | Cycles | IPC | Stall rate | LSU wait | MUL wait | Control recovery | BTB mispredicts | Redirect cost |
 |-----------|--------|--------|-----|------------|----------|----------|------------------|-----------------|---------------|
-| `aha-mont64` | FAIL | 5,304,205 | 0.967 | 3.3% | 375 | 32,653 | 68,280 | 68,280 | 2 avg |
+| `aha-mont64` | PASS | 5,205,443 | 0.974 | 2.6% | 376 | 17,982 | 57,865 | 57,865 | 2 avg |
 
-The failure does not look like a simple memory bottleneck. The counters show low LSU pressure but meaningful multiply wait and high redirect activity, so this benchmark remains a useful follow-up for correctness/debug rather than a default performance subset member.
+It is still kept outside the default subset for now, but it is no longer a known correctness blocker. The counters remain useful because this workload concentrates high-multiply pressure without looking memory-bound.

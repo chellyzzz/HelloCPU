@@ -92,6 +92,7 @@ Done when:
 Current draft:
 
 - Stage 0 remains `2-wide fetch/predecode` with single issue preserved, so no execution-side pairing is required yet.
+- A-line backend constraints for the first issue-capable handoff are pinned in `docs/cpu/a-line-backend-constraints.md`; frontend work should treat that note as the backend truth source until those constraints change.
 - The first issue-capable prototype must reject any same-cycle pair with slot-to-slot `RAW` dependence.
 - The first issue-capable prototype must reject any same-cycle pair with `WAW` to the same architectural `rd`.
 - The first issue-capable prototype must reject any pair that needs the same exclusive backend owner in the same cycle: `LSU`, `MUL/DIV`, `COP`, or redirect/control owner.
@@ -144,9 +145,23 @@ Done when:
 Current preferred first slice:
 
 - `2-wide fetch/predecode` only
+- next handoff-ready intermediate slice may add `dual-lane observe/classify + single-issue fallback`, but still must not dual-dispatch into backend execution
 - single dequeue into the existing decode/register-read path
 - no decode queue, no dual dispatch, no dual writeback in v1
 - an intermediate safe step is allowed: store instruction-local predecode sidecar bits in fetch-queue entries without changing issue width
+- another intermediate safe step is allowed: compute pair-screen observability over the oldest two fetch entries without changing issue width
+- another intermediate safe step is allowed: compute decode-entrance slot-1 policy observability without changing issue width
+- another intermediate safe step is allowed: refine that policy so only `older ALU + younger branch` is directional slot-1 eligible
+- another intermediate safe step is allowed: expose the younger queued entry and derive a non-binding `slot0/slot1` packing skeleton without changing issue width
+- another intermediate safe step is allowed: decode that packed slot-1 surface for observability while still keeping only one live instruction on the execute path
+- another intermediate safe step is allowed: keep slot-1 observability visible under non-fireable conditions, as long as `allow_second` remains the stricter execution gate
+- another intermediate safe step is allowed: expand slot-1 observability to richer decode metadata as long as it remains checked against queue sidecar state and does not feed execution
+- another intermediate safe step is allowed: require top-level coverage for `visible + fireable`, `visible + blocked`, and `visible + flushed` slot-1 states before attempting any real second-lane transport
+- another intermediate safe step is allowed: capture visible slot-1 metadata into a shadow transport register surface, as long as it clears on flush, never adds backpressure, and never reaches execute/commit
+- another intermediate safe step is allowed: add a non-executing dual-lane frontend bundle and policy snapshot surface, as long as it is fed only by queue/predecode truth sources, clears on flush, and still does not reach execute/commit
+- another intermediate safe step is allowed: enrich that frontend bundle with truthful per-lane decode payload sourced from the live older decode path and an unconditional younger decode path, as long as it remains non-executing and flush-cleared
+- another intermediate safe step is allowed: capture that frontend bundle into a near-`idu_exu` non-executing handoff register surface, as long as operand/CSR payload stay truthful to existing RF/CSR sources, the surface clears on flush, adds no backpressure, and still never reaches execute/commit
+- another intermediate safe step is allowed: capture that handoff into an always-ready non-executing dispatch sink surface, as long as it keeps only dispatch-adjacent payload plus minimal pair classification, drops detailed frontend block reasons, adds no backpressure, and still never reaches execute/commit
 
 Done when:
 

@@ -534,10 +534,136 @@ Current landed validation hook:
 1. `hcpu` simulation now checks the stored fetch-queue predecode sidecar against the current combinational `hcpu_IDU` decode whenever `ifu2idu_valid` is high
 2. this keeps the sidecar tied to current decode truth without changing execution behavior
 
+### First Pairing-Screen Skeleton
+
+The next landed step after predecode sidecar storage is still intentionally non-binding.
+
+Current RTL now computes a draft pair screen over the two visible fetch-queue entries:
+
+1. `pair_valid`
+2. `pair_candidate_alu_branch`
+3. `pair_has_raw`
+4. `pair_has_waw`
+5. `pair_has_dual_writeback`
+6. `pair_has_exclusive_backend`
+7. `pair_has_redirect_control`
+
+Current meaning:
+
+1. this is observability only, not issue control
+2. it evaluates the oldest visible pair in queue order
+3. it keeps the current conservative policy executable without claiming that dual issue exists yet
+
+This is the first RTL bridge between the written pairing matrix and future real pairing logic.
+
+### Decode Entrance Policy Skeleton
+
+The next landed step is to map pair-screen observability into a decode-entrance policy result without enabling dual issue.
+
+Current RTL uses `vsrc/cpu/idu/decode_pair_policy.v` for that mapping.
+
+Inputs:
+
+1. queue pair-screen observability from the oldest visible pair
+2. downstream readiness at the current decode/issue entrance
+3. current `cop_pipeline_active`
+4. current `frontend_flush`
+
+Outputs:
+
+1. `pair_visible`
+2. `allow_second`
+3. block-reason observability for dependency, resource, control, and pipeline-state causes
+
+Current rule:
+
+1. only a clean `ALU + branch` candidate may reach `allow_second = 1`
+2. any `RAW`, `WAW`, dual-writeback pressure, exclusive backend claim, or redirect/control class blocks slot 1
+3. even a clean candidate is blocked if downstream is not ready, COP pipeline ownership is active, or frontend flush is active
+
+Current directional refinement:
+
+1. only `older ALU + younger branch` may reach `allow_second = 1`
+2. `older branch + younger ALU` is an explicit observable block case
+3. this preserves age order and keeps redirect-sensitive behavior on the younger side of the first executable slot-1 candidate
+
+Current slot packing refinement:
+
+1. the fetch queue now exposes the younger queued entry so packing can be driven from real queue state rather than re-decoding outside the queue
+2. the top-level skeleton now derives `slot0 = older` and `slot1 = younger` only when the directional slot1 policy selects that younger branch
+3. slot 1 remains non-binding and does not feed the live single-issue decode-to-execute path
+
+Current slot1 decode refinement:
+
+1. the packed slot-1 instruction now passes through a second `hcpu_IDU` instance at top level
+2. this decode surface is used only for observability and assertion coverage, not for execution or queue dequeue side effects
+3. the current assertions require that any visible slot-1 decode still behaves like a non-writing younger branch
+
+Current slot1 observability refinement:
+
+1. slot-1 packing visibility is now allowed to stay high for a clean directional pair even when downstream readiness, COP ownership, or frontend flush block `allow_second`
+2. this separates `what the machine can currently observe` from `what the machine may eventually fire`
+3. top-level regression coverage now checks both cases: slot 1 visible-and-fireable, and slot 1 visible-but-blocked
+
+Current slot1 metadata refinement:
+
+1. the younger fetch-queue sidecar now exports `rd`, `rs1`, `rs2`, and `wen` for the packed slot-1 candidate
+2. the top-level slot-1 decode surface now exports `imm`, `rd`, `rs1`, `rs2`, and `exu_opt` for observability
+3. non-synthesis assertions now lock the slot-1 decode metadata to the younger sidecar so this surface stays executable but non-binding
+
+Current top-level coverage refinement:
+
+1. top-level regression now requires `slot1 visible + fireable`, `slot1 visible + blocked`, and `slot1 visible + flushed` to all occur on a stable scalar workload
+2. the regression also checks that blocked accounting decomposes cleanly into flush and non-flush cases
+3. this turns slot-1 observability from a one-cycle spot check into a repeatable coverage contract over control-flow and backpressure transitions
+
+Current slot1 shadow transport refinement:
+
+1. visible slot-1 metadata is now captured into a shadow register surface that accepts every non-flushed visible candidate without adding backpressure
+2. that shadow surface is cleared by `frontend_flush`, holds its payload when no new visible slot arrives, and never feeds the live execute path
+3. top-level regression now checks shadow capture, hold, and flush-clear behavior, making this the first non-binding transport checkpoint for lane 1
+4. the younger sidecar and shadow lane now preserve the remaining branch-only class bits as explicit negatives, so lane-1 transport cannot silently drift into `load/store`, `jump`, `system`, `muldiv`, or `COP` classes
+
+Current slot1 shadow endpoint refinement:
+
+1. the top level now includes an always-ready, non-executing endpoint stub that accepts every visible lane-1 transport event
+2. this endpoint captures the same payload as the shadow transport source, holds it when no new event arrives, and clears on `frontend_flush`
+3. top-level regression now checks endpoint capture, hold, and flush-clear behavior, so the non-binding lane-1 path has both a source-side and sink-side executable contract
+
+Current fetch-queue contract refinement:
+
+1. dequeue-stall assertions still lock the visible dequeue payload and predictor metadata
+2. full-queue stall assertions now also lock the pair-screen result, younger predict metadata, and younger predecode bundle
+3. this makes the fetch queue a more explicit frontend truth source for future lane packing and lane-1 transport work
+
+Current frontend pair-bundle refinement:
+
+1. the top level now captures a non-executing two-lane frontend bundle whenever both queue lanes are visible at once
+2. this bundle now keeps slot0 live decode metadata and unconditional younger-lane decode metadata alongside payload, predictor metadata, and the current pair-policy snapshot in one flush-cleared, hold-stable surface
+3. the younger decode source is no longer tied only to the directional branch-only slot1 path, so blocked visible pairs such as `older branch + younger ALU` still preserve truthful lane-1 decode state without reaching execute/commit
+4. top-level regression now checks bundle capture, hold, flush-clear, and `fireable` vs `blocked` accounting against those decode sources, which closes the frontend-only contract path through policy, packing, transport, and non-executing decode handoff
+
+Current pair-handoff refinement:
+
+1. the top level now captures that frontend pair bundle into a second registered handoff surface that behaves like a sink-side `frontend bundle -> near-idu_exu` checkpoint
+2. this handoff is still strictly non-executing: it clears on `frontend_flush`, holds its payload when no new bundle arrives, and never allocates a real execute, commit, or writeback resource
+3. slot0 and slot1 operand payload now follow the same pre-`idu_exu` source selection intent as the live scalar lane: `ecall/mret` remap `src1`, CSR-source selection remaps `src2`, and the younger lane uses dedicated non-binding RF/CSR read taps to keep the handoff truthful without driving execution
+4. top-level regression now checks handoff capture, hold, flush-clear, and self-consistent `fireable` vs `blocked` accounting, extending the executable frontend contract one stage closer to a future dispatch boundary
+
+Current dispatch-ready sink refinement:
+
+1. the top level now captures `pair_handoff` into an always-ready `pair_dispatch` sink surface that represents the first dispatch-shaped contract above the current frontend-owned handoff
+2. this sink is still non-executing and non-allocating: it clears on `frontend_flush`, holds state across idle cycles, never backpressures `pair_handoff`, and never drives the real backend
+3. the carried fields are intentionally narrower than the handoff contract: per-lane dispatch payload and predictor metadata remain, while detailed frontend block reasons stop at `pair_handoff`
+4. only minimal pair classification is preserved into this sink: `candidate_alu_branch`, `allow_second`, and directional order remain visible so the future narrow pairing candidate is still structurally checkable
+5. top-level regression now checks dispatch capture, hold, flush-clear, and self-consistent `fireable` vs `blocked` accounting against the handoff source
+
+This keeps the policy executable while preserving the current single-issue machine behavior.
+
 ## Immediate Follow-Up
 
 The next useful follow-up items are:
 
-1. define the first pairing / hazard matrix before adding any decode queue
-2. decide whether predecode bits live inside the fetch queue entry or in a tiny post-dequeue sidecar stage
-3. add broader assertion coverage only when a new boundary semantic is introduced, not preemptively
+1. decide whether the next safe step is a real lane-1 `accept/kill` boundary or a further payload trim on the dispatch sink without backend allocation
+2. define which `pair_dispatch` fields are the irreducible future `idu_exu` lane contract and which can remain at the handoff-only layer
+3. keep broader assertion growth tied to real new boundary semantics rather than adding speculative checks early

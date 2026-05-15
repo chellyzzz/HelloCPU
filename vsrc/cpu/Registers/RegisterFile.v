@@ -15,9 +15,13 @@ module hcpu_RegisterFile (
     //
     input              [   4:0]         raddr1                     ,
     input              [   4:0]         raddr2                     ,
+    input              [   4:0]         raddr3                     ,
+    input              [   4:0]         raddr4                     ,
 
     output             [  31:0]         rdata1                     ,
     output             [  31:0]         rdata2                     ,
+    output             [  31:0]         rdata3                     ,
+    output             [  31:0]         rdata4                     ,
     output             [  31:0]         dbg_s0                     ,
     output             [  31:0]         dbg_s1                     ,
     output             [  31:0]         dbg_s2                     ,
@@ -56,6 +60,14 @@ assign rdata1 = (raddr1 == exu_rd && exu_rd != 5'b0 && exu_wen && exu_post_valid
 assign rdata2 = (raddr2 == exu_rd && exu_rd != 5'b0 && exu_wen && exu_post_valid) ? exu_wdata:
                 (raddr2 == wbu_rd && wbu_rd != 5'b0 && wbu_wen)  ? wbu_wdata:
                 rf[raddr2[4:0]];
+
+assign rdata3 = (raddr3 == exu_rd && exu_rd != 5'b0 && exu_wen && exu_post_valid) ? exu_wdata:
+                (raddr3 == wbu_rd && wbu_rd != 5'b0 && wbu_wen)  ? wbu_wdata:
+                rf[raddr3[4:0]];
+
+assign rdata4 = (raddr4 == exu_rd && exu_rd != 5'b0 && exu_wen && exu_post_valid) ? exu_wdata:
+                (raddr4 == wbu_rd && wbu_rd != 5'b0 && wbu_wen)  ? wbu_wdata:
+                rf[raddr4[4:0]];
 
 assign dbg_s0 = rf[8];
 assign dbg_s1 = rf[9];

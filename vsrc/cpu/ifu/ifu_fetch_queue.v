@@ -138,7 +138,38 @@ module hcpu_ifu_fetch_queue (
     output                              o_predecode_is_cop_insn,
     output                              o_predecode_ecall,
     output                              o_predecode_mret,
-    output                              o_predecode_ebreak
+    output                              o_predecode_ebreak,
+    output                              o_pair_valid,
+    output                              o_pair_candidate_alu_branch,
+    output                              o_pair_has_raw,
+    output                              o_pair_has_waw,
+    output                              o_pair_has_dual_writeback,
+    output                              o_pair_has_exclusive_backend,
+    output                              o_pair_has_redirect_control,
+    output                              o_pair_order_alu_then_branch,
+    output                              o_pair_order_branch_then_alu,
+    output                              o_pair_younger_valid,
+    output             [31:0]           o_pair_younger_pc,
+    output             [31:0]           o_pair_younger_ins,
+    output                              o_pair_younger_predict_taken,
+    output             [31:2]           o_pair_younger_predict_target,
+    output                              o_pair_younger_predict_btb_hit,
+    output             [4:0]            o_pair_younger_predecode_rd,
+    output             [4:0]            o_pair_younger_predecode_rs1_addr,
+    output             [4:0]            o_pair_younger_predecode_rs2_addr,
+    output                              o_pair_younger_predecode_wen,
+    output                              o_pair_younger_predecode_csr_wen,
+    output                              o_pair_younger_predecode_load,
+    output                              o_pair_younger_predecode_store,
+    output                              o_pair_younger_predecode_brch,
+    output                              o_pair_younger_predecode_jal,
+    output                              o_pair_younger_predecode_jalr,
+    output                              o_pair_younger_predecode_fence_i,
+    output                              o_pair_younger_predecode_muldiv,
+    output                              o_pair_younger_predecode_is_cop_insn,
+    output                              o_pair_younger_predecode_ecall,
+    output                              o_pair_younger_predecode_mret,
+    output                              o_pair_younger_predecode_ebreak
 );
 
 localparam DEPTH = 2;
@@ -163,6 +194,8 @@ wire enq_ready = !full || (deq_valid && i_deq_ready);
 wire [1:0] valid_count = {1'b0, valid_q[0]} + {1'b0, valid_q[1]};
 wire [PREDECODE_WIDTH-1:0] enq_predecode_bundle;
 wire [PREDECODE_WIDTH-1:0] deq_predecode_bundle = predecode_q[head];
+wire next_head = head + 1'b1;
+wire [PREDECODE_WIDTH-1:0] pair_predecode_bundle = predecode_q[next_head];
 
 wire enq_fire = i_enq_valid && enq_ready;
 wire deq_fire = deq_valid && i_deq_ready;
@@ -197,6 +230,137 @@ assign {
     o_predecode_mret,
     o_predecode_ebreak
 } = deq_predecode_bundle;
+
+wire [4:0] pair0_rd;
+wire [4:0] pair0_rs1_addr;
+wire [4:0] pair0_rs2_addr;
+wire       pair0_wen;
+wire       pair0_csr_wen;
+wire       pair0_load;
+wire       pair0_store;
+wire       pair0_brch;
+wire       pair0_jal;
+wire       pair0_jalr;
+wire       pair0_fence_i;
+wire       pair0_muldiv;
+wire       pair0_is_cop_insn;
+wire       pair0_ecall;
+wire       pair0_mret;
+wire       pair0_ebreak;
+
+wire [4:0] pair1_rd;
+wire [4:0] pair1_rs1_addr;
+wire [4:0] pair1_rs2_addr;
+wire       pair1_wen;
+wire       pair1_csr_wen;
+wire       pair1_load;
+wire       pair1_store;
+wire       pair1_brch;
+wire       pair1_jal;
+wire       pair1_jalr;
+wire       pair1_fence_i;
+wire       pair1_muldiv;
+wire       pair1_is_cop_insn;
+wire       pair1_ecall;
+wire       pair1_mret;
+wire       pair1_ebreak;
+
+assign {
+    pair0_rd,
+    pair0_rs1_addr,
+    pair0_rs2_addr,
+    pair0_wen,
+    pair0_csr_wen,
+    pair0_load,
+    pair0_store,
+    pair0_brch,
+    pair0_jal,
+    pair0_jalr,
+    pair0_fence_i,
+    pair0_muldiv,
+    pair0_is_cop_insn,
+    pair0_ecall,
+    pair0_mret,
+    pair0_ebreak
+} = deq_predecode_bundle;
+
+assign {
+    pair1_rd,
+    pair1_rs1_addr,
+    pair1_rs2_addr,
+    pair1_wen,
+    pair1_csr_wen,
+    pair1_load,
+    pair1_store,
+    pair1_brch,
+    pair1_jal,
+    pair1_jalr,
+    pair1_fence_i,
+    pair1_muldiv,
+    pair1_is_cop_insn,
+    pair1_ecall,
+    pair1_mret,
+    pair1_ebreak
+} = pair_predecode_bundle;
+
+wire pair0_is_simple_alu = !pair0_load && !pair0_store && !pair0_brch && !pair0_jal &&
+                           !pair0_jalr && !pair0_fence_i && !pair0_muldiv &&
+                           !pair0_is_cop_insn && !pair0_ecall && !pair0_mret &&
+                           !pair0_ebreak && !pair0_csr_wen;
+wire pair1_is_simple_alu = !pair1_load && !pair1_store && !pair1_brch && !pair1_jal &&
+                           !pair1_jalr && !pair1_fence_i && !pair1_muldiv &&
+                           !pair1_is_cop_insn && !pair1_ecall && !pair1_mret &&
+                           !pair1_ebreak && !pair1_csr_wen;
+wire pair0_has_exclusive_backend = pair0_load || pair0_store || pair0_muldiv || pair0_is_cop_insn;
+wire pair1_has_exclusive_backend = pair1_load || pair1_store || pair1_muldiv || pair1_is_cop_insn;
+wire pair0_has_redirect_control = pair0_jal || pair0_jalr || pair0_fence_i || pair0_ecall ||
+                                  pair0_mret || pair0_ebreak;
+wire pair1_has_redirect_control = pair1_jal || pair1_jalr || pair1_fence_i || pair1_ecall ||
+                                  pair1_mret || pair1_ebreak;
+wire pair_has_raw = pair0_wen && (pair0_rd != 5'b0) &&
+                    (((pair1_rs1_addr == pair0_rd) && (pair1_rs1_addr != 5'b0)) ||
+                     ((pair1_rs2_addr == pair0_rd) && (pair1_rs2_addr != 5'b0)));
+wire pair_has_waw = pair0_wen && pair1_wen && (pair0_rd != 5'b0) && (pair1_rd == pair0_rd);
+wire pair_has_dual_writeback = pair0_wen && pair1_wen;
+wire pair_has_exclusive_backend = pair0_has_exclusive_backend || pair1_has_exclusive_backend;
+wire pair_has_redirect_control = pair0_has_redirect_control || pair1_has_redirect_control;
+wire pair_order_alu_then_branch = pair0_is_simple_alu && pair1_brch;
+wire pair_order_branch_then_alu = pair0_brch && pair1_is_simple_alu;
+wire pair_candidate_alu_branch = pair_order_alu_then_branch || pair_order_branch_then_alu;
+
+assign o_pair_valid = (count == DEPTH);
+assign o_pair_candidate_alu_branch = o_pair_valid && pair_candidate_alu_branch && !pair_has_raw &&
+                                     !pair_has_waw && !pair_has_dual_writeback &&
+                                     !pair_has_exclusive_backend && !pair_has_redirect_control;
+assign o_pair_has_raw = o_pair_valid && pair_has_raw;
+assign o_pair_has_waw = o_pair_valid && pair_has_waw;
+assign o_pair_has_dual_writeback = o_pair_valid && pair_has_dual_writeback;
+assign o_pair_has_exclusive_backend = o_pair_valid && pair_has_exclusive_backend;
+assign o_pair_has_redirect_control = o_pair_valid && pair_has_redirect_control;
+assign o_pair_order_alu_then_branch = o_pair_valid && pair_order_alu_then_branch;
+assign o_pair_order_branch_then_alu = o_pair_valid && pair_order_branch_then_alu;
+assign o_pair_younger_valid = o_pair_valid;
+assign o_pair_younger_pc = o_pair_younger_valid ? pc_q[next_head] : 32'b0;
+assign o_pair_younger_ins = o_pair_younger_valid ? ins_q[next_head] : 32'b0;
+assign o_pair_younger_predict_taken = o_pair_younger_valid && predict_taken_q[next_head];
+assign o_pair_younger_predict_target = o_pair_younger_valid ? predict_target_q[next_head] : 30'b0;
+assign o_pair_younger_predict_btb_hit = o_pair_younger_valid && predict_btb_hit_q[next_head];
+assign o_pair_younger_predecode_rd = o_pair_younger_valid ? pair1_rd : 5'b0;
+assign o_pair_younger_predecode_rs1_addr = o_pair_younger_valid ? pair1_rs1_addr : 5'b0;
+assign o_pair_younger_predecode_rs2_addr = o_pair_younger_valid ? pair1_rs2_addr : 5'b0;
+assign o_pair_younger_predecode_wen = o_pair_younger_valid && pair1_wen;
+assign o_pair_younger_predecode_csr_wen = o_pair_younger_valid && pair1_csr_wen;
+assign o_pair_younger_predecode_load = o_pair_younger_valid && pair1_load;
+assign o_pair_younger_predecode_store = o_pair_younger_valid && pair1_store;
+assign o_pair_younger_predecode_brch = o_pair_younger_valid && pair1_brch;
+assign o_pair_younger_predecode_jal = o_pair_younger_valid && pair1_jal;
+assign o_pair_younger_predecode_jalr = o_pair_younger_valid && pair1_jalr;
+assign o_pair_younger_predecode_fence_i = o_pair_younger_valid && pair1_fence_i;
+assign o_pair_younger_predecode_muldiv = o_pair_younger_valid && pair1_muldiv;
+assign o_pair_younger_predecode_is_cop_insn = o_pair_younger_valid && pair1_is_cop_insn;
+assign o_pair_younger_predecode_ecall = o_pair_younger_valid && pair1_ecall;
+assign o_pair_younger_predecode_mret = o_pair_younger_valid && pair1_mret;
+assign o_pair_younger_predecode_ebreak = o_pair_younger_valid && pair1_ebreak;
 
 integer i;
 always @(posedge clock or posedge reset) begin
@@ -269,6 +433,22 @@ reg [31:0] prev_o_ins;
 reg        prev_o_predict_taken;
 reg [29:0] prev_o_predict_target;
 reg        prev_o_predict_btb_hit;
+reg        prev_pair_stall;
+reg        prev_o_pair_valid;
+reg        prev_o_pair_candidate_alu_branch;
+reg        prev_o_pair_has_raw;
+reg        prev_o_pair_has_waw;
+reg        prev_o_pair_has_dual_writeback;
+reg        prev_o_pair_has_exclusive_backend;
+reg        prev_o_pair_has_redirect_control;
+reg        prev_o_pair_order_alu_then_branch;
+reg        prev_o_pair_order_branch_then_alu;
+reg [31:0] prev_o_pair_younger_pc;
+reg [31:0] prev_o_pair_younger_ins;
+reg        prev_o_pair_younger_predict_taken;
+reg [29:0] prev_o_pair_younger_predict_target;
+reg        prev_o_pair_younger_predict_btb_hit;
+reg [PREDECODE_WIDTH-1:0] prev_o_pair_younger_predecode_bundle;
 
 always @(posedge clock or posedge reset) begin
     if (reset) begin
@@ -278,6 +458,22 @@ always @(posedge clock or posedge reset) begin
         prev_o_predict_taken <= 1'b0;
         prev_o_predict_target <= 30'b0;
         prev_o_predict_btb_hit <= 1'b0;
+        prev_pair_stall <= 1'b0;
+        prev_o_pair_valid <= 1'b0;
+        prev_o_pair_candidate_alu_branch <= 1'b0;
+        prev_o_pair_has_raw <= 1'b0;
+        prev_o_pair_has_waw <= 1'b0;
+        prev_o_pair_has_dual_writeback <= 1'b0;
+        prev_o_pair_has_exclusive_backend <= 1'b0;
+        prev_o_pair_has_redirect_control <= 1'b0;
+        prev_o_pair_order_alu_then_branch <= 1'b0;
+        prev_o_pair_order_branch_then_alu <= 1'b0;
+        prev_o_pair_younger_pc <= 32'b0;
+        prev_o_pair_younger_ins <= 32'b0;
+        prev_o_pair_younger_predict_taken <= 1'b0;
+        prev_o_pair_younger_predict_target <= 30'b0;
+        prev_o_pair_younger_predict_btb_hit <= 1'b0;
+        prev_o_pair_younger_predecode_bundle <= {PREDECODE_WIDTH{1'b0}};
     end else begin
         if (prev_deq_stall && !flush && !i_deq_ready) begin
             if (o_pc != prev_o_pc)
@@ -291,12 +487,94 @@ always @(posedge clock or posedge reset) begin
             if (o_predict_btb_hit != prev_o_predict_btb_hit)
                 $fatal(1, "ifu_fetch_queue predict_btb_hit changed while dequeue remained stalled");
         end
+        if (prev_pair_stall && !flush && !i_deq_ready) begin
+            if (o_pair_valid != prev_o_pair_valid)
+                $fatal(1, "ifu_fetch_queue pair_valid changed while full queue remained stalled");
+            if (o_pair_candidate_alu_branch != prev_o_pair_candidate_alu_branch)
+                $fatal(1, "ifu_fetch_queue pair candidate changed while full queue remained stalled");
+            if (o_pair_has_raw != prev_o_pair_has_raw)
+                $fatal(1, "ifu_fetch_queue pair raw flag changed while full queue remained stalled");
+            if (o_pair_has_waw != prev_o_pair_has_waw)
+                $fatal(1, "ifu_fetch_queue pair waw flag changed while full queue remained stalled");
+            if (o_pair_has_dual_writeback != prev_o_pair_has_dual_writeback)
+                $fatal(1, "ifu_fetch_queue pair dual-writeback flag changed while full queue remained stalled");
+            if (o_pair_has_exclusive_backend != prev_o_pair_has_exclusive_backend)
+                $fatal(1, "ifu_fetch_queue pair exclusive-backend flag changed while full queue remained stalled");
+            if (o_pair_has_redirect_control != prev_o_pair_has_redirect_control)
+                $fatal(1, "ifu_fetch_queue pair redirect-control flag changed while full queue remained stalled");
+            if (o_pair_order_alu_then_branch != prev_o_pair_order_alu_then_branch)
+                $fatal(1, "ifu_fetch_queue pair order alu-then-branch changed while full queue remained stalled");
+            if (o_pair_order_branch_then_alu != prev_o_pair_order_branch_then_alu)
+                $fatal(1, "ifu_fetch_queue pair order branch-then-alu changed while full queue remained stalled");
+            if (o_pair_younger_pc != prev_o_pair_younger_pc)
+                $fatal(1, "ifu_fetch_queue younger pc changed while full queue remained stalled");
+            if (o_pair_younger_ins != prev_o_pair_younger_ins)
+                $fatal(1, "ifu_fetch_queue younger instruction changed while full queue remained stalled");
+            if (o_pair_younger_predict_taken != prev_o_pair_younger_predict_taken)
+                $fatal(1, "ifu_fetch_queue younger predict_taken changed while full queue remained stalled");
+            if (o_pair_younger_predict_target != prev_o_pair_younger_predict_target)
+                $fatal(1, "ifu_fetch_queue younger predict_target changed while full queue remained stalled");
+            if (o_pair_younger_predict_btb_hit != prev_o_pair_younger_predict_btb_hit)
+                $fatal(1, "ifu_fetch_queue younger predict_btb_hit changed while full queue remained stalled");
+            if ({
+                o_pair_younger_predecode_rd,
+                o_pair_younger_predecode_rs1_addr,
+                o_pair_younger_predecode_rs2_addr,
+                o_pair_younger_predecode_wen,
+                o_pair_younger_predecode_csr_wen,
+                o_pair_younger_predecode_load,
+                o_pair_younger_predecode_store,
+                o_pair_younger_predecode_brch,
+                o_pair_younger_predecode_jal,
+                o_pair_younger_predecode_jalr,
+                o_pair_younger_predecode_fence_i,
+                o_pair_younger_predecode_muldiv,
+                o_pair_younger_predecode_is_cop_insn,
+                o_pair_younger_predecode_ecall,
+                o_pair_younger_predecode_mret,
+                o_pair_younger_predecode_ebreak
+            } != prev_o_pair_younger_predecode_bundle)
+                $fatal(1, "ifu_fetch_queue younger predecode bundle changed while full queue remained stalled");
+        end
         prev_deq_stall <= o_deq_valid && !i_deq_ready;
         prev_o_pc <= o_pc;
         prev_o_ins <= o_ins;
         prev_o_predict_taken <= o_predict_taken;
         prev_o_predict_target <= o_predict_target;
         prev_o_predict_btb_hit <= o_predict_btb_hit;
+        prev_pair_stall <= o_pair_valid && !i_deq_ready;
+        prev_o_pair_valid <= o_pair_valid;
+        prev_o_pair_candidate_alu_branch <= o_pair_candidate_alu_branch;
+        prev_o_pair_has_raw <= o_pair_has_raw;
+        prev_o_pair_has_waw <= o_pair_has_waw;
+        prev_o_pair_has_dual_writeback <= o_pair_has_dual_writeback;
+        prev_o_pair_has_exclusive_backend <= o_pair_has_exclusive_backend;
+        prev_o_pair_has_redirect_control <= o_pair_has_redirect_control;
+        prev_o_pair_order_alu_then_branch <= o_pair_order_alu_then_branch;
+        prev_o_pair_order_branch_then_alu <= o_pair_order_branch_then_alu;
+        prev_o_pair_younger_pc <= o_pair_younger_pc;
+        prev_o_pair_younger_ins <= o_pair_younger_ins;
+        prev_o_pair_younger_predict_taken <= o_pair_younger_predict_taken;
+        prev_o_pair_younger_predict_target <= o_pair_younger_predict_target;
+        prev_o_pair_younger_predict_btb_hit <= o_pair_younger_predict_btb_hit;
+        prev_o_pair_younger_predecode_bundle <= {
+            o_pair_younger_predecode_rd,
+            o_pair_younger_predecode_rs1_addr,
+            o_pair_younger_predecode_rs2_addr,
+            o_pair_younger_predecode_wen,
+            o_pair_younger_predecode_csr_wen,
+            o_pair_younger_predecode_load,
+            o_pair_younger_predecode_store,
+            o_pair_younger_predecode_brch,
+            o_pair_younger_predecode_jal,
+            o_pair_younger_predecode_jalr,
+            o_pair_younger_predecode_fence_i,
+            o_pair_younger_predecode_muldiv,
+            o_pair_younger_predecode_is_cop_insn,
+            o_pair_younger_predecode_ecall,
+            o_pair_younger_predecode_mret,
+            o_pair_younger_predecode_ebreak
+        };
     end
 end
 `endif

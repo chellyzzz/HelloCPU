@@ -192,6 +192,15 @@ int main(int argc, char **argv) {
     tick(top);
 
     if (!killed_first_scalar_read && top->tb_scalar_mem_ar_fire) {
+      if (!top->tb_scalar_mem_req_valid || !top->tb_scalar_mem_service_req_valid) {
+        return fail("scalar request did not remain visible at service boundary");
+      }
+      if (!top->tb_mem_owner_scalar_active || !top->tb_mem_service_req_valid) {
+        return fail("scalar service owner boundary was not active on scalar request");
+      }
+      if (top->tb_mem_service_addr != top->tb_scalar_mem_addr) {
+        return fail("scalar service request address did not match scalar request");
+      }
       killed_first_scalar_read = true;
       top->tb_hold_read_resp = 1;
       top->tb_scalar_flush = 1;
@@ -201,17 +210,26 @@ int main(int argc, char **argv) {
 
     if (killed_first_scalar_read && top->tb_scalar_mem_kill_pending) {
       observed_kill_pending = true;
+      if (!top->tb_scalar_mem_resp_pending) {
+        return fail("scalar killed request lost response-pending state while draining");
+      }
+      if (!top->tb_mem_service_resp_pending) {
+        return fail("scalar killed request lost service response-pending state while draining");
+      }
       top->tb_hold_read_resp = 0;
     }
 
     if (observed_kill_pending && !observed_stale_r_fire && top->tb_scalar_mem_r_fire) {
       observed_stale_r_fire = true;
-      if (top->tb_scalar_mem_resp_valid) {
+      if (top->tb_scalar_mem_resp_valid || top->tb_mem_service_resp_valid) {
         return fail("stale scalar completion reached visible response");
       }
     }
 
     if (observed_stale_r_fire && top->tb_scalar_mem_resp_valid) {
+      if (!top->tb_mem_service_resp_valid) {
+        return fail("scalar visible response did not reach service response boundary");
+      }
       observed_later_scalar_response = true;
     }
   }

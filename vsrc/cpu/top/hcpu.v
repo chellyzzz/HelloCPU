@@ -68,26 +68,40 @@ module hcpu
 `ifdef COP_MEM_PENDING_KILL_TB
     ,input                              tb_cop_kill                ,
     output                              tb_cop_mem_bus_active      ,
+    output                              tb_cop_mem_service_req_valid,
     output                              tb_cop_mem_done            ,
     output                              tb_cop_mem_killed          ,
     output                              tb_cop_mem_resp_valid      ,
+    output                              tb_mem_owner_cop_active    ,
+    output                              tb_mem_service_req_valid   ,
+    output                              tb_mem_service_resp_pending,
+    output                              tb_mem_service_resp_valid  ,
     output             [   1:0]         tb_cop_mem_state           ,
+    output                              tb_cop_mem_resp_pending    ,
     output                              tb_cop_mem_store           ,
     output                              tb_cop_mem_aw_fire         ,
     output                              tb_cop_mem_w_fire          ,
     output                              tb_cop_mem_b_fire          ,
     output                              tb_cop_mem_ar_fire         ,
     output                              tb_cop_mem_r_fire          ,
-    output             [  31:0]         tb_cop_mem_addr
+    output             [  31:0]         tb_cop_mem_addr            ,
+    output             [  31:0]         tb_mem_service_addr
 `endif
 `ifdef SCALAR_MEM_PENDING_KILL_TB
     ,input                              tb_scalar_flush            ,
     output                              tb_scalar_mem_req_valid    ,
+    output                              tb_scalar_mem_resp_pending ,
     output                              tb_scalar_mem_resp_valid   ,
+    output                              tb_scalar_mem_service_req_valid,
     output                              tb_scalar_mem_kill_pending ,
+    output                              tb_mem_owner_scalar_active ,
+    output                              tb_mem_service_req_valid   ,
+    output                              tb_mem_service_resp_pending,
+    output                              tb_mem_service_resp_valid  ,
     output                              tb_scalar_mem_ar_fire      ,
     output                              tb_scalar_mem_r_fire       ,
-    output             [  31:0]         tb_scalar_mem_addr
+    output             [  31:0]         tb_scalar_mem_addr         ,
+    output             [  31:0]         tb_mem_service_addr
 `endif
 
 );
@@ -99,9 +113,10 @@ localparam                              CSR_ADDR=12                ;
 /******************global wires****************/
 wire                                    rst_n_sync                 ;
 
-wire                   [ISA_WIDTH-1:0]  imm,ins                    ;
+wire                   [ISA_WIDTH-1:0]  imm /* verilator public_flat */;
+wire                   [ISA_WIDTH-1:0]  ins                        ;
 wire                   [REG_ADDR-1:0]   idu_addr_rs1,idu_addr_rs2,idu_addr_rd;
-wire                   [CSR_ADDR-1:0]   idu_csr_raddr              ;
+wire                   [CSR_ADDR-1:0]   idu_csr_raddr /* verilator public_flat */;
 wire                   [ISA_WIDTH-1:0]  rs1, rs2, wbu_rd_wdata     ;
 wire                   [ISA_WIDTH-1:0]  dbg_s0, dbg_s1, dbg_s2     ;
 wire                   [ISA_WIDTH-1:0]  dbg_s3, dbg_s4             ;
@@ -119,16 +134,16 @@ wire                   [ISA_WIDTH-1:0]  csr_rs2                    ;
 wire                   [ISA_WIDTH-1:0]  mepc, mtvec;
 
 //load store
-wire                   [3-1:0]          exu_opt                    ;
-wire                   [   9:0]         alu_opt                    ;
-wire                                    idu_wen, csr_wen, wbu_wen, wbu_csr_wen;
+wire                   [3-1:0]          exu_opt /* verilator public_flat */;
+wire                   [   9:0]         alu_opt /* verilator public_flat */;
+wire                                    idu_wen, csr_wen /* verilator public_flat */, wbu_wen, wbu_csr_wen;
 wire                   [ISA_WIDTH-1:0]  pc_next, ifu_pc_next       ;
-wire                   [   1:0]         i_src_sel1                 ;
-wire                   [   2:0]         i_src_sel2                 ;
-wire                                    brch,jal,jalr              ;// idu -> pcu.
-wire                                    ebreak                     ;
-wire                                    if_store,if_load           ;// idu -> exu.
-wire                                    ecall,mret                 ;// idu -> pcu.
+wire                   [   1:0]         i_src_sel1 /* verilator public_flat */;
+wire                   [   2:0]         i_src_sel2 /* verilator public_flat */;
+wire                                    brch,jal /* verilator public_flat */,jalr /* verilator public_flat */;// idu -> pcu.
+wire                                    ebreak /* verilator public_flat */;
+wire                                    if_store /* verilator public_flat */,if_load /* verilator public_flat */;// idu -> exu.
+wire                                    ecall /* verilator public_flat */,mret /* verilator public_flat */;// idu -> pcu.
 wire                                    pc_update_en               ;
 // branch predictor
 wire                                    btb_predict_taken          ;
@@ -187,6 +202,7 @@ wire                                    scalar_mem_req_store      ;
 wire                   [  31:0]         scalar_mem_req_addr       ;
 wire                   [  31:0]         scalar_mem_req_wdata      ;
 wire                   [   2:0]         scalar_mem_req_size       ;
+wire                                    scalar_mem_resp_pending   ;
 wire                                    scalar_mem_resp_valid     ;
 wire                   [  31:0]         scalar_mem_resp_rdata     ;
 wire                                    scalar_mem_service_req_valid;
@@ -194,8 +210,17 @@ wire                                    scalar_mem_service_req_store;
 wire                   [  31:0]         scalar_mem_service_req_addr;
 wire                   [  31:0]         scalar_mem_service_req_wdata;
 wire                   [   2:0]         scalar_mem_service_req_size;
+wire                                    scalar_mem_service_resp_pending;
 wire                                    scalar_mem_service_resp_valid;
 wire                   [  31:0]         scalar_mem_service_resp_rdata;
+wire                                    cop_mem_service_req_valid   ;
+wire                                    cop_mem_service_req_store   ;
+wire                   [  31:0]         cop_mem_service_req_addr    ;
+wire                   [  31:0]         cop_mem_service_req_wdata   ;
+wire                   [   2:0]         cop_mem_service_req_size    ;
+wire                                    cop_mem_service_resp_pending;
+wire                                    cop_mem_service_resp_valid  ;
+wire                   [  31:0]         cop_mem_service_resp_rdata  ;
 wire                                    mem_owner_scalar_active   ;
 wire                                    mem_owner_cop_active      ;
 wire                                    mem_service_req_valid     ;
@@ -203,6 +228,7 @@ wire                                    mem_service_req_store     ;
 wire                   [  31:0]         mem_service_req_addr      ;
 wire                   [  31:0]         mem_service_req_wdata     ;
 wire                   [   2:0]         mem_service_req_size      ;
+wire                                    mem_service_resp_pending  ;
 wire                                    mem_service_resp_valid    ;
 wire                   [  31:0]         mem_service_resp_rdata    ;
 wire                                    scalar_exu2wbu_valid       ;
@@ -217,9 +243,9 @@ wire                                    cop_backend_commit_fire    ;
 wire                   [ISA_WIDTH-1:0]  icache_ins                 ;
 wire                   [ISA_WIDTH-1:0]  ifu_req_addr               ;
 wire                                    icache_hit                 ;
-wire                                    fence_i                    ;
-wire                                    muldiv                     ;
-wire                                    is_cop_insn                ;
+wire                                    fence_i /* verilator public_flat */;
+wire                                    muldiv /* verilator public_flat */;
+wire                                    is_cop_insn /* verilator public_flat */;
 
 
 //write address channel  
@@ -285,17 +311,16 @@ wire                   [   7:0]         LSU_ARB_AXI_ARLEN          ;
 wire                   [   2:0]         LSU_ARB_AXI_ARSIZE         ;
 wire                   [   1:0]         LSU_ARB_AXI_ARBURST        ;
 wire                                    LSU_ARB_AXI_RREADY         ;
-reg                    [   1:0]         cop_mem_state              ;
-reg                                     cop_mem_wen_r              ;
-reg                                     cop_mem_aw_done            ;
-reg                                     cop_mem_w_done             ;
-reg                                     cop_mem_killed_r           ;
-reg                                     cop_mem_done_r             ;
-reg                    [  31:0]         cop_mem_rdata_r            ;
-reg                    [  31:0]         cop_mem_addr_r             ;
-reg                    [  31:0]         cop_mem_wdata_r            ;
-reg                    [   2:0]         cop_mem_size_r             ;
-wire                                    cop_mem_new_req            ;
+wire                   [   1:0]         cop_mem_state              ;
+wire                                    cop_mem_slot_resp_pending  ;
+wire                                    cop_mem_wen_r              ;
+wire                                    cop_mem_aw_done            ;
+wire                                    cop_mem_w_done             ;
+wire                                    cop_mem_killed_r           ;
+wire                                    cop_mem_done_r             ;
+wire                   [  31:0]         cop_mem_addr_r             ;
+wire                   [  31:0]         cop_mem_wdata_r            ;
+wire                   [   2:0]         cop_mem_size_r             ;
 wire                                    cop_mem_aw_fire            ;
 wire                                    cop_mem_w_fire             ;
 wire                                    cop_mem_b_fire             ;
@@ -332,25 +357,403 @@ wire                   [   4:0]         wbu_rd_addr                ;
 wire                   [  11:0]         wbu_csr_addr               ;
 wire [31:0] ifu2idu_ins;
 wire [31:0] ifu2idu_pc;
-wire        ifu2idu_predict_taken;
-wire [31:2] ifu2idu_predict_target;
-wire        ifu2idu_predict_btb_hit;
-wire [4:0] ifu2idu_predecode_rd;
-wire [4:0] ifu2idu_predecode_rs1_addr;
-wire [4:0] ifu2idu_predecode_rs2_addr;
-wire       ifu2idu_predecode_wen;
-wire       ifu2idu_predecode_csr_wen;
-wire       ifu2idu_predecode_load;
-wire       ifu2idu_predecode_store;
-wire       ifu2idu_predecode_brch;
-wire       ifu2idu_predecode_jal;
-wire       ifu2idu_predecode_jalr;
-wire       ifu2idu_predecode_fence_i;
-wire       ifu2idu_predecode_muldiv;
-wire       ifu2idu_predecode_is_cop_insn;
-wire       ifu2idu_predecode_ecall;
-wire       ifu2idu_predecode_mret;
-wire       ifu2idu_predecode_ebreak;
+wire        ifu2idu_predict_taken /* verilator public_flat */;
+wire [31:2] ifu2idu_predict_target /* verilator public_flat */;
+wire        ifu2idu_predict_btb_hit /* verilator public_flat */;
+wire [4:0] ifu2idu_predecode_rd /* verilator public_flat */;
+wire [4:0] ifu2idu_predecode_rs1_addr /* verilator public_flat */;
+wire [4:0] ifu2idu_predecode_rs2_addr /* verilator public_flat */;
+wire       ifu2idu_predecode_wen /* verilator public_flat */;
+wire       ifu2idu_predecode_csr_wen /* verilator public_flat */;
+wire       ifu2idu_predecode_load /* verilator public_flat */;
+wire       ifu2idu_predecode_store /* verilator public_flat */;
+wire       ifu2idu_predecode_brch /* verilator public_flat */;
+wire       ifu2idu_predecode_jal /* verilator public_flat */;
+wire       ifu2idu_predecode_jalr /* verilator public_flat */;
+wire       ifu2idu_predecode_fence_i /* verilator public_flat */;
+wire       ifu2idu_predecode_muldiv /* verilator public_flat */;
+wire       ifu2idu_predecode_is_cop_insn /* verilator public_flat */;
+wire       ifu2idu_predecode_ecall /* verilator public_flat */;
+wire       ifu2idu_predecode_mret /* verilator public_flat */;
+wire       ifu2idu_predecode_ebreak /* verilator public_flat */;
+wire       ifu_pair_valid /* verilator public_flat */;
+wire       ifu_pair_candidate_alu_branch /* verilator public_flat */;
+wire       ifu_pair_has_raw /* verilator public_flat */;
+wire       ifu_pair_has_waw /* verilator public_flat */;
+wire       ifu_pair_has_dual_writeback /* verilator public_flat */;
+wire       ifu_pair_has_exclusive_backend /* verilator public_flat */;
+wire       ifu_pair_has_redirect_control /* verilator public_flat */;
+wire       ifu_pair_order_alu_then_branch /* verilator public_flat */;
+wire       ifu_pair_order_branch_then_alu /* verilator public_flat */;
+wire      ifu_pair_younger_valid /* verilator public_flat */;
+wire [31:0] ifu_pair_younger_pc /* verilator public_flat */;
+wire [31:0] ifu_pair_younger_ins /* verilator public_flat */;
+wire      ifu_pair_younger_predict_taken /* verilator public_flat */;
+wire [29:0] ifu_pair_younger_predict_target /* verilator public_flat */;
+wire      ifu_pair_younger_predict_btb_hit /* verilator public_flat */;
+wire [4:0] ifu_pair_younger_predecode_rd /* verilator public_flat */;
+wire [4:0] ifu_pair_younger_predecode_rs1_addr /* verilator public_flat */;
+wire [4:0] ifu_pair_younger_predecode_rs2_addr /* verilator public_flat */;
+wire      ifu_pair_younger_predecode_wen /* verilator public_flat */;
+wire      ifu_pair_younger_predecode_csr_wen /* verilator public_flat */;
+wire      ifu_pair_younger_predecode_load /* verilator public_flat */;
+wire      ifu_pair_younger_predecode_store /* verilator public_flat */;
+wire      ifu_pair_younger_predecode_brch /* verilator public_flat */;
+wire      ifu_pair_younger_predecode_jal /* verilator public_flat */;
+wire      ifu_pair_younger_predecode_jalr /* verilator public_flat */;
+wire      ifu_pair_younger_predecode_fence_i /* verilator public_flat */;
+wire      ifu_pair_younger_predecode_muldiv /* verilator public_flat */;
+wire      ifu_pair_younger_predecode_is_cop_insn /* verilator public_flat */;
+wire      ifu_pair_younger_predecode_ecall /* verilator public_flat */;
+wire      ifu_pair_younger_predecode_mret /* verilator public_flat */;
+wire      ifu_pair_younger_predecode_ebreak /* verilator public_flat */;
+wire       decode_pair_visible /* verilator public_flat */;
+wire      decode_pair_allow_second /* verilator public_flat */;
+wire       decode_pair_select_slot1_youngest;
+wire       decode_pair_select_slot1_branch;
+wire       decode_pair_block_raw /* verilator public_flat */;
+wire       decode_pair_block_waw /* verilator public_flat */;
+wire       decode_pair_block_dual_writeback /* verilator public_flat */;
+wire       decode_pair_block_exclusive_backend /* verilator public_flat */;
+wire       decode_pair_block_redirect_control /* verilator public_flat */;
+wire       decode_pair_block_older_branch_first /* verilator public_flat */;
+wire       decode_pair_block_downstream_busy /* verilator public_flat */;
+wire       decode_pair_block_cop_pipeline /* verilator public_flat */;
+wire       decode_pair_block_frontend_flush /* verilator public_flat */;
+wire       decode_pair_distinct_pc;
+wire      decode_slot0_valid /* verilator public_flat */;
+wire [31:0] decode_slot0_pc /* verilator public_flat */;
+wire      frontend_pair_capture /* verilator public_flat */;
+wire      decode_slot1_valid /* verilator public_flat */;
+wire [31:0] decode_slot1_pc /* verilator public_flat */;
+wire [31:0] decode_slot1_ins /* verilator public_flat */;
+wire      slot1_shadow_capture /* verilator public_flat */;
+wire      slot1_endpoint_accept /* verilator public_flat */;
+wire      decode_slot1_is_branch /* verilator public_flat */;
+wire      decode_slot1_wen /* verilator public_flat */;
+wire      decode_slot1_brch /* verilator public_flat */;
+wire      decode_slot1_csr_wen /* verilator public_flat */;
+wire      decode_slot1_load /* verilator public_flat */;
+wire      decode_slot1_store /* verilator public_flat */;
+wire      decode_slot1_jal /* verilator public_flat */;
+wire      decode_slot1_jalr /* verilator public_flat */;
+wire      decode_slot1_fence_i /* verilator public_flat */;
+wire      decode_slot1_muldiv /* verilator public_flat */;
+wire      decode_slot1_is_cop_insn /* verilator public_flat */;
+wire      decode_slot1_ecall /* verilator public_flat */;
+wire      decode_slot1_mret /* verilator public_flat */;
+wire      decode_slot1_ebreak /* verilator public_flat */;
+wire [31:0] decode_slot1_imm /* verilator public_flat */;
+wire [4:0] decode_slot1_rd /* verilator public_flat */;
+wire [4:0] decode_slot1_rs1 /* verilator public_flat */;
+wire [4:0] decode_slot1_rs2 /* verilator public_flat */;
+wire [11:0] decode_slot1_csr_addr /* verilator public_flat */;
+wire [2:0] decode_slot1_exu_opt /* verilator public_flat */;
+wire [9:0] decode_slot1_alu_opt /* verilator public_flat */;
+wire [1:0] decode_slot1_src_sel1 /* verilator public_flat */;
+wire [2:0] decode_slot1_src_sel2 /* verilator public_flat */;
+wire      pair_slot1_decode_valid /* verilator public_flat */;
+wire [31:0] pair_slot1_decode_imm /* verilator public_flat */;
+wire [4:0] pair_slot1_decode_rd /* verilator public_flat */;
+wire [4:0] pair_slot1_decode_rs1 /* verilator public_flat */;
+wire [4:0] pair_slot1_decode_rs2 /* verilator public_flat */;
+wire [11:0] pair_slot1_decode_csr_addr /* verilator public_flat */;
+wire [2:0] pair_slot1_decode_exu_opt /* verilator public_flat */;
+wire [9:0] pair_slot1_decode_alu_opt /* verilator public_flat */;
+wire [1:0] pair_slot1_decode_src_sel1 /* verilator public_flat */;
+wire [2:0] pair_slot1_decode_src_sel2 /* verilator public_flat */;
+wire      pair_slot1_decode_wen /* verilator public_flat */;
+wire      pair_slot1_decode_brch /* verilator public_flat */;
+wire      pair_slot1_decode_csr_wen /* verilator public_flat */;
+wire      pair_slot1_decode_load /* verilator public_flat */;
+wire      pair_slot1_decode_store /* verilator public_flat */;
+wire      pair_slot1_decode_jal /* verilator public_flat */;
+wire      pair_slot1_decode_jalr /* verilator public_flat */;
+wire      pair_slot1_decode_fence_i /* verilator public_flat */;
+wire      pair_slot1_decode_muldiv /* verilator public_flat */;
+wire      pair_slot1_decode_is_cop_insn /* verilator public_flat */;
+wire      pair_slot1_decode_ecall /* verilator public_flat */;
+wire      pair_slot1_decode_mret /* verilator public_flat */;
+wire      pair_slot1_decode_ebreak /* verilator public_flat */;
+wire [31:0] pair_slot0_src1_data /* verilator public_flat */;
+wire [31:0] pair_slot0_src2_data /* verilator public_flat */;
+wire [31:0] pair_slot1_rs1_data /* verilator public_flat */;
+wire [31:0] pair_slot1_rs2_data /* verilator public_flat */;
+wire [31:0] pair_slot1_csr_rdata /* verilator public_flat */;
+wire [31:0] pair_slot1_src1_data /* verilator public_flat */;
+wire [31:0] pair_slot1_src2_data /* verilator public_flat */;
+wire      pair_handoff_capture /* verilator public_flat */;
+wire      pair_dispatch_ready /* verilator public_flat */;
+wire      pair_dispatch_accept /* verilator public_flat */;
+reg       slot1_shadow_valid /* verilator public_flat */;
+reg [31:0] slot1_shadow_pc /* verilator public_flat */;
+reg [31:0] slot1_shadow_ins /* verilator public_flat */;
+reg [31:0] slot1_shadow_imm /* verilator public_flat */;
+reg [4:0] slot1_shadow_rd /* verilator public_flat */;
+reg [4:0] slot1_shadow_rs1 /* verilator public_flat */;
+reg [4:0] slot1_shadow_rs2 /* verilator public_flat */;
+reg [2:0] slot1_shadow_exu_opt /* verilator public_flat */;
+reg [9:0] slot1_shadow_alu_opt /* verilator public_flat */;
+reg [1:0] slot1_shadow_src_sel1 /* verilator public_flat */;
+reg [2:0] slot1_shadow_src_sel2 /* verilator public_flat */;
+reg       slot1_shadow_wen /* verilator public_flat */;
+reg       slot1_shadow_brch /* verilator public_flat */;
+reg       slot1_shadow_csr_wen /* verilator public_flat */;
+reg       slot1_shadow_load /* verilator public_flat */;
+reg       slot1_shadow_store /* verilator public_flat */;
+reg       slot1_shadow_jal /* verilator public_flat */;
+reg       slot1_shadow_jalr /* verilator public_flat */;
+reg       slot1_shadow_fence_i /* verilator public_flat */;
+reg       slot1_shadow_muldiv /* verilator public_flat */;
+reg       slot1_shadow_is_cop_insn /* verilator public_flat */;
+reg       slot1_shadow_ecall /* verilator public_flat */;
+reg       slot1_shadow_mret /* verilator public_flat */;
+reg       slot1_shadow_ebreak /* verilator public_flat */;
+reg [11:0] slot1_shadow_csr_addr /* verilator public_flat */;
+reg       slot1_shadow_fireable /* verilator public_flat */;
+reg       slot1_shadow_predict_taken /* verilator public_flat */;
+reg [29:0] slot1_shadow_predict_target /* verilator public_flat */;
+reg       slot1_shadow_predict_btb_hit /* verilator public_flat */;
+reg       slot1_endpoint_valid /* verilator public_flat */;
+reg [31:0] slot1_endpoint_pc /* verilator public_flat */;
+reg [31:0] slot1_endpoint_ins /* verilator public_flat */;
+reg [31:0] slot1_endpoint_imm /* verilator public_flat */;
+reg [4:0] slot1_endpoint_rd /* verilator public_flat */;
+reg [4:0] slot1_endpoint_rs1 /* verilator public_flat */;
+reg [4:0] slot1_endpoint_rs2 /* verilator public_flat */;
+reg [2:0] slot1_endpoint_exu_opt /* verilator public_flat */;
+reg [9:0] slot1_endpoint_alu_opt /* verilator public_flat */;
+reg [1:0] slot1_endpoint_src_sel1 /* verilator public_flat */;
+reg [2:0] slot1_endpoint_src_sel2 /* verilator public_flat */;
+reg       slot1_endpoint_wen /* verilator public_flat */;
+reg       slot1_endpoint_brch /* verilator public_flat */;
+reg       slot1_endpoint_csr_wen /* verilator public_flat */;
+reg       slot1_endpoint_load /* verilator public_flat */;
+reg       slot1_endpoint_store /* verilator public_flat */;
+reg       slot1_endpoint_jal /* verilator public_flat */;
+reg       slot1_endpoint_jalr /* verilator public_flat */;
+reg       slot1_endpoint_fence_i /* verilator public_flat */;
+reg       slot1_endpoint_muldiv /* verilator public_flat */;
+reg       slot1_endpoint_is_cop_insn /* verilator public_flat */;
+reg       slot1_endpoint_ecall /* verilator public_flat */;
+reg       slot1_endpoint_mret /* verilator public_flat */;
+reg       slot1_endpoint_ebreak /* verilator public_flat */;
+reg [11:0] slot1_endpoint_csr_addr /* verilator public_flat */;
+reg       slot1_endpoint_fireable /* verilator public_flat */;
+reg       slot1_endpoint_predict_taken /* verilator public_flat */;
+reg [29:0] slot1_endpoint_predict_target /* verilator public_flat */;
+reg       slot1_endpoint_predict_btb_hit /* verilator public_flat */;
+reg       frontend_pair_bundle_valid /* verilator public_flat */;
+reg       frontend_pair_bundle_slot0_valid /* verilator public_flat */;
+reg [31:0] frontend_pair_bundle_slot0_pc /* verilator public_flat */;
+reg [31:0] frontend_pair_bundle_slot0_ins /* verilator public_flat */;
+reg       frontend_pair_bundle_slot0_predict_taken /* verilator public_flat */;
+reg [29:0] frontend_pair_bundle_slot0_predict_target /* verilator public_flat */;
+reg       frontend_pair_bundle_slot0_predict_btb_hit /* verilator public_flat */;
+reg [4:0] frontend_pair_bundle_slot0_rd /* verilator public_flat */;
+reg [4:0] frontend_pair_bundle_slot0_rs1 /* verilator public_flat */;
+reg [4:0] frontend_pair_bundle_slot0_rs2 /* verilator public_flat */;
+reg [4:0] frontend_pair_bundle_slot0_rs1_addr /* verilator public_flat */;
+reg       frontend_pair_bundle_slot0_wen /* verilator public_flat */;
+reg       frontend_pair_bundle_slot0_brch /* verilator public_flat */;
+reg [31:0] frontend_pair_bundle_slot0_src1 /* verilator public_flat */;
+reg [31:0] frontend_pair_bundle_slot0_src2 /* verilator public_flat */;
+reg [31:0] frontend_pair_bundle_slot0_imm /* verilator public_flat */;
+reg [11:0] frontend_pair_bundle_slot0_csr_addr /* verilator public_flat */;
+reg [2:0] frontend_pair_bundle_slot0_exu_opt /* verilator public_flat */;
+reg [9:0] frontend_pair_bundle_slot0_alu_opt /* verilator public_flat */;
+reg [1:0] frontend_pair_bundle_slot0_src_sel1 /* verilator public_flat */;
+reg [2:0] frontend_pair_bundle_slot0_src_sel2 /* verilator public_flat */;
+reg       frontend_pair_bundle_slot0_csr_wen /* verilator public_flat */;
+reg       frontend_pair_bundle_slot0_load /* verilator public_flat */;
+reg       frontend_pair_bundle_slot0_store /* verilator public_flat */;
+reg       frontend_pair_bundle_slot0_jal /* verilator public_flat */;
+reg       frontend_pair_bundle_slot0_jalr /* verilator public_flat */;
+reg       frontend_pair_bundle_slot0_fence_i /* verilator public_flat */;
+reg       frontend_pair_bundle_slot0_muldiv /* verilator public_flat */;
+reg       frontend_pair_bundle_slot0_is_cop_insn /* verilator public_flat */;
+reg       frontend_pair_bundle_slot0_ecall /* verilator public_flat */;
+reg       frontend_pair_bundle_slot0_mret /* verilator public_flat */;
+reg       frontend_pair_bundle_slot0_ebreak /* verilator public_flat */;
+reg       frontend_pair_bundle_slot1_valid /* verilator public_flat */;
+reg [31:0] frontend_pair_bundle_slot1_pc /* verilator public_flat */;
+reg [31:0] frontend_pair_bundle_slot1_ins /* verilator public_flat */;
+reg       frontend_pair_bundle_slot1_predict_taken /* verilator public_flat */;
+reg [29:0] frontend_pair_bundle_slot1_predict_target /* verilator public_flat */;
+reg       frontend_pair_bundle_slot1_predict_btb_hit /* verilator public_flat */;
+reg [4:0] frontend_pair_bundle_slot1_rd /* verilator public_flat */;
+reg [4:0] frontend_pair_bundle_slot1_rs1 /* verilator public_flat */;
+reg [4:0] frontend_pair_bundle_slot1_rs2 /* verilator public_flat */;
+reg [4:0] frontend_pair_bundle_slot1_rs1_addr /* verilator public_flat */;
+reg       frontend_pair_bundle_slot1_wen /* verilator public_flat */;
+reg       frontend_pair_bundle_slot1_brch /* verilator public_flat */;
+reg [31:0] frontend_pair_bundle_slot1_src1 /* verilator public_flat */;
+reg [31:0] frontend_pair_bundle_slot1_src2 /* verilator public_flat */;
+reg [31:0] frontend_pair_bundle_slot1_imm /* verilator public_flat */;
+reg [11:0] frontend_pair_bundle_slot1_csr_addr /* verilator public_flat */;
+reg [2:0] frontend_pair_bundle_slot1_exu_opt /* verilator public_flat */;
+reg [9:0] frontend_pair_bundle_slot1_alu_opt /* verilator public_flat */;
+reg [1:0] frontend_pair_bundle_slot1_src_sel1 /* verilator public_flat */;
+reg [2:0] frontend_pair_bundle_slot1_src_sel2 /* verilator public_flat */;
+reg       frontend_pair_bundle_slot1_csr_wen /* verilator public_flat */;
+reg       frontend_pair_bundle_slot1_load /* verilator public_flat */;
+reg       frontend_pair_bundle_slot1_store /* verilator public_flat */;
+reg       frontend_pair_bundle_slot1_jal /* verilator public_flat */;
+reg       frontend_pair_bundle_slot1_jalr /* verilator public_flat */;
+reg       frontend_pair_bundle_slot1_fence_i /* verilator public_flat */;
+reg       frontend_pair_bundle_slot1_muldiv /* verilator public_flat */;
+reg       frontend_pair_bundle_slot1_is_cop_insn /* verilator public_flat */;
+reg       frontend_pair_bundle_slot1_ecall /* verilator public_flat */;
+reg       frontend_pair_bundle_slot1_mret /* verilator public_flat */;
+reg       frontend_pair_bundle_slot1_ebreak /* verilator public_flat */;
+reg       frontend_pair_bundle_candidate_alu_branch /* verilator public_flat */;
+reg       frontend_pair_bundle_allow_second /* verilator public_flat */;
+reg       frontend_pair_bundle_order_alu_then_branch /* verilator public_flat */;
+reg       frontend_pair_bundle_order_branch_then_alu /* verilator public_flat */;
+reg       frontend_pair_bundle_block_raw /* verilator public_flat */;
+reg       frontend_pair_bundle_block_waw /* verilator public_flat */;
+reg       frontend_pair_bundle_block_dual_writeback /* verilator public_flat */;
+reg       frontend_pair_bundle_block_exclusive_backend /* verilator public_flat */;
+reg       frontend_pair_bundle_block_redirect_control /* verilator public_flat */;
+reg       frontend_pair_bundle_block_older_branch_first /* verilator public_flat */;
+reg       frontend_pair_bundle_block_downstream_busy /* verilator public_flat */;
+reg       frontend_pair_bundle_block_cop_pipeline /* verilator public_flat */;
+reg       frontend_pair_bundle_block_frontend_flush /* verilator public_flat */;
+reg       pair_handoff_valid /* verilator public_flat */;
+reg       pair_handoff_slot0_valid /* verilator public_flat */;
+reg [31:0] pair_handoff_slot0_pc /* verilator public_flat */;
+reg [31:0] pair_handoff_slot0_ins /* verilator public_flat */;
+reg [31:0] pair_handoff_slot0_src1 /* verilator public_flat */;
+reg [31:0] pair_handoff_slot0_src2 /* verilator public_flat */;
+reg [31:0] pair_handoff_slot0_imm /* verilator public_flat */;
+reg [1:0] pair_handoff_slot0_src_sel1 /* verilator public_flat */;
+reg [2:0] pair_handoff_slot0_src_sel2 /* verilator public_flat */;
+reg [4:0] pair_handoff_slot0_rd /* verilator public_flat */;
+reg [11:0] pair_handoff_slot0_csr_addr /* verilator public_flat */;
+reg [2:0] pair_handoff_slot0_exu_opt /* verilator public_flat */;
+reg [9:0] pair_handoff_slot0_alu_opt /* verilator public_flat */;
+reg       pair_handoff_slot0_wen /* verilator public_flat */;
+reg       pair_handoff_slot0_csr_wen /* verilator public_flat */;
+reg       pair_handoff_slot0_mret /* verilator public_flat */;
+reg       pair_handoff_slot0_ecall /* verilator public_flat */;
+reg       pair_handoff_slot0_load /* verilator public_flat */;
+reg       pair_handoff_slot0_store /* verilator public_flat */;
+reg       pair_handoff_slot0_brch /* verilator public_flat */;
+reg       pair_handoff_slot0_jal /* verilator public_flat */;
+reg       pair_handoff_slot0_jalr /* verilator public_flat */;
+reg       pair_handoff_slot0_ebreak /* verilator public_flat */;
+reg       pair_handoff_slot0_fence_i /* verilator public_flat */;
+reg       pair_handoff_slot0_muldiv /* verilator public_flat */;
+reg       pair_handoff_slot0_is_cop_insn /* verilator public_flat */;
+reg       pair_handoff_slot0_predict_taken /* verilator public_flat */;
+reg [29:0] pair_handoff_slot0_predict_target /* verilator public_flat */;
+reg       pair_handoff_slot0_predict_btb_hit /* verilator public_flat */;
+reg [4:0] pair_handoff_slot0_rs1_addr /* verilator public_flat */;
+reg       pair_handoff_slot1_valid /* verilator public_flat */;
+reg [31:0] pair_handoff_slot1_pc /* verilator public_flat */;
+reg [31:0] pair_handoff_slot1_ins /* verilator public_flat */;
+reg [31:0] pair_handoff_slot1_src1 /* verilator public_flat */;
+reg [31:0] pair_handoff_slot1_src2 /* verilator public_flat */;
+reg [31:0] pair_handoff_slot1_imm /* verilator public_flat */;
+reg [1:0] pair_handoff_slot1_src_sel1 /* verilator public_flat */;
+reg [2:0] pair_handoff_slot1_src_sel2 /* verilator public_flat */;
+reg [4:0] pair_handoff_slot1_rd /* verilator public_flat */;
+reg [11:0] pair_handoff_slot1_csr_addr /* verilator public_flat */;
+reg [2:0] pair_handoff_slot1_exu_opt /* verilator public_flat */;
+reg [9:0] pair_handoff_slot1_alu_opt /* verilator public_flat */;
+reg       pair_handoff_slot1_wen /* verilator public_flat */;
+reg       pair_handoff_slot1_csr_wen /* verilator public_flat */;
+reg       pair_handoff_slot1_mret /* verilator public_flat */;
+reg       pair_handoff_slot1_ecall /* verilator public_flat */;
+reg       pair_handoff_slot1_load /* verilator public_flat */;
+reg       pair_handoff_slot1_store /* verilator public_flat */;
+reg       pair_handoff_slot1_brch /* verilator public_flat */;
+reg       pair_handoff_slot1_jal /* verilator public_flat */;
+reg       pair_handoff_slot1_jalr /* verilator public_flat */;
+reg       pair_handoff_slot1_ebreak /* verilator public_flat */;
+reg       pair_handoff_slot1_fence_i /* verilator public_flat */;
+reg       pair_handoff_slot1_muldiv /* verilator public_flat */;
+reg       pair_handoff_slot1_is_cop_insn /* verilator public_flat */;
+reg       pair_handoff_slot1_predict_taken /* verilator public_flat */;
+reg [29:0] pair_handoff_slot1_predict_target /* verilator public_flat */;
+reg       pair_handoff_slot1_predict_btb_hit /* verilator public_flat */;
+reg [4:0] pair_handoff_slot1_rs1_addr /* verilator public_flat */;
+reg       pair_handoff_candidate_alu_branch /* verilator public_flat */;
+reg       pair_handoff_allow_second /* verilator public_flat */;
+reg       pair_handoff_order_alu_then_branch /* verilator public_flat */;
+reg       pair_handoff_order_branch_then_alu /* verilator public_flat */;
+reg       pair_handoff_block_raw /* verilator public_flat */;
+reg       pair_handoff_block_waw /* verilator public_flat */;
+reg       pair_handoff_block_dual_writeback /* verilator public_flat */;
+reg       pair_handoff_block_exclusive_backend /* verilator public_flat */;
+reg       pair_handoff_block_redirect_control /* verilator public_flat */;
+reg       pair_handoff_block_older_branch_first /* verilator public_flat */;
+reg       pair_handoff_block_downstream_busy /* verilator public_flat */;
+reg       pair_handoff_block_cop_pipeline /* verilator public_flat */;
+reg       pair_handoff_block_frontend_flush /* verilator public_flat */;
+reg       pair_dispatch_valid /* verilator public_flat */;
+reg       pair_dispatch_slot0_valid /* verilator public_flat */;
+reg [31:0] pair_dispatch_slot0_pc /* verilator public_flat */;
+reg [31:0] pair_dispatch_slot0_ins /* verilator public_flat */;
+reg [31:0] pair_dispatch_slot0_src1 /* verilator public_flat */;
+reg [31:0] pair_dispatch_slot0_src2 /* verilator public_flat */;
+reg [31:0] pair_dispatch_slot0_imm /* verilator public_flat */;
+reg [1:0] pair_dispatch_slot0_src_sel1 /* verilator public_flat */;
+reg [2:0] pair_dispatch_slot0_src_sel2 /* verilator public_flat */;
+reg [4:0] pair_dispatch_slot0_rd /* verilator public_flat */;
+reg [11:0] pair_dispatch_slot0_csr_addr /* verilator public_flat */;
+reg [2:0] pair_dispatch_slot0_exu_opt /* verilator public_flat */;
+reg [9:0] pair_dispatch_slot0_alu_opt /* verilator public_flat */;
+reg       pair_dispatch_slot0_wen /* verilator public_flat */;
+reg       pair_dispatch_slot0_csr_wen /* verilator public_flat */;
+reg       pair_dispatch_slot0_mret /* verilator public_flat */;
+reg       pair_dispatch_slot0_ecall /* verilator public_flat */;
+reg       pair_dispatch_slot0_load /* verilator public_flat */;
+reg       pair_dispatch_slot0_store /* verilator public_flat */;
+reg       pair_dispatch_slot0_brch /* verilator public_flat */;
+reg       pair_dispatch_slot0_jal /* verilator public_flat */;
+reg       pair_dispatch_slot0_jalr /* verilator public_flat */;
+reg       pair_dispatch_slot0_ebreak /* verilator public_flat */;
+reg       pair_dispatch_slot0_fence_i /* verilator public_flat */;
+reg       pair_dispatch_slot0_muldiv /* verilator public_flat */;
+reg       pair_dispatch_slot0_is_cop_insn /* verilator public_flat */;
+reg       pair_dispatch_slot0_predict_taken /* verilator public_flat */;
+reg [29:0] pair_dispatch_slot0_predict_target /* verilator public_flat */;
+reg       pair_dispatch_slot0_predict_btb_hit /* verilator public_flat */;
+reg [4:0] pair_dispatch_slot0_rs1_addr /* verilator public_flat */;
+reg       pair_dispatch_slot1_valid /* verilator public_flat */;
+reg [31:0] pair_dispatch_slot1_pc /* verilator public_flat */;
+reg [31:0] pair_dispatch_slot1_ins /* verilator public_flat */;
+reg [31:0] pair_dispatch_slot1_src1 /* verilator public_flat */;
+reg [31:0] pair_dispatch_slot1_src2 /* verilator public_flat */;
+reg [31:0] pair_dispatch_slot1_imm /* verilator public_flat */;
+reg [1:0] pair_dispatch_slot1_src_sel1 /* verilator public_flat */;
+reg [2:0] pair_dispatch_slot1_src_sel2 /* verilator public_flat */;
+reg [4:0] pair_dispatch_slot1_rd /* verilator public_flat */;
+reg [11:0] pair_dispatch_slot1_csr_addr /* verilator public_flat */;
+reg [2:0] pair_dispatch_slot1_exu_opt /* verilator public_flat */;
+reg [9:0] pair_dispatch_slot1_alu_opt /* verilator public_flat */;
+reg       pair_dispatch_slot1_wen /* verilator public_flat */;
+reg       pair_dispatch_slot1_csr_wen /* verilator public_flat */;
+reg       pair_dispatch_slot1_mret /* verilator public_flat */;
+reg       pair_dispatch_slot1_ecall /* verilator public_flat */;
+reg       pair_dispatch_slot1_load /* verilator public_flat */;
+reg       pair_dispatch_slot1_store /* verilator public_flat */;
+reg       pair_dispatch_slot1_brch /* verilator public_flat */;
+reg       pair_dispatch_slot1_jal /* verilator public_flat */;
+reg       pair_dispatch_slot1_jalr /* verilator public_flat */;
+reg       pair_dispatch_slot1_ebreak /* verilator public_flat */;
+reg       pair_dispatch_slot1_fence_i /* verilator public_flat */;
+reg       pair_dispatch_slot1_muldiv /* verilator public_flat */;
+reg       pair_dispatch_slot1_is_cop_insn /* verilator public_flat */;
+reg       pair_dispatch_slot1_predict_taken /* verilator public_flat */;
+reg [29:0] pair_dispatch_slot1_predict_target /* verilator public_flat */;
+reg       pair_dispatch_slot1_predict_btb_hit /* verilator public_flat */;
+reg [4:0] pair_dispatch_slot1_rs1_addr /* verilator public_flat */;
+reg       pair_dispatch_candidate_alu_branch /* verilator public_flat */;
+reg       pair_dispatch_allow_second /* verilator public_flat */;
+reg       pair_dispatch_order_alu_then_branch /* verilator public_flat */;
+reg       pair_dispatch_order_branch_then_alu /* verilator public_flat */;
 
 hcpu_CSR_RegisterFile Csrs(
     .clock                             (clock                     ),
@@ -366,6 +769,8 @@ hcpu_CSR_RegisterFile Csrs(
 
     .i_csr_raddr                       (idu_csr_raddr             ),
     .o_csr_rdata                       (csr_rs2                   ),
+    .i_csr_raddr2                      (pair_slot1_decode_valid ? pair_slot1_decode_csr_addr : 12'b0),
+    .o_csr_rdata2                      (pair_slot1_csr_rdata      ),
 
     .i_csr_waddr                       (wbu_csr_addr              ),
     .i_csr_wdata                       (csr_rd_wdata              ),
@@ -512,7 +917,38 @@ hcpu_ifu_fetch_queue ifu_fetch_queue(
     .o_predecode_is_cop_insn           (ifu2idu_predecode_is_cop_insn),
     .o_predecode_ecall                 (ifu2idu_predecode_ecall   ),
     .o_predecode_mret                  (ifu2idu_predecode_mret    ),
-    .o_predecode_ebreak                (ifu2idu_predecode_ebreak  )
+    .o_predecode_ebreak                (ifu2idu_predecode_ebreak  ),
+    .o_pair_valid                      (ifu_pair_valid            ),
+    .o_pair_candidate_alu_branch       (ifu_pair_candidate_alu_branch),
+    .o_pair_has_raw                    (ifu_pair_has_raw          ),
+    .o_pair_has_waw                    (ifu_pair_has_waw          ),
+    .o_pair_has_dual_writeback         (ifu_pair_has_dual_writeback),
+    .o_pair_has_exclusive_backend      (ifu_pair_has_exclusive_backend),
+    .o_pair_has_redirect_control       (ifu_pair_has_redirect_control),
+    .o_pair_order_alu_then_branch      (ifu_pair_order_alu_then_branch),
+    .o_pair_order_branch_then_alu      (ifu_pair_order_branch_then_alu),
+    .o_pair_younger_valid              (ifu_pair_younger_valid),
+    .o_pair_younger_pc                 (ifu_pair_younger_pc),
+    .o_pair_younger_ins                (ifu_pair_younger_ins),
+    .o_pair_younger_predict_taken      (ifu_pair_younger_predict_taken),
+    .o_pair_younger_predict_target     (ifu_pair_younger_predict_target),
+    .o_pair_younger_predict_btb_hit    (ifu_pair_younger_predict_btb_hit),
+    .o_pair_younger_predecode_rd       (ifu_pair_younger_predecode_rd),
+    .o_pair_younger_predecode_rs1_addr (ifu_pair_younger_predecode_rs1_addr),
+    .o_pair_younger_predecode_rs2_addr (ifu_pair_younger_predecode_rs2_addr),
+    .o_pair_younger_predecode_wen      (ifu_pair_younger_predecode_wen),
+    .o_pair_younger_predecode_csr_wen  (ifu_pair_younger_predecode_csr_wen),
+    .o_pair_younger_predecode_load     (ifu_pair_younger_predecode_load),
+    .o_pair_younger_predecode_store    (ifu_pair_younger_predecode_store),
+    .o_pair_younger_predecode_brch     (ifu_pair_younger_predecode_brch),
+    .o_pair_younger_predecode_jal      (ifu_pair_younger_predecode_jal),
+    .o_pair_younger_predecode_jalr     (ifu_pair_younger_predecode_jalr),
+    .o_pair_younger_predecode_fence_i  (ifu_pair_younger_predecode_fence_i),
+    .o_pair_younger_predecode_muldiv   (ifu_pair_younger_predecode_muldiv),
+    .o_pair_younger_predecode_is_cop_insn(ifu_pair_younger_predecode_is_cop_insn),
+    .o_pair_younger_predecode_ecall    (ifu_pair_younger_predecode_ecall),
+    .o_pair_younger_predecode_mret     (ifu_pair_younger_predecode_mret),
+    .o_pair_younger_predecode_ebreak   (ifu_pair_younger_predecode_ebreak)
 );
 
 hcpu_IDU idu1(
@@ -701,25 +1137,1039 @@ assign cop_issue_valid = cop_decode_active && !cop_inflight && !cop_backend_busy
 assign cop_issue_active = cop_decode_active;
 assign cop_commit_active = cop_inflight;
 assign cop_pipeline_active = cop_commit_active || cop_issue_active;
-assign cop_mem_bus_active = (cop_mem_state != 2'd0);
-assign cop_mem_resp_active = cop_mem_bus_active || cop_mem_done_r;
 assign scalar_mem_service_req_valid = scalar_mem_req_valid;
 assign scalar_mem_service_req_store = scalar_mem_req_store;
 assign scalar_mem_service_req_addr = scalar_mem_req_addr;
 assign scalar_mem_service_req_wdata = scalar_mem_req_wdata;
 assign scalar_mem_service_req_size = scalar_mem_req_size;
+assign scalar_mem_service_resp_pending = scalar_mem_resp_pending;
 assign scalar_mem_service_resp_valid = scalar_mem_resp_valid;
 assign scalar_mem_service_resp_rdata = scalar_mem_resp_rdata;
-assign mem_owner_cop_active = cop_mem_bus_active;
-assign mem_owner_scalar_active = !mem_owner_cop_active && scalar_mem_service_req_valid;
-assign mem_service_req_valid = mem_owner_cop_active ? 1'b1 : scalar_mem_service_req_valid;
-assign mem_service_req_store = mem_owner_cop_active ? cop_mem_wen_r : scalar_mem_service_req_store;
-assign mem_service_req_addr = mem_owner_cop_active ? cop_mem_addr_r : scalar_mem_service_req_addr;
-assign mem_service_req_wdata = mem_owner_cop_active ? cop_mem_wdata_r : scalar_mem_service_req_wdata;
-assign mem_service_req_size = mem_owner_cop_active ? cop_mem_size_r : scalar_mem_service_req_size;
-assign mem_service_resp_valid = cop_mem_resp_active ? (cop_mem_done_r && !cop_mem_killed_r) : scalar_mem_service_resp_valid;
-assign mem_service_resp_rdata = cop_mem_resp_active ? cop_mem_rdata_r : scalar_mem_service_resp_rdata;
+assign cop_mem_service_req_valid = COP_MEM_REQ_VALID;
+assign cop_mem_service_req_store = COP_MEM_REQ_STORE;
+assign cop_mem_service_req_addr = COP_MEM_ADDR;
+assign cop_mem_service_req_wdata = COP_MEM_WDATA;
+assign cop_mem_service_req_size = COP_MEM_SIZE;
+hcpu_memory_service u_memory_service(
+    .clock                             (clock                     ),
+    .reset                             (reset                     ),
+    .cop_kill                          (cop_kill                  ),
+    .scalar_mem_req_valid              (scalar_mem_service_req_valid),
+    .scalar_mem_req_store              (scalar_mem_service_req_store),
+    .scalar_mem_req_addr               (scalar_mem_service_req_addr),
+    .scalar_mem_req_wdata              (scalar_mem_service_req_wdata),
+    .scalar_mem_req_size               (scalar_mem_service_req_size),
+    .scalar_mem_resp_pending           (scalar_mem_service_resp_pending),
+    .scalar_mem_resp_valid             (scalar_mem_service_resp_valid),
+    .scalar_mem_resp_rdata             (scalar_mem_service_resp_rdata),
+    .cop_mem_req_valid                 (cop_mem_service_req_valid ),
+    .cop_mem_req_store                 (cop_mem_service_req_store ),
+    .cop_mem_req_addr                  (cop_mem_service_req_addr  ),
+    .cop_mem_req_wdata                 (cop_mem_service_req_wdata ),
+    .cop_mem_req_size                  (cop_mem_service_req_size  ),
+    .lsu_rdata                         (LSU_SRAM_AXI_RDATA        ),
+    .scalar_axi_awvalid                (LSU_SRAM_AXI_AWVALID      ),
+    .scalar_axi_awaddr                 (LSU_SRAM_AXI_AWADDR       ),
+    .scalar_axi_awid                   (LSU_SRAM_AXI_AWID         ),
+    .scalar_axi_awlen                  (LSU_SRAM_AXI_AWLEN        ),
+    .scalar_axi_awsize                 (LSU_SRAM_AXI_AWSIZE       ),
+    .scalar_axi_awburst                (LSU_SRAM_AXI_AWBURST      ),
+    .scalar_axi_wvalid                 (LSU_SRAM_AXI_WVALID       ),
+    .scalar_axi_wdata                  (LSU_SRAM_AXI_WDATA        ),
+    .scalar_axi_wstrb                  (LSU_SRAM_AXI_WSTRB        ),
+    .scalar_axi_wlast                  (LSU_SRAM_AXI_WLAST        ),
+    .scalar_axi_bready                 (LSU_SRAM_AXI_BREADY       ),
+    .scalar_axi_arvalid                (LSU_SRAM_AXI_ARVALID      ),
+    .scalar_axi_araddr                 (LSU_SRAM_AXI_ARADDR       ),
+    .scalar_axi_arid                   (LSU_SRAM_AXI_ARID         ),
+    .scalar_axi_arlen                  (LSU_SRAM_AXI_ARLEN        ),
+    .scalar_axi_arsize                 (LSU_SRAM_AXI_ARSIZE       ),
+    .scalar_axi_arburst                (LSU_SRAM_AXI_ARBURST      ),
+    .scalar_axi_rready                 (LSU_SRAM_AXI_RREADY       ),
+    .mem_axi_awready                   (LSU_SRAM_AXI_AWREADY      ),
+    .mem_axi_wready                    (LSU_SRAM_AXI_WREADY       ),
+    .mem_axi_bvalid                    (LSU_SRAM_AXI_BVALID       ),
+    .mem_axi_arready                   (LSU_SRAM_AXI_ARREADY      ),
+    .mem_axi_rvalid                    (LSU_SRAM_AXI_RVALID       ),
+    .mem_axi_rlast                     (LSU_SRAM_AXI_RLAST        ),
+    .cop_mem_bus_active                (cop_mem_bus_active        ),
+    .cop_mem_resp_active               (cop_mem_resp_active       ),
+    .cop_mem_resp_valid                (cop_mem_service_resp_valid),
+    .cop_mem_resp_rdata                (cop_mem_service_resp_rdata),
+    .mem_owner_scalar_active           (mem_owner_scalar_active   ),
+    .mem_owner_cop_active              (mem_owner_cop_active      ),
+    .mem_service_req_valid             (mem_service_req_valid     ),
+    .mem_service_req_store             (mem_service_req_store     ),
+    .mem_service_req_addr              (mem_service_req_addr      ),
+    .mem_service_req_wdata             (mem_service_req_wdata     ),
+    .mem_service_req_size              (mem_service_req_size      ),
+    .cop_mem_service_resp_pending      (cop_mem_service_resp_pending),
+    .mem_service_resp_pending          (mem_service_resp_pending  ),
+    .mem_service_resp_valid            (mem_service_resp_valid    ),
+    .mem_service_resp_rdata            (mem_service_resp_rdata    ),
+    .cop_mem_state                     (cop_mem_state             ),
+    .cop_mem_slot_resp_pending_o       (cop_mem_slot_resp_pending ),
+    .cop_mem_wen_r                     (cop_mem_wen_r             ),
+    .cop_mem_aw_done                   (cop_mem_aw_done           ),
+    .cop_mem_w_done                    (cop_mem_w_done            ),
+    .cop_mem_killed_r                  (cop_mem_killed_r          ),
+    .cop_mem_done_r                    (cop_mem_done_r            ),
+    .cop_mem_addr_r                    (cop_mem_addr_r            ),
+    .cop_mem_wdata_r                   (cop_mem_wdata_r           ),
+    .cop_mem_size_r                    (cop_mem_size_r            ),
+    .mem_axi_awvalid                   (LSU_ARB_AXI_AWVALID       ),
+    .mem_axi_awaddr                    (LSU_ARB_AXI_AWADDR        ),
+    .mem_axi_awid                      (LSU_ARB_AXI_AWID          ),
+    .mem_axi_awlen                     (LSU_ARB_AXI_AWLEN         ),
+    .mem_axi_awsize                    (LSU_ARB_AXI_AWSIZE        ),
+    .mem_axi_awburst                   (LSU_ARB_AXI_AWBURST       ),
+    .mem_axi_wvalid                    (LSU_ARB_AXI_WVALID        ),
+    .mem_axi_wdata                     (LSU_ARB_AXI_WDATA         ),
+    .mem_axi_wstrb                     (LSU_ARB_AXI_WSTRB         ),
+    .mem_axi_wlast                     (LSU_ARB_AXI_WLAST         ),
+    .mem_axi_bready                    (LSU_ARB_AXI_BREADY        ),
+    .mem_axi_arvalid                   (LSU_ARB_AXI_ARVALID       ),
+    .mem_axi_araddr                    (LSU_ARB_AXI_ARADDR        ),
+    .mem_axi_arid                      (LSU_ARB_AXI_ARID          ),
+    .mem_axi_arlen                     (LSU_ARB_AXI_ARLEN         ),
+    .mem_axi_arsize                    (LSU_ARB_AXI_ARSIZE        ),
+    .mem_axi_arburst                   (LSU_ARB_AXI_ARBURST       ),
+    .mem_axi_rready                    (LSU_ARB_AXI_RREADY        ),
+    .cop_mem_aw_fire                   (cop_mem_aw_fire           ),
+    .cop_mem_w_fire                    (cop_mem_w_fire            ),
+    .cop_mem_b_fire                    (cop_mem_b_fire            ),
+    .cop_mem_ar_fire                   (cop_mem_ar_fire           ),
+    .cop_mem_r_fire                    (cop_mem_r_fire            )
+);
 assign scalar_issue = idu2exu_valid && !idu2exu_is_cop_insn && !cop_pipeline_active;
+assign decode_pair_distinct_pc = ifu_pair_younger_valid && (ifu2idu_pc != ifu_pair_younger_pc);
+
+hcpu_decode_pair_policy decode_pair_policy(
+    .i_pair_valid                       (ifu_pair_valid && decode_pair_distinct_pc),
+    .i_pair_candidate_alu_branch        (ifu_pair_candidate_alu_branch      ),
+    .i_pair_has_raw                     (ifu_pair_has_raw                   ),
+    .i_pair_has_waw                     (ifu_pair_has_waw                   ),
+    .i_pair_has_dual_writeback          (ifu_pair_has_dual_writeback        ),
+    .i_pair_has_exclusive_backend       (ifu_pair_has_exclusive_backend     ),
+    .i_pair_has_redirect_control        (ifu_pair_has_redirect_control      ),
+    .i_pair_order_alu_then_branch       (ifu_pair_order_alu_then_branch     ),
+    .i_pair_order_branch_then_alu       (ifu_pair_order_branch_then_alu     ),
+    .i_downstream_ready                 (exu2idu_ready                      ),
+    .i_cop_pipeline_active              (cop_pipeline_active                ),
+    .i_frontend_flush                   (frontend_flush                     ),
+    .o_pair_visible                     (decode_pair_visible                ),
+    .o_allow_second                     (decode_pair_allow_second           ),
+    .o_select_slot1_youngest            (decode_pair_select_slot1_youngest  ),
+    .o_select_slot1_branch              (decode_pair_select_slot1_branch    ),
+    .o_block_raw                        (decode_pair_block_raw              ),
+    .o_block_waw                        (decode_pair_block_waw              ),
+    .o_block_dual_writeback             (decode_pair_block_dual_writeback   ),
+    .o_block_exclusive_backend          (decode_pair_block_exclusive_backend),
+    .o_block_redirect_control           (decode_pair_block_redirect_control ),
+    .o_block_older_branch_first         (decode_pair_block_older_branch_first),
+    .o_block_downstream_busy            (decode_pair_block_downstream_busy  ),
+    .o_block_cop_pipeline               (decode_pair_block_cop_pipeline     ),
+    .o_block_frontend_flush             (decode_pair_block_frontend_flush   )
+);
+assign decode_slot0_valid = ifu2idu_valid;
+assign decode_slot0_pc = ifu2idu_pc;
+assign frontend_pair_capture = decode_pair_visible && decode_slot0_valid && decode_pair_distinct_pc && !frontend_flush;
+assign pair_handoff_capture = frontend_pair_bundle_valid;
+assign pair_dispatch_ready = 1'b1;
+assign pair_dispatch_accept = pair_handoff_valid && pair_dispatch_ready;
+assign decode_slot1_valid = decode_pair_select_slot1_youngest && ifu_pair_younger_valid;
+assign decode_slot1_pc = decode_slot1_valid ? ifu_pair_younger_pc : 32'b0;
+assign decode_slot1_ins = decode_slot1_valid ? ifu_pair_younger_ins : 32'b0;
+assign slot1_shadow_capture = decode_slot1_valid && !frontend_flush;
+assign slot1_endpoint_accept = slot1_shadow_capture;
+assign decode_slot1_is_branch = decode_slot1_valid && decode_pair_select_slot1_branch &&
+                                ifu_pair_younger_predecode_brch;
+assign pair_slot1_decode_valid = ifu_pair_younger_valid;
+assign pair_slot0_src1_data = ecall ? mtvec :
+                              mret  ? mepc  :
+                                      rs1;
+assign pair_slot0_src2_data = csr_wen ? csr_rs2 : rs2;
+assign pair_slot1_src1_data = pair_slot1_decode_ecall ? mtvec :
+                              pair_slot1_decode_mret  ? mepc  :
+                                                        pair_slot1_rs1_data;
+assign pair_slot1_src2_data = pair_slot1_decode_csr_wen ? pair_slot1_csr_rdata :
+                                                          pair_slot1_rs2_data;
+
+hcpu_IDU idu_pair_slot1(
+    .clock                             (clock                     ),
+    .ins                               (pair_slot1_decode_valid ? ifu_pair_younger_ins : 32'b0),
+    .reset                             (reset                     ),
+    .o_imm                             (pair_slot1_decode_imm     ),
+    .o_rd                              (pair_slot1_decode_rd      ),
+    .o_rs1                             (pair_slot1_decode_rs1     ),
+    .o_rs2                             (pair_slot1_decode_rs2     ),
+    .o_csr_addr                        (pair_slot1_decode_csr_addr),
+    .o_exu_opt                         (pair_slot1_decode_exu_opt ),
+    .o_alu_opt                         (pair_slot1_decode_alu_opt ),
+    .o_wen                             (pair_slot1_decode_wen     ),
+    .o_csr_wen                         (pair_slot1_decode_csr_wen ),
+    .o_src_sel1                        (pair_slot1_decode_src_sel1),
+    .o_src_sel2                        (pair_slot1_decode_src_sel2),
+    .o_mret                            (pair_slot1_decode_mret    ),
+    .o_ecall                           (pair_slot1_decode_ecall   ),
+    .o_load                            (pair_slot1_decode_load    ),
+    .o_store                           (pair_slot1_decode_store   ),
+    .o_brch                            (pair_slot1_decode_brch    ),
+    .o_jal                             (pair_slot1_decode_jal     ),
+    .o_jalr                            (pair_slot1_decode_jalr    ),
+    .o_ebreak                          (pair_slot1_decode_ebreak  ),
+    .o_fence_i                         (pair_slot1_decode_fence_i ),
+    .o_muldiv                          (pair_slot1_decode_muldiv  ),
+    .o_is_cop_insn                     (pair_slot1_decode_is_cop_insn)
+);
+
+hcpu_IDU idu_slot1(
+    .clock                             (clock                     ),
+    .ins                               (decode_slot1_ins          ),
+    .reset                             (reset                     ),
+    .o_imm                             (decode_slot1_imm          ),
+    .o_rd                              (decode_slot1_rd           ),
+    .o_rs1                             (decode_slot1_rs1          ),
+    .o_rs2                             (decode_slot1_rs2          ),
+    .o_csr_addr                        (decode_slot1_csr_addr     ),
+    .o_exu_opt                         (decode_slot1_exu_opt      ),
+    .o_alu_opt                         (decode_slot1_alu_opt      ),
+    .o_wen                             (decode_slot1_wen          ),
+    .o_csr_wen                         (decode_slot1_csr_wen      ),
+    .o_src_sel1                        (decode_slot1_src_sel1     ),
+    .o_src_sel2                        (decode_slot1_src_sel2     ),
+    .o_mret                            (decode_slot1_mret         ),
+    .o_ecall                           (decode_slot1_ecall        ),
+    .o_load                            (decode_slot1_load         ),
+    .o_store                           (decode_slot1_store        ),
+    .o_brch                            (decode_slot1_brch         ),
+    .o_jal                             (decode_slot1_jal          ),
+    .o_jalr                            (decode_slot1_jalr         ),
+    .o_ebreak                          (decode_slot1_ebreak       ),
+    .o_fence_i                         (decode_slot1_fence_i      ),
+    .o_muldiv                          (decode_slot1_muldiv       ),
+    .o_is_cop_insn                     (decode_slot1_is_cop_insn  )
+);
+
+always @(posedge clock or posedge reset) begin
+    if (reset) begin
+        slot1_shadow_valid <= 1'b0;
+        slot1_shadow_pc <= 32'b0;
+        slot1_shadow_ins <= 32'b0;
+        slot1_shadow_imm <= 32'b0;
+        slot1_shadow_rd <= 5'b0;
+        slot1_shadow_rs1 <= 5'b0;
+        slot1_shadow_rs2 <= 5'b0;
+        slot1_shadow_exu_opt <= 3'b0;
+        slot1_shadow_alu_opt <= 10'b0;
+        slot1_shadow_src_sel1 <= 2'b0;
+        slot1_shadow_src_sel2 <= 3'b0;
+        slot1_shadow_wen <= 1'b0;
+        slot1_shadow_brch <= 1'b0;
+        slot1_shadow_csr_wen <= 1'b0;
+        slot1_shadow_load <= 1'b0;
+        slot1_shadow_store <= 1'b0;
+        slot1_shadow_jal <= 1'b0;
+        slot1_shadow_jalr <= 1'b0;
+        slot1_shadow_fence_i <= 1'b0;
+        slot1_shadow_muldiv <= 1'b0;
+        slot1_shadow_is_cop_insn <= 1'b0;
+        slot1_shadow_ecall <= 1'b0;
+        slot1_shadow_mret <= 1'b0;
+        slot1_shadow_ebreak <= 1'b0;
+        slot1_shadow_csr_addr <= 12'b0;
+        slot1_shadow_fireable <= 1'b0;
+        slot1_shadow_predict_taken <= 1'b0;
+        slot1_shadow_predict_target <= 30'b0;
+        slot1_shadow_predict_btb_hit <= 1'b0;
+    end else if (frontend_flush) begin
+        slot1_shadow_valid <= 1'b0;
+        slot1_shadow_fireable <= 1'b0;
+    end else if (slot1_shadow_capture) begin
+        slot1_shadow_valid <= 1'b1;
+        slot1_shadow_pc <= decode_slot1_pc;
+        slot1_shadow_ins <= decode_slot1_ins;
+        slot1_shadow_imm <= decode_slot1_imm;
+        slot1_shadow_rd <= decode_slot1_rd;
+        slot1_shadow_rs1 <= decode_slot1_rs1;
+        slot1_shadow_rs2 <= decode_slot1_rs2;
+        slot1_shadow_exu_opt <= decode_slot1_exu_opt;
+        slot1_shadow_alu_opt <= decode_slot1_alu_opt;
+        slot1_shadow_src_sel1 <= decode_slot1_src_sel1;
+        slot1_shadow_src_sel2 <= decode_slot1_src_sel2;
+        slot1_shadow_wen <= decode_slot1_wen;
+        slot1_shadow_brch <= decode_slot1_brch;
+        slot1_shadow_csr_wen <= decode_slot1_csr_wen;
+        slot1_shadow_load <= decode_slot1_load;
+        slot1_shadow_store <= decode_slot1_store;
+        slot1_shadow_jal <= decode_slot1_jal;
+        slot1_shadow_jalr <= decode_slot1_jalr;
+        slot1_shadow_fence_i <= decode_slot1_fence_i;
+        slot1_shadow_muldiv <= decode_slot1_muldiv;
+        slot1_shadow_is_cop_insn <= decode_slot1_is_cop_insn;
+        slot1_shadow_ecall <= decode_slot1_ecall;
+        slot1_shadow_mret <= decode_slot1_mret;
+        slot1_shadow_ebreak <= decode_slot1_ebreak;
+        slot1_shadow_csr_addr <= decode_slot1_csr_addr;
+        slot1_shadow_fireable <= decode_pair_allow_second;
+        slot1_shadow_predict_taken <= ifu_pair_younger_predict_taken;
+        slot1_shadow_predict_target <= ifu_pair_younger_predict_target;
+        slot1_shadow_predict_btb_hit <= ifu_pair_younger_predict_btb_hit;
+    end
+end
+
+always @(posedge clock or posedge reset) begin
+    if (reset) begin
+        frontend_pair_bundle_valid <= 1'b0;
+        frontend_pair_bundle_slot0_valid <= 1'b0;
+        frontend_pair_bundle_slot0_pc <= 32'b0;
+        frontend_pair_bundle_slot0_ins <= 32'b0;
+        frontend_pair_bundle_slot0_predict_taken <= 1'b0;
+        frontend_pair_bundle_slot0_predict_target <= 30'b0;
+        frontend_pair_bundle_slot0_predict_btb_hit <= 1'b0;
+        frontend_pair_bundle_slot0_rd <= 5'b0;
+        frontend_pair_bundle_slot0_rs1 <= 5'b0;
+        frontend_pair_bundle_slot0_rs2 <= 5'b0;
+        frontend_pair_bundle_slot0_rs1_addr <= 5'b0;
+        frontend_pair_bundle_slot0_wen <= 1'b0;
+        frontend_pair_bundle_slot0_brch <= 1'b0;
+        frontend_pair_bundle_slot0_src1 <= 32'b0;
+        frontend_pair_bundle_slot0_src2 <= 32'b0;
+        frontend_pair_bundle_slot0_imm <= 32'b0;
+        frontend_pair_bundle_slot0_csr_addr <= 12'b0;
+        frontend_pair_bundle_slot0_exu_opt <= 3'b0;
+        frontend_pair_bundle_slot0_alu_opt <= 10'b0;
+        frontend_pair_bundle_slot0_src_sel1 <= 2'b0;
+        frontend_pair_bundle_slot0_src_sel2 <= 3'b0;
+        frontend_pair_bundle_slot0_csr_wen <= 1'b0;
+        frontend_pair_bundle_slot0_load <= 1'b0;
+        frontend_pair_bundle_slot0_store <= 1'b0;
+        frontend_pair_bundle_slot0_jal <= 1'b0;
+        frontend_pair_bundle_slot0_jalr <= 1'b0;
+        frontend_pair_bundle_slot0_fence_i <= 1'b0;
+        frontend_pair_bundle_slot0_muldiv <= 1'b0;
+        frontend_pair_bundle_slot0_is_cop_insn <= 1'b0;
+        frontend_pair_bundle_slot0_ecall <= 1'b0;
+        frontend_pair_bundle_slot0_mret <= 1'b0;
+        frontend_pair_bundle_slot0_ebreak <= 1'b0;
+        frontend_pair_bundle_slot1_valid <= 1'b0;
+        frontend_pair_bundle_slot1_pc <= 32'b0;
+        frontend_pair_bundle_slot1_ins <= 32'b0;
+        frontend_pair_bundle_slot1_predict_taken <= 1'b0;
+        frontend_pair_bundle_slot1_predict_target <= 30'b0;
+        frontend_pair_bundle_slot1_predict_btb_hit <= 1'b0;
+        frontend_pair_bundle_slot1_rd <= 5'b0;
+        frontend_pair_bundle_slot1_rs1 <= 5'b0;
+        frontend_pair_bundle_slot1_rs2 <= 5'b0;
+        frontend_pair_bundle_slot1_rs1_addr <= 5'b0;
+        frontend_pair_bundle_slot1_wen <= 1'b0;
+        frontend_pair_bundle_slot1_brch <= 1'b0;
+        frontend_pair_bundle_slot1_src1 <= 32'b0;
+        frontend_pair_bundle_slot1_src2 <= 32'b0;
+        frontend_pair_bundle_slot1_imm <= 32'b0;
+        frontend_pair_bundle_slot1_csr_addr <= 12'b0;
+        frontend_pair_bundle_slot1_exu_opt <= 3'b0;
+        frontend_pair_bundle_slot1_alu_opt <= 10'b0;
+        frontend_pair_bundle_slot1_src_sel1 <= 2'b0;
+        frontend_pair_bundle_slot1_src_sel2 <= 3'b0;
+        frontend_pair_bundle_slot1_csr_wen <= 1'b0;
+        frontend_pair_bundle_slot1_load <= 1'b0;
+        frontend_pair_bundle_slot1_store <= 1'b0;
+        frontend_pair_bundle_slot1_jal <= 1'b0;
+        frontend_pair_bundle_slot1_jalr <= 1'b0;
+        frontend_pair_bundle_slot1_fence_i <= 1'b0;
+        frontend_pair_bundle_slot1_muldiv <= 1'b0;
+        frontend_pair_bundle_slot1_is_cop_insn <= 1'b0;
+        frontend_pair_bundle_slot1_ecall <= 1'b0;
+        frontend_pair_bundle_slot1_mret <= 1'b0;
+        frontend_pair_bundle_slot1_ebreak <= 1'b0;
+        frontend_pair_bundle_candidate_alu_branch <= 1'b0;
+        frontend_pair_bundle_allow_second <= 1'b0;
+        frontend_pair_bundle_order_alu_then_branch <= 1'b0;
+        frontend_pair_bundle_order_branch_then_alu <= 1'b0;
+        frontend_pair_bundle_block_raw <= 1'b0;
+        frontend_pair_bundle_block_waw <= 1'b0;
+        frontend_pair_bundle_block_dual_writeback <= 1'b0;
+        frontend_pair_bundle_block_exclusive_backend <= 1'b0;
+        frontend_pair_bundle_block_redirect_control <= 1'b0;
+        frontend_pair_bundle_block_older_branch_first <= 1'b0;
+        frontend_pair_bundle_block_downstream_busy <= 1'b0;
+        frontend_pair_bundle_block_cop_pipeline <= 1'b0;
+        frontend_pair_bundle_block_frontend_flush <= 1'b0;
+    end else if (frontend_flush) begin
+        frontend_pair_bundle_valid <= 1'b0;
+        frontend_pair_bundle_allow_second <= 1'b0;
+    end else if (frontend_pair_capture) begin
+        frontend_pair_bundle_valid <= 1'b1;
+        frontend_pair_bundle_slot0_valid <= decode_slot0_valid;
+        frontend_pair_bundle_slot0_pc <= ifu2idu_pc;
+        frontend_pair_bundle_slot0_ins <= ifu2idu_ins;
+        frontend_pair_bundle_slot0_predict_taken <= ifu2idu_predict_taken;
+        frontend_pair_bundle_slot0_predict_target <= ifu2idu_predict_target;
+        frontend_pair_bundle_slot0_predict_btb_hit <= ifu2idu_predict_btb_hit;
+        frontend_pair_bundle_slot0_rd <= ifu2idu_predecode_rd;
+        frontend_pair_bundle_slot0_rs1 <= ifu2idu_predecode_rs1_addr;
+        frontend_pair_bundle_slot0_rs2 <= ifu2idu_predecode_rs2_addr;
+        frontend_pair_bundle_slot0_rs1_addr <= idu_addr_rs1;
+        frontend_pair_bundle_slot0_wen <= ifu2idu_predecode_wen;
+        frontend_pair_bundle_slot0_brch <= ifu2idu_predecode_brch;
+        frontend_pair_bundle_slot0_src1 <= pair_slot0_src1_data;
+        frontend_pair_bundle_slot0_src2 <= pair_slot0_src2_data;
+        frontend_pair_bundle_slot0_imm <= imm;
+        frontend_pair_bundle_slot0_csr_addr <= idu_csr_raddr;
+        frontend_pair_bundle_slot0_exu_opt <= exu_opt;
+        frontend_pair_bundle_slot0_alu_opt <= alu_opt;
+        frontend_pair_bundle_slot0_src_sel1 <= i_src_sel1;
+        frontend_pair_bundle_slot0_src_sel2 <= i_src_sel2;
+        frontend_pair_bundle_slot0_csr_wen <= csr_wen;
+        frontend_pair_bundle_slot0_load <= if_load;
+        frontend_pair_bundle_slot0_store <= if_store;
+        frontend_pair_bundle_slot0_jal <= jal;
+        frontend_pair_bundle_slot0_jalr <= jalr;
+        frontend_pair_bundle_slot0_fence_i <= fence_i;
+        frontend_pair_bundle_slot0_muldiv <= muldiv;
+        frontend_pair_bundle_slot0_is_cop_insn <= is_cop_insn;
+        frontend_pair_bundle_slot0_ecall <= ecall;
+        frontend_pair_bundle_slot0_mret <= mret;
+        frontend_pair_bundle_slot0_ebreak <= ebreak;
+        frontend_pair_bundle_slot1_valid <= ifu_pair_younger_valid;
+        frontend_pair_bundle_slot1_pc <= ifu_pair_younger_pc;
+        frontend_pair_bundle_slot1_ins <= ifu_pair_younger_ins;
+        frontend_pair_bundle_slot1_predict_taken <= ifu_pair_younger_predict_taken;
+        frontend_pair_bundle_slot1_predict_target <= ifu_pair_younger_predict_target;
+        frontend_pair_bundle_slot1_predict_btb_hit <= ifu_pair_younger_predict_btb_hit;
+        frontend_pair_bundle_slot1_rd <= pair_slot1_decode_rd;
+        frontend_pair_bundle_slot1_rs1 <= pair_slot1_decode_rs1;
+        frontend_pair_bundle_slot1_rs2 <= pair_slot1_decode_rs2;
+        frontend_pair_bundle_slot1_rs1_addr <= pair_slot1_decode_rs1;
+        frontend_pair_bundle_slot1_wen <= pair_slot1_decode_wen;
+        frontend_pair_bundle_slot1_brch <= pair_slot1_decode_brch;
+        frontend_pair_bundle_slot1_src1 <= pair_slot1_src1_data;
+        frontend_pair_bundle_slot1_src2 <= pair_slot1_src2_data;
+        frontend_pair_bundle_slot1_imm <= pair_slot1_decode_imm;
+        frontend_pair_bundle_slot1_csr_addr <= pair_slot1_decode_csr_addr;
+        frontend_pair_bundle_slot1_exu_opt <= pair_slot1_decode_exu_opt;
+        frontend_pair_bundle_slot1_alu_opt <= pair_slot1_decode_alu_opt;
+        frontend_pair_bundle_slot1_src_sel1 <= pair_slot1_decode_src_sel1;
+        frontend_pair_bundle_slot1_src_sel2 <= pair_slot1_decode_src_sel2;
+        frontend_pair_bundle_slot1_csr_wen <= pair_slot1_decode_csr_wen;
+        frontend_pair_bundle_slot1_load <= pair_slot1_decode_load;
+        frontend_pair_bundle_slot1_store <= pair_slot1_decode_store;
+        frontend_pair_bundle_slot1_jal <= pair_slot1_decode_jal;
+        frontend_pair_bundle_slot1_jalr <= pair_slot1_decode_jalr;
+        frontend_pair_bundle_slot1_fence_i <= pair_slot1_decode_fence_i;
+        frontend_pair_bundle_slot1_muldiv <= pair_slot1_decode_muldiv;
+        frontend_pair_bundle_slot1_is_cop_insn <= pair_slot1_decode_is_cop_insn;
+        frontend_pair_bundle_slot1_ecall <= pair_slot1_decode_ecall;
+        frontend_pair_bundle_slot1_mret <= pair_slot1_decode_mret;
+        frontend_pair_bundle_slot1_ebreak <= pair_slot1_decode_ebreak;
+        frontend_pair_bundle_candidate_alu_branch <= ifu_pair_candidate_alu_branch;
+        frontend_pair_bundle_allow_second <= decode_pair_allow_second;
+        frontend_pair_bundle_order_alu_then_branch <= ifu_pair_order_alu_then_branch;
+        frontend_pair_bundle_order_branch_then_alu <= ifu_pair_order_branch_then_alu;
+        frontend_pair_bundle_block_raw <= decode_pair_block_raw;
+        frontend_pair_bundle_block_waw <= decode_pair_block_waw;
+        frontend_pair_bundle_block_dual_writeback <= decode_pair_block_dual_writeback;
+        frontend_pair_bundle_block_exclusive_backend <= decode_pair_block_exclusive_backend;
+        frontend_pair_bundle_block_redirect_control <= decode_pair_block_redirect_control;
+        frontend_pair_bundle_block_older_branch_first <= decode_pair_block_older_branch_first;
+        frontend_pair_bundle_block_downstream_busy <= decode_pair_block_downstream_busy;
+        frontend_pair_bundle_block_cop_pipeline <= decode_pair_block_cop_pipeline;
+        frontend_pair_bundle_block_frontend_flush <= decode_pair_block_frontend_flush;
+    end
+end
+
+always @(posedge clock or posedge reset) begin
+    if (reset) begin
+        pair_handoff_valid <= 1'b0;
+        pair_handoff_slot0_valid <= 1'b0;
+        pair_handoff_slot0_pc <= 32'b0;
+        pair_handoff_slot0_ins <= 32'b0;
+        pair_handoff_slot0_src1 <= 32'b0;
+        pair_handoff_slot0_src2 <= 32'b0;
+        pair_handoff_slot0_imm <= 32'b0;
+        pair_handoff_slot0_src_sel1 <= 2'b0;
+        pair_handoff_slot0_src_sel2 <= 3'b0;
+        pair_handoff_slot0_rd <= 5'b0;
+        pair_handoff_slot0_csr_addr <= 12'b0;
+        pair_handoff_slot0_exu_opt <= 3'b0;
+        pair_handoff_slot0_alu_opt <= 10'b0;
+        pair_handoff_slot0_wen <= 1'b0;
+        pair_handoff_slot0_csr_wen <= 1'b0;
+        pair_handoff_slot0_mret <= 1'b0;
+        pair_handoff_slot0_ecall <= 1'b0;
+        pair_handoff_slot0_load <= 1'b0;
+        pair_handoff_slot0_store <= 1'b0;
+        pair_handoff_slot0_brch <= 1'b0;
+        pair_handoff_slot0_jal <= 1'b0;
+        pair_handoff_slot0_jalr <= 1'b0;
+        pair_handoff_slot0_ebreak <= 1'b0;
+        pair_handoff_slot0_fence_i <= 1'b0;
+        pair_handoff_slot0_muldiv <= 1'b0;
+        pair_handoff_slot0_is_cop_insn <= 1'b0;
+        pair_handoff_slot0_predict_taken <= 1'b0;
+        pair_handoff_slot0_predict_target <= 30'b0;
+        pair_handoff_slot0_predict_btb_hit <= 1'b0;
+        pair_handoff_slot0_rs1_addr <= 5'b0;
+        pair_handoff_slot1_valid <= 1'b0;
+        pair_handoff_slot1_pc <= 32'b0;
+        pair_handoff_slot1_ins <= 32'b0;
+        pair_handoff_slot1_src1 <= 32'b0;
+        pair_handoff_slot1_src2 <= 32'b0;
+        pair_handoff_slot1_imm <= 32'b0;
+        pair_handoff_slot1_src_sel1 <= 2'b0;
+        pair_handoff_slot1_src_sel2 <= 3'b0;
+        pair_handoff_slot1_rd <= 5'b0;
+        pair_handoff_slot1_csr_addr <= 12'b0;
+        pair_handoff_slot1_exu_opt <= 3'b0;
+        pair_handoff_slot1_alu_opt <= 10'b0;
+        pair_handoff_slot1_wen <= 1'b0;
+        pair_handoff_slot1_csr_wen <= 1'b0;
+        pair_handoff_slot1_mret <= 1'b0;
+        pair_handoff_slot1_ecall <= 1'b0;
+        pair_handoff_slot1_load <= 1'b0;
+        pair_handoff_slot1_store <= 1'b0;
+        pair_handoff_slot1_brch <= 1'b0;
+        pair_handoff_slot1_jal <= 1'b0;
+        pair_handoff_slot1_jalr <= 1'b0;
+        pair_handoff_slot1_ebreak <= 1'b0;
+        pair_handoff_slot1_fence_i <= 1'b0;
+        pair_handoff_slot1_muldiv <= 1'b0;
+        pair_handoff_slot1_is_cop_insn <= 1'b0;
+        pair_handoff_slot1_predict_taken <= 1'b0;
+        pair_handoff_slot1_predict_target <= 30'b0;
+        pair_handoff_slot1_predict_btb_hit <= 1'b0;
+        pair_handoff_slot1_rs1_addr <= 5'b0;
+        pair_handoff_candidate_alu_branch <= 1'b0;
+        pair_handoff_allow_second <= 1'b0;
+        pair_handoff_order_alu_then_branch <= 1'b0;
+        pair_handoff_order_branch_then_alu <= 1'b0;
+        pair_handoff_block_raw <= 1'b0;
+        pair_handoff_block_waw <= 1'b0;
+        pair_handoff_block_dual_writeback <= 1'b0;
+        pair_handoff_block_exclusive_backend <= 1'b0;
+        pair_handoff_block_redirect_control <= 1'b0;
+        pair_handoff_block_older_branch_first <= 1'b0;
+        pair_handoff_block_downstream_busy <= 1'b0;
+        pair_handoff_block_cop_pipeline <= 1'b0;
+        pair_handoff_block_frontend_flush <= 1'b0;
+    end else if (frontend_flush) begin
+        pair_handoff_valid <= 1'b0;
+        pair_handoff_allow_second <= 1'b0;
+    end else if (pair_handoff_capture) begin
+        pair_handoff_valid <= 1'b1;
+        pair_handoff_slot0_valid <= frontend_pair_bundle_slot0_valid;
+        pair_handoff_slot0_pc <= frontend_pair_bundle_slot0_pc;
+        pair_handoff_slot0_ins <= frontend_pair_bundle_slot0_ins;
+        pair_handoff_slot0_src1 <= frontend_pair_bundle_slot0_src1;
+        pair_handoff_slot0_src2 <= frontend_pair_bundle_slot0_src2;
+        pair_handoff_slot0_imm <= frontend_pair_bundle_slot0_imm;
+        pair_handoff_slot0_src_sel1 <= frontend_pair_bundle_slot0_src_sel1;
+        pair_handoff_slot0_src_sel2 <= frontend_pair_bundle_slot0_src_sel2;
+        pair_handoff_slot0_rd <= frontend_pair_bundle_slot0_rd;
+        pair_handoff_slot0_csr_addr <= frontend_pair_bundle_slot0_csr_addr;
+        pair_handoff_slot0_exu_opt <= frontend_pair_bundle_slot0_exu_opt;
+        pair_handoff_slot0_alu_opt <= frontend_pair_bundle_slot0_alu_opt;
+        pair_handoff_slot0_wen <= frontend_pair_bundle_slot0_wen;
+        pair_handoff_slot0_csr_wen <= frontend_pair_bundle_slot0_csr_wen;
+        pair_handoff_slot0_mret <= frontend_pair_bundle_slot0_mret;
+        pair_handoff_slot0_ecall <= frontend_pair_bundle_slot0_ecall;
+        pair_handoff_slot0_load <= frontend_pair_bundle_slot0_load;
+        pair_handoff_slot0_store <= frontend_pair_bundle_slot0_store;
+        pair_handoff_slot0_brch <= frontend_pair_bundle_slot0_brch;
+        pair_handoff_slot0_jal <= frontend_pair_bundle_slot0_jal;
+        pair_handoff_slot0_jalr <= frontend_pair_bundle_slot0_jalr;
+        pair_handoff_slot0_ebreak <= frontend_pair_bundle_slot0_ebreak;
+        pair_handoff_slot0_fence_i <= frontend_pair_bundle_slot0_fence_i;
+        pair_handoff_slot0_muldiv <= frontend_pair_bundle_slot0_muldiv;
+        pair_handoff_slot0_is_cop_insn <= frontend_pair_bundle_slot0_is_cop_insn;
+        pair_handoff_slot0_predict_taken <= frontend_pair_bundle_slot0_predict_taken;
+        pair_handoff_slot0_predict_target <= frontend_pair_bundle_slot0_predict_target;
+        pair_handoff_slot0_predict_btb_hit <= frontend_pair_bundle_slot0_predict_btb_hit;
+        pair_handoff_slot0_rs1_addr <= frontend_pair_bundle_slot0_rs1_addr;
+        pair_handoff_slot1_valid <= frontend_pair_bundle_slot1_valid;
+        pair_handoff_slot1_pc <= frontend_pair_bundle_slot1_pc;
+        pair_handoff_slot1_ins <= frontend_pair_bundle_slot1_ins;
+        pair_handoff_slot1_src1 <= frontend_pair_bundle_slot1_src1;
+        pair_handoff_slot1_src2 <= frontend_pair_bundle_slot1_src2;
+        pair_handoff_slot1_imm <= frontend_pair_bundle_slot1_imm;
+        pair_handoff_slot1_src_sel1 <= frontend_pair_bundle_slot1_src_sel1;
+        pair_handoff_slot1_src_sel2 <= frontend_pair_bundle_slot1_src_sel2;
+        pair_handoff_slot1_rd <= frontend_pair_bundle_slot1_rd;
+        pair_handoff_slot1_csr_addr <= frontend_pair_bundle_slot1_csr_addr;
+        pair_handoff_slot1_exu_opt <= frontend_pair_bundle_slot1_exu_opt;
+        pair_handoff_slot1_alu_opt <= frontend_pair_bundle_slot1_alu_opt;
+        pair_handoff_slot1_wen <= frontend_pair_bundle_slot1_wen;
+        pair_handoff_slot1_csr_wen <= frontend_pair_bundle_slot1_csr_wen;
+        pair_handoff_slot1_mret <= frontend_pair_bundle_slot1_mret;
+        pair_handoff_slot1_ecall <= frontend_pair_bundle_slot1_ecall;
+        pair_handoff_slot1_load <= frontend_pair_bundle_slot1_load;
+        pair_handoff_slot1_store <= frontend_pair_bundle_slot1_store;
+        pair_handoff_slot1_brch <= frontend_pair_bundle_slot1_brch;
+        pair_handoff_slot1_jal <= frontend_pair_bundle_slot1_jal;
+        pair_handoff_slot1_jalr <= frontend_pair_bundle_slot1_jalr;
+        pair_handoff_slot1_ebreak <= frontend_pair_bundle_slot1_ebreak;
+        pair_handoff_slot1_fence_i <= frontend_pair_bundle_slot1_fence_i;
+        pair_handoff_slot1_muldiv <= frontend_pair_bundle_slot1_muldiv;
+        pair_handoff_slot1_is_cop_insn <= frontend_pair_bundle_slot1_is_cop_insn;
+        pair_handoff_slot1_predict_taken <= frontend_pair_bundle_slot1_predict_taken;
+        pair_handoff_slot1_predict_target <= frontend_pair_bundle_slot1_predict_target;
+        pair_handoff_slot1_predict_btb_hit <= frontend_pair_bundle_slot1_predict_btb_hit;
+        pair_handoff_slot1_rs1_addr <= frontend_pair_bundle_slot1_rs1_addr;
+        pair_handoff_candidate_alu_branch <= frontend_pair_bundle_candidate_alu_branch;
+        pair_handoff_allow_second <= frontend_pair_bundle_allow_second;
+        pair_handoff_order_alu_then_branch <= frontend_pair_bundle_order_alu_then_branch;
+        pair_handoff_order_branch_then_alu <= frontend_pair_bundle_order_branch_then_alu;
+        pair_handoff_block_raw <= frontend_pair_bundle_block_raw;
+        pair_handoff_block_waw <= frontend_pair_bundle_block_waw;
+        pair_handoff_block_dual_writeback <= frontend_pair_bundle_block_dual_writeback;
+        pair_handoff_block_exclusive_backend <= frontend_pair_bundle_block_exclusive_backend;
+        pair_handoff_block_redirect_control <= frontend_pair_bundle_block_redirect_control;
+        pair_handoff_block_older_branch_first <= frontend_pair_bundle_block_older_branch_first;
+        pair_handoff_block_downstream_busy <= frontend_pair_bundle_block_downstream_busy;
+        pair_handoff_block_cop_pipeline <= frontend_pair_bundle_block_cop_pipeline;
+        pair_handoff_block_frontend_flush <= frontend_pair_bundle_block_frontend_flush;
+    end
+end
+
+always @(posedge clock or posedge reset) begin
+    if (reset) begin
+        pair_dispatch_valid <= 1'b0;
+        pair_dispatch_slot0_valid <= 1'b0;
+        pair_dispatch_slot0_pc <= 32'b0;
+        pair_dispatch_slot0_ins <= 32'b0;
+        pair_dispatch_slot0_src1 <= 32'b0;
+        pair_dispatch_slot0_src2 <= 32'b0;
+        pair_dispatch_slot0_imm <= 32'b0;
+        pair_dispatch_slot0_src_sel1 <= 2'b0;
+        pair_dispatch_slot0_src_sel2 <= 3'b0;
+        pair_dispatch_slot0_rd <= 5'b0;
+        pair_dispatch_slot0_csr_addr <= 12'b0;
+        pair_dispatch_slot0_exu_opt <= 3'b0;
+        pair_dispatch_slot0_alu_opt <= 10'b0;
+        pair_dispatch_slot0_wen <= 1'b0;
+        pair_dispatch_slot0_csr_wen <= 1'b0;
+        pair_dispatch_slot0_mret <= 1'b0;
+        pair_dispatch_slot0_ecall <= 1'b0;
+        pair_dispatch_slot0_load <= 1'b0;
+        pair_dispatch_slot0_store <= 1'b0;
+        pair_dispatch_slot0_brch <= 1'b0;
+        pair_dispatch_slot0_jal <= 1'b0;
+        pair_dispatch_slot0_jalr <= 1'b0;
+        pair_dispatch_slot0_ebreak <= 1'b0;
+        pair_dispatch_slot0_fence_i <= 1'b0;
+        pair_dispatch_slot0_muldiv <= 1'b0;
+        pair_dispatch_slot0_is_cop_insn <= 1'b0;
+        pair_dispatch_slot0_predict_taken <= 1'b0;
+        pair_dispatch_slot0_predict_target <= 30'b0;
+        pair_dispatch_slot0_predict_btb_hit <= 1'b0;
+        pair_dispatch_slot0_rs1_addr <= 5'b0;
+        pair_dispatch_slot1_valid <= 1'b0;
+        pair_dispatch_slot1_pc <= 32'b0;
+        pair_dispatch_slot1_ins <= 32'b0;
+        pair_dispatch_slot1_src1 <= 32'b0;
+        pair_dispatch_slot1_src2 <= 32'b0;
+        pair_dispatch_slot1_imm <= 32'b0;
+        pair_dispatch_slot1_src_sel1 <= 2'b0;
+        pair_dispatch_slot1_src_sel2 <= 3'b0;
+        pair_dispatch_slot1_rd <= 5'b0;
+        pair_dispatch_slot1_csr_addr <= 12'b0;
+        pair_dispatch_slot1_exu_opt <= 3'b0;
+        pair_dispatch_slot1_alu_opt <= 10'b0;
+        pair_dispatch_slot1_wen <= 1'b0;
+        pair_dispatch_slot1_csr_wen <= 1'b0;
+        pair_dispatch_slot1_mret <= 1'b0;
+        pair_dispatch_slot1_ecall <= 1'b0;
+        pair_dispatch_slot1_load <= 1'b0;
+        pair_dispatch_slot1_store <= 1'b0;
+        pair_dispatch_slot1_brch <= 1'b0;
+        pair_dispatch_slot1_jal <= 1'b0;
+        pair_dispatch_slot1_jalr <= 1'b0;
+        pair_dispatch_slot1_ebreak <= 1'b0;
+        pair_dispatch_slot1_fence_i <= 1'b0;
+        pair_dispatch_slot1_muldiv <= 1'b0;
+        pair_dispatch_slot1_is_cop_insn <= 1'b0;
+        pair_dispatch_slot1_predict_taken <= 1'b0;
+        pair_dispatch_slot1_predict_target <= 30'b0;
+        pair_dispatch_slot1_predict_btb_hit <= 1'b0;
+        pair_dispatch_slot1_rs1_addr <= 5'b0;
+        pair_dispatch_candidate_alu_branch <= 1'b0;
+        pair_dispatch_allow_second <= 1'b0;
+        pair_dispatch_order_alu_then_branch <= 1'b0;
+        pair_dispatch_order_branch_then_alu <= 1'b0;
+    end else if (frontend_flush) begin
+        pair_dispatch_valid <= 1'b0;
+        pair_dispatch_allow_second <= 1'b0;
+    end else if (pair_dispatch_accept) begin
+        pair_dispatch_valid <= 1'b1;
+        pair_dispatch_slot0_valid <= pair_handoff_slot0_valid;
+        pair_dispatch_slot0_pc <= pair_handoff_slot0_pc;
+        pair_dispatch_slot0_ins <= pair_handoff_slot0_ins;
+        pair_dispatch_slot0_src1 <= pair_handoff_slot0_src1;
+        pair_dispatch_slot0_src2 <= pair_handoff_slot0_src2;
+        pair_dispatch_slot0_imm <= pair_handoff_slot0_imm;
+        pair_dispatch_slot0_src_sel1 <= pair_handoff_slot0_src_sel1;
+        pair_dispatch_slot0_src_sel2 <= pair_handoff_slot0_src_sel2;
+        pair_dispatch_slot0_rd <= pair_handoff_slot0_rd;
+        pair_dispatch_slot0_csr_addr <= pair_handoff_slot0_csr_addr;
+        pair_dispatch_slot0_exu_opt <= pair_handoff_slot0_exu_opt;
+        pair_dispatch_slot0_alu_opt <= pair_handoff_slot0_alu_opt;
+        pair_dispatch_slot0_wen <= pair_handoff_slot0_wen;
+        pair_dispatch_slot0_csr_wen <= pair_handoff_slot0_csr_wen;
+        pair_dispatch_slot0_mret <= pair_handoff_slot0_mret;
+        pair_dispatch_slot0_ecall <= pair_handoff_slot0_ecall;
+        pair_dispatch_slot0_load <= pair_handoff_slot0_load;
+        pair_dispatch_slot0_store <= pair_handoff_slot0_store;
+        pair_dispatch_slot0_brch <= pair_handoff_slot0_brch;
+        pair_dispatch_slot0_jal <= pair_handoff_slot0_jal;
+        pair_dispatch_slot0_jalr <= pair_handoff_slot0_jalr;
+        pair_dispatch_slot0_ebreak <= pair_handoff_slot0_ebreak;
+        pair_dispatch_slot0_fence_i <= pair_handoff_slot0_fence_i;
+        pair_dispatch_slot0_muldiv <= pair_handoff_slot0_muldiv;
+        pair_dispatch_slot0_is_cop_insn <= pair_handoff_slot0_is_cop_insn;
+        pair_dispatch_slot0_predict_taken <= pair_handoff_slot0_predict_taken;
+        pair_dispatch_slot0_predict_target <= pair_handoff_slot0_predict_target;
+        pair_dispatch_slot0_predict_btb_hit <= pair_handoff_slot0_predict_btb_hit;
+        pair_dispatch_slot0_rs1_addr <= pair_handoff_slot0_rs1_addr;
+        pair_dispatch_slot1_valid <= pair_handoff_slot1_valid;
+        pair_dispatch_slot1_pc <= pair_handoff_slot1_pc;
+        pair_dispatch_slot1_ins <= pair_handoff_slot1_ins;
+        pair_dispatch_slot1_src1 <= pair_handoff_slot1_src1;
+        pair_dispatch_slot1_src2 <= pair_handoff_slot1_src2;
+        pair_dispatch_slot1_imm <= pair_handoff_slot1_imm;
+        pair_dispatch_slot1_src_sel1 <= pair_handoff_slot1_src_sel1;
+        pair_dispatch_slot1_src_sel2 <= pair_handoff_slot1_src_sel2;
+        pair_dispatch_slot1_rd <= pair_handoff_slot1_rd;
+        pair_dispatch_slot1_csr_addr <= pair_handoff_slot1_csr_addr;
+        pair_dispatch_slot1_exu_opt <= pair_handoff_slot1_exu_opt;
+        pair_dispatch_slot1_alu_opt <= pair_handoff_slot1_alu_opt;
+        pair_dispatch_slot1_wen <= pair_handoff_slot1_wen;
+        pair_dispatch_slot1_csr_wen <= pair_handoff_slot1_csr_wen;
+        pair_dispatch_slot1_mret <= pair_handoff_slot1_mret;
+        pair_dispatch_slot1_ecall <= pair_handoff_slot1_ecall;
+        pair_dispatch_slot1_load <= pair_handoff_slot1_load;
+        pair_dispatch_slot1_store <= pair_handoff_slot1_store;
+        pair_dispatch_slot1_brch <= pair_handoff_slot1_brch;
+        pair_dispatch_slot1_jal <= pair_handoff_slot1_jal;
+        pair_dispatch_slot1_jalr <= pair_handoff_slot1_jalr;
+        pair_dispatch_slot1_ebreak <= pair_handoff_slot1_ebreak;
+        pair_dispatch_slot1_fence_i <= pair_handoff_slot1_fence_i;
+        pair_dispatch_slot1_muldiv <= pair_handoff_slot1_muldiv;
+        pair_dispatch_slot1_is_cop_insn <= pair_handoff_slot1_is_cop_insn;
+        pair_dispatch_slot1_predict_taken <= pair_handoff_slot1_predict_taken;
+        pair_dispatch_slot1_predict_target <= pair_handoff_slot1_predict_target;
+        pair_dispatch_slot1_predict_btb_hit <= pair_handoff_slot1_predict_btb_hit;
+        pair_dispatch_slot1_rs1_addr <= pair_handoff_slot1_rs1_addr;
+        pair_dispatch_candidate_alu_branch <= pair_handoff_candidate_alu_branch;
+        pair_dispatch_allow_second <= pair_handoff_allow_second;
+        pair_dispatch_order_alu_then_branch <= pair_handoff_order_alu_then_branch;
+        pair_dispatch_order_branch_then_alu <= pair_handoff_order_branch_then_alu;
+    end
+end
+
+always @(posedge clock or posedge reset) begin
+    if (reset) begin
+        slot1_endpoint_valid <= 1'b0;
+        slot1_endpoint_pc <= 32'b0;
+        slot1_endpoint_ins <= 32'b0;
+        slot1_endpoint_imm <= 32'b0;
+        slot1_endpoint_rd <= 5'b0;
+        slot1_endpoint_rs1 <= 5'b0;
+        slot1_endpoint_rs2 <= 5'b0;
+        slot1_endpoint_exu_opt <= 3'b0;
+        slot1_endpoint_alu_opt <= 10'b0;
+        slot1_endpoint_src_sel1 <= 2'b0;
+        slot1_endpoint_src_sel2 <= 3'b0;
+        slot1_endpoint_wen <= 1'b0;
+        slot1_endpoint_brch <= 1'b0;
+        slot1_endpoint_csr_wen <= 1'b0;
+        slot1_endpoint_load <= 1'b0;
+        slot1_endpoint_store <= 1'b0;
+        slot1_endpoint_jal <= 1'b0;
+        slot1_endpoint_jalr <= 1'b0;
+        slot1_endpoint_fence_i <= 1'b0;
+        slot1_endpoint_muldiv <= 1'b0;
+        slot1_endpoint_is_cop_insn <= 1'b0;
+        slot1_endpoint_ecall <= 1'b0;
+        slot1_endpoint_mret <= 1'b0;
+        slot1_endpoint_ebreak <= 1'b0;
+        slot1_endpoint_csr_addr <= 12'b0;
+        slot1_endpoint_fireable <= 1'b0;
+        slot1_endpoint_predict_taken <= 1'b0;
+        slot1_endpoint_predict_target <= 30'b0;
+        slot1_endpoint_predict_btb_hit <= 1'b0;
+    end else if (frontend_flush) begin
+        slot1_endpoint_valid <= 1'b0;
+        slot1_endpoint_fireable <= 1'b0;
+    end else if (slot1_endpoint_accept) begin
+        slot1_endpoint_valid <= 1'b1;
+        slot1_endpoint_pc <= decode_slot1_pc;
+        slot1_endpoint_ins <= decode_slot1_ins;
+        slot1_endpoint_imm <= decode_slot1_imm;
+        slot1_endpoint_rd <= decode_slot1_rd;
+        slot1_endpoint_rs1 <= decode_slot1_rs1;
+        slot1_endpoint_rs2 <= decode_slot1_rs2;
+        slot1_endpoint_exu_opt <= decode_slot1_exu_opt;
+        slot1_endpoint_alu_opt <= decode_slot1_alu_opt;
+        slot1_endpoint_src_sel1 <= decode_slot1_src_sel1;
+        slot1_endpoint_src_sel2 <= decode_slot1_src_sel2;
+        slot1_endpoint_wen <= decode_slot1_wen;
+        slot1_endpoint_brch <= decode_slot1_brch;
+        slot1_endpoint_csr_wen <= decode_slot1_csr_wen;
+        slot1_endpoint_load <= decode_slot1_load;
+        slot1_endpoint_store <= decode_slot1_store;
+        slot1_endpoint_jal <= decode_slot1_jal;
+        slot1_endpoint_jalr <= decode_slot1_jalr;
+        slot1_endpoint_fence_i <= decode_slot1_fence_i;
+        slot1_endpoint_muldiv <= decode_slot1_muldiv;
+        slot1_endpoint_is_cop_insn <= decode_slot1_is_cop_insn;
+        slot1_endpoint_ecall <= decode_slot1_ecall;
+        slot1_endpoint_mret <= decode_slot1_mret;
+        slot1_endpoint_ebreak <= decode_slot1_ebreak;
+        slot1_endpoint_csr_addr <= decode_slot1_csr_addr;
+        slot1_endpoint_fireable <= decode_pair_allow_second;
+        slot1_endpoint_predict_taken <= ifu_pair_younger_predict_taken;
+        slot1_endpoint_predict_target <= ifu_pair_younger_predict_target;
+        slot1_endpoint_predict_btb_hit <= ifu_pair_younger_predict_btb_hit;
+    end
+end
+
+`ifndef SYNTHESIS
+always @(*) begin
+    if (decode_slot1_valid && !decode_slot0_valid)
+        $fatal(1, "hcpu slot1 packing became visible without slot0");
+    if (decode_slot1_valid && !decode_slot1_is_branch)
+        $fatal(1, "hcpu slot1 packing lost expected younger branch classification");
+    if (decode_slot1_valid && !decode_slot1_brch)
+        $fatal(1, "hcpu slot1 decode surface no longer decodes the packed younger instruction as branch");
+    if (decode_slot1_valid && decode_slot1_wen)
+        $fatal(1, "hcpu slot1 decode surface incorrectly made the packed younger branch writable");
+    if (decode_slot1_valid && (decode_slot1_pc == decode_slot0_pc))
+        $fatal(1, "hcpu slot packing reused the older pc for slot1");
+    if (decode_slot1_valid && (decode_slot1_rd != ifu_pair_younger_predecode_rd))
+        $fatal(1, "hcpu slot1 rd metadata diverged from younger sidecar");
+    if (decode_slot1_valid && (decode_slot1_rs1 != ifu_pair_younger_predecode_rs1_addr))
+        $fatal(1, "hcpu slot1 rs1 metadata diverged from younger sidecar");
+    if (decode_slot1_valid && (decode_slot1_rs2 != ifu_pair_younger_predecode_rs2_addr))
+        $fatal(1, "hcpu slot1 rs2 metadata diverged from younger sidecar");
+    if (decode_slot1_valid && (decode_slot1_wen != ifu_pair_younger_predecode_wen))
+        $fatal(1, "hcpu slot1 wen metadata diverged from younger sidecar");
+    if (decode_slot1_valid && (decode_slot1_csr_wen != ifu_pair_younger_predecode_csr_wen))
+        $fatal(1, "hcpu slot1 csr_wen metadata diverged from younger sidecar");
+    if (decode_slot1_valid && (decode_slot1_load != ifu_pair_younger_predecode_load))
+        $fatal(1, "hcpu slot1 load metadata diverged from younger sidecar");
+    if (decode_slot1_valid && (decode_slot1_store != ifu_pair_younger_predecode_store))
+        $fatal(1, "hcpu slot1 store metadata diverged from younger sidecar");
+    if (decode_slot1_valid && (decode_slot1_brch != ifu_pair_younger_predecode_brch))
+        $fatal(1, "hcpu slot1 brch metadata diverged from younger sidecar");
+    if (decode_slot1_valid && (decode_slot1_jal != ifu_pair_younger_predecode_jal))
+        $fatal(1, "hcpu slot1 jal metadata diverged from younger sidecar");
+    if (decode_slot1_valid && (decode_slot1_jalr != ifu_pair_younger_predecode_jalr))
+        $fatal(1, "hcpu slot1 jalr metadata diverged from younger sidecar");
+    if (decode_slot1_valid && (decode_slot1_fence_i != ifu_pair_younger_predecode_fence_i))
+        $fatal(1, "hcpu slot1 fence_i metadata diverged from younger sidecar");
+    if (decode_slot1_valid && (decode_slot1_muldiv != ifu_pair_younger_predecode_muldiv))
+        $fatal(1, "hcpu slot1 muldiv metadata diverged from younger sidecar");
+    if (decode_slot1_valid && (decode_slot1_is_cop_insn != ifu_pair_younger_predecode_is_cop_insn))
+        $fatal(1, "hcpu slot1 cop metadata diverged from younger sidecar");
+    if (decode_slot1_valid && (decode_slot1_ecall != ifu_pair_younger_predecode_ecall))
+        $fatal(1, "hcpu slot1 ecall metadata diverged from younger sidecar");
+    if (decode_slot1_valid && (decode_slot1_mret != ifu_pair_younger_predecode_mret))
+        $fatal(1, "hcpu slot1 mret metadata diverged from younger sidecar");
+    if (decode_slot1_valid && (decode_slot1_ebreak != ifu_pair_younger_predecode_ebreak))
+        $fatal(1, "hcpu slot1 ebreak metadata diverged from younger sidecar");
+    if (decode_slot1_valid && (decode_slot1_csr_addr != 12'b0))
+        $fatal(1, "hcpu slot1 branch decode unexpectedly produced csr_addr metadata");
+    if (pair_slot1_decode_valid && (pair_slot1_decode_rd != ifu_pair_younger_predecode_rd))
+        $fatal(1, "hcpu pair-slot1 decode rd metadata diverged from younger sidecar");
+    if (pair_slot1_decode_valid && (pair_slot1_decode_rs1 != ifu_pair_younger_predecode_rs1_addr))
+        $fatal(1, "hcpu pair-slot1 decode rs1 metadata diverged from younger sidecar");
+    if (pair_slot1_decode_valid && (pair_slot1_decode_rs2 != ifu_pair_younger_predecode_rs2_addr))
+        $fatal(1, "hcpu pair-slot1 decode rs2 metadata diverged from younger sidecar");
+    if (pair_slot1_decode_valid && (pair_slot1_decode_wen != ifu_pair_younger_predecode_wen))
+        $fatal(1, "hcpu pair-slot1 decode wen metadata diverged from younger sidecar");
+    if (pair_slot1_decode_valid && (pair_slot1_decode_csr_wen != ifu_pair_younger_predecode_csr_wen))
+        $fatal(1, "hcpu pair-slot1 decode csr_wen metadata diverged from younger sidecar");
+    if (pair_slot1_decode_valid && (pair_slot1_decode_load != ifu_pair_younger_predecode_load))
+        $fatal(1, "hcpu pair-slot1 decode load metadata diverged from younger sidecar");
+    if (pair_slot1_decode_valid && (pair_slot1_decode_store != ifu_pair_younger_predecode_store))
+        $fatal(1, "hcpu pair-slot1 decode store metadata diverged from younger sidecar");
+    if (pair_slot1_decode_valid && (pair_slot1_decode_brch != ifu_pair_younger_predecode_brch))
+        $fatal(1, "hcpu pair-slot1 decode brch metadata diverged from younger sidecar");
+    if (pair_slot1_decode_valid && (pair_slot1_decode_jal != ifu_pair_younger_predecode_jal))
+        $fatal(1, "hcpu pair-slot1 decode jal metadata diverged from younger sidecar");
+    if (pair_slot1_decode_valid && (pair_slot1_decode_jalr != ifu_pair_younger_predecode_jalr))
+        $fatal(1, "hcpu pair-slot1 decode jalr metadata diverged from younger sidecar");
+    if (pair_slot1_decode_valid && (pair_slot1_decode_fence_i != ifu_pair_younger_predecode_fence_i))
+        $fatal(1, "hcpu pair-slot1 decode fence_i metadata diverged from younger sidecar");
+    if (pair_slot1_decode_valid && (pair_slot1_decode_muldiv != ifu_pair_younger_predecode_muldiv))
+        $fatal(1, "hcpu pair-slot1 decode muldiv metadata diverged from younger sidecar");
+    if (pair_slot1_decode_valid && (pair_slot1_decode_is_cop_insn != ifu_pair_younger_predecode_is_cop_insn))
+        $fatal(1, "hcpu pair-slot1 decode cop metadata diverged from younger sidecar");
+    if (pair_slot1_decode_valid && (pair_slot1_decode_ecall != ifu_pair_younger_predecode_ecall))
+        $fatal(1, "hcpu pair-slot1 decode ecall metadata diverged from younger sidecar");
+    if (pair_slot1_decode_valid && (pair_slot1_decode_mret != ifu_pair_younger_predecode_mret))
+        $fatal(1, "hcpu pair-slot1 decode mret metadata diverged from younger sidecar");
+    if (pair_slot1_decode_valid && (pair_slot1_decode_ebreak != ifu_pair_younger_predecode_ebreak))
+        $fatal(1, "hcpu pair-slot1 decode ebreak metadata diverged from younger sidecar");
+    if (slot1_shadow_valid && !slot1_shadow_brch)
+        $fatal(1, "hcpu slot1 shadow transport lost branch classification");
+    if (slot1_shadow_valid && slot1_shadow_wen)
+        $fatal(1, "hcpu slot1 shadow transport incorrectly became writable");
+    if (slot1_shadow_valid && slot1_shadow_csr_wen)
+        $fatal(1, "hcpu slot1 shadow transport incorrectly became csr-writing");
+    if (slot1_shadow_valid && (slot1_shadow_load || slot1_shadow_store))
+        $fatal(1, "hcpu slot1 shadow transport incorrectly became a memory op");
+    if (slot1_shadow_valid && (slot1_shadow_jal || slot1_shadow_jalr))
+        $fatal(1, "hcpu slot1 shadow transport incorrectly became a jump op");
+    if (slot1_shadow_valid && (slot1_shadow_fence_i || slot1_shadow_ecall || slot1_shadow_mret || slot1_shadow_ebreak))
+        $fatal(1, "hcpu slot1 shadow transport incorrectly became a system redirect op");
+    if (slot1_shadow_valid && (slot1_shadow_muldiv || slot1_shadow_is_cop_insn))
+        $fatal(1, "hcpu slot1 shadow transport incorrectly became an exclusive-backend op");
+    if (slot1_shadow_valid && (slot1_shadow_csr_addr != 12'b0))
+        $fatal(1, "hcpu slot1 shadow transport unexpectedly preserved csr_addr metadata");
+    if (slot1_endpoint_accept && !decode_slot1_valid)
+        $fatal(1, "hcpu slot1 endpoint accepted without a visible slot1 source");
+    if (slot1_endpoint_valid && !slot1_endpoint_brch)
+        $fatal(1, "hcpu slot1 endpoint lost branch classification");
+    if (slot1_endpoint_valid && slot1_endpoint_wen)
+        $fatal(1, "hcpu slot1 endpoint incorrectly became writable");
+    if (slot1_endpoint_valid && slot1_endpoint_csr_wen)
+        $fatal(1, "hcpu slot1 endpoint incorrectly became csr-writing");
+    if (slot1_endpoint_valid && (slot1_endpoint_load || slot1_endpoint_store))
+        $fatal(1, "hcpu slot1 endpoint incorrectly became a memory op");
+    if (slot1_endpoint_valid && (slot1_endpoint_jal || slot1_endpoint_jalr))
+        $fatal(1, "hcpu slot1 endpoint incorrectly became a jump op");
+    if (slot1_endpoint_valid && (slot1_endpoint_fence_i || slot1_endpoint_ecall || slot1_endpoint_mret || slot1_endpoint_ebreak))
+        $fatal(1, "hcpu slot1 endpoint incorrectly became a system redirect op");
+    if (slot1_endpoint_valid && (slot1_endpoint_muldiv || slot1_endpoint_is_cop_insn))
+        $fatal(1, "hcpu slot1 endpoint incorrectly became an exclusive-backend op");
+    if (slot1_endpoint_valid && (slot1_endpoint_csr_addr != 12'b0))
+        $fatal(1, "hcpu slot1 endpoint unexpectedly preserved csr_addr metadata");
+    if (frontend_pair_capture && (!decode_pair_visible || !decode_slot0_valid || !ifu_pair_younger_valid))
+        $fatal(1, "hcpu frontend pair bundle captured without a complete visible pair");
+    if (frontend_pair_bundle_valid && (!frontend_pair_bundle_slot0_valid || !frontend_pair_bundle_slot1_valid))
+        $fatal(1, "hcpu frontend pair bundle lost one of its visible lanes");
+    if (frontend_pair_bundle_valid && (frontend_pair_bundle_slot0_pc == frontend_pair_bundle_slot1_pc))
+        $fatal(1, "hcpu frontend pair bundle reused one pc across both lanes");
+    if (frontend_pair_bundle_valid && frontend_pair_bundle_slot0_csr_wen && !frontend_pair_bundle_slot0_wen)
+        $fatal(1, "hcpu frontend pair bundle slot0 csr write lost wen alignment");
+    if (frontend_pair_bundle_order_alu_then_branch && !frontend_pair_bundle_slot1_brch)
+        $fatal(1, "hcpu frontend pair bundle lost slot1 branch classification");
+    if (frontend_pair_bundle_order_alu_then_branch && frontend_pair_bundle_slot1_wen)
+        $fatal(1, "hcpu frontend pair bundle incorrectly made slot1 writable");
+    if (frontend_pair_bundle_order_alu_then_branch && frontend_pair_bundle_slot1_csr_wen)
+        $fatal(1, "hcpu frontend pair bundle incorrectly made slot1 csr-writing");
+    if (frontend_pair_bundle_order_alu_then_branch && (frontend_pair_bundle_slot1_load || frontend_pair_bundle_slot1_store))
+        $fatal(1, "hcpu frontend pair bundle incorrectly made slot1 a memory op");
+    if (frontend_pair_bundle_order_alu_then_branch && (frontend_pair_bundle_slot1_jal || frontend_pair_bundle_slot1_jalr))
+        $fatal(1, "hcpu frontend pair bundle incorrectly made slot1 a jump op");
+    if (frontend_pair_bundle_order_alu_then_branch && (frontend_pair_bundle_slot1_fence_i || frontend_pair_bundle_slot1_ecall ||
+                                                       frontend_pair_bundle_slot1_mret || frontend_pair_bundle_slot1_ebreak))
+        $fatal(1, "hcpu frontend pair bundle incorrectly made slot1 a system redirect op");
+    if (frontend_pair_bundle_order_alu_then_branch && (frontend_pair_bundle_slot1_muldiv || frontend_pair_bundle_slot1_is_cop_insn))
+        $fatal(1, "hcpu frontend pair bundle incorrectly made slot1 an exclusive-backend op");
+    if (frontend_pair_bundle_order_alu_then_branch && (frontend_pair_bundle_slot1_csr_addr != 12'b0))
+        $fatal(1, "hcpu frontend pair bundle unexpectedly preserved slot1 csr_addr metadata");
+    if (frontend_pair_bundle_order_branch_then_alu && frontend_pair_bundle_slot1_brch)
+        $fatal(1, "hcpu frontend pair bundle lost younger-alu classification for branch-then-alu ordering");
+    if (frontend_pair_bundle_allow_second && !frontend_pair_bundle_candidate_alu_branch)
+        $fatal(1, "hcpu frontend pair bundle allowed a second lane without a candidate pair");
+    if (frontend_pair_bundle_allow_second && !frontend_pair_bundle_order_alu_then_branch)
+        $fatal(1, "hcpu frontend pair bundle allowed a second lane without ordered alu-then-branch pairing");
+    if (frontend_pair_bundle_allow_second && (frontend_pair_bundle_block_raw || frontend_pair_bundle_block_waw ||
+                                              frontend_pair_bundle_block_dual_writeback || frontend_pair_bundle_block_exclusive_backend ||
+                                              frontend_pair_bundle_block_redirect_control || frontend_pair_bundle_block_older_branch_first ||
+                                              frontend_pair_bundle_block_downstream_busy || frontend_pair_bundle_block_cop_pipeline ||
+                                              frontend_pair_bundle_block_frontend_flush))
+        $fatal(1, "hcpu frontend pair bundle allowed a second lane while a block reason was still set");
+    if (frontend_pair_bundle_block_older_branch_first && !frontend_pair_bundle_order_branch_then_alu)
+        $fatal(1, "hcpu frontend pair bundle lost branch-then-alu ordering for the older-branch block case");
+    if (pair_handoff_capture && (!frontend_pair_bundle_slot0_valid || !frontend_pair_bundle_slot1_valid))
+        $fatal(1, "hcpu pair handoff captured without a complete frontend pair bundle");
+    if (pair_handoff_valid && (!pair_handoff_slot0_valid || !pair_handoff_slot1_valid))
+        $fatal(1, "hcpu pair handoff lost one of its visible lanes");
+    if (pair_handoff_valid && (pair_handoff_slot0_pc == pair_handoff_slot1_pc))
+        $fatal(1, "hcpu pair handoff reused one pc across both lanes");
+    if (pair_handoff_valid && pair_handoff_slot0_csr_wen && !pair_handoff_slot0_wen)
+        $fatal(1, "hcpu pair handoff slot0 csr write lost wen alignment");
+    if (pair_handoff_valid && pair_handoff_slot1_csr_wen && !pair_handoff_slot1_wen)
+        $fatal(1, "hcpu pair handoff slot1 csr write lost wen alignment");
+    if (pair_handoff_order_alu_then_branch && pair_handoff_slot0_brch)
+        $fatal(1, "hcpu pair handoff lost older-alu classification for alu-then-branch ordering");
+    if (pair_handoff_order_alu_then_branch && !pair_handoff_slot1_brch)
+        $fatal(1, "hcpu pair handoff lost younger-branch classification for alu-then-branch ordering");
+    if (pair_handoff_order_alu_then_branch && pair_handoff_slot1_wen)
+        $fatal(1, "hcpu pair handoff incorrectly made younger branch writable");
+    if (pair_handoff_order_alu_then_branch && pair_handoff_slot1_csr_wen)
+        $fatal(1, "hcpu pair handoff incorrectly made younger branch csr-writing");
+    if (pair_handoff_order_alu_then_branch && (pair_handoff_slot1_load || pair_handoff_slot1_store))
+        $fatal(1, "hcpu pair handoff incorrectly made younger branch a memory op");
+    if (pair_handoff_order_alu_then_branch && (pair_handoff_slot1_jal || pair_handoff_slot1_jalr))
+        $fatal(1, "hcpu pair handoff incorrectly made younger branch a jump op");
+    if (pair_handoff_order_alu_then_branch && (pair_handoff_slot1_fence_i || pair_handoff_slot1_ecall ||
+                                               pair_handoff_slot1_mret || pair_handoff_slot1_ebreak))
+        $fatal(1, "hcpu pair handoff incorrectly made younger branch a system redirect op");
+    if (pair_handoff_order_alu_then_branch && (pair_handoff_slot1_muldiv || pair_handoff_slot1_is_cop_insn))
+        $fatal(1, "hcpu pair handoff incorrectly made younger branch an exclusive-backend op");
+    if (pair_handoff_order_alu_then_branch && (pair_handoff_slot1_csr_addr != 12'b0))
+        $fatal(1, "hcpu pair handoff unexpectedly preserved younger-branch csr_addr metadata");
+    if (pair_handoff_order_branch_then_alu && !pair_handoff_slot0_brch)
+        $fatal(1, "hcpu pair handoff lost older-branch classification for branch-then-alu ordering");
+    if (pair_handoff_order_branch_then_alu && pair_handoff_slot1_brch)
+        $fatal(1, "hcpu pair handoff lost younger-alu classification for branch-then-alu ordering");
+    if (pair_handoff_allow_second && !pair_handoff_candidate_alu_branch)
+        $fatal(1, "hcpu pair handoff allowed a second lane without a candidate pair");
+    if (pair_handoff_allow_second && !pair_handoff_order_alu_then_branch)
+        $fatal(1, "hcpu pair handoff allowed a second lane without ordered alu-then-branch pairing");
+    if (pair_handoff_allow_second && (pair_handoff_block_raw || pair_handoff_block_waw ||
+                                      pair_handoff_block_dual_writeback || pair_handoff_block_exclusive_backend ||
+                                      pair_handoff_block_redirect_control || pair_handoff_block_older_branch_first ||
+                                      pair_handoff_block_downstream_busy || pair_handoff_block_cop_pipeline ||
+                                      pair_handoff_block_frontend_flush))
+        $fatal(1, "hcpu pair handoff allowed a second lane while a block reason was still set");
+    if (pair_handoff_block_older_branch_first && !pair_handoff_order_branch_then_alu)
+        $fatal(1, "hcpu pair handoff lost branch-then-alu ordering for the older-branch block case");
+    if (pair_dispatch_accept && (!pair_handoff_slot0_valid || !pair_handoff_slot1_valid))
+        $fatal(1, "hcpu pair dispatch accepted without a complete handoff pair");
+    if (pair_dispatch_valid && (!pair_dispatch_slot0_valid || !pair_dispatch_slot1_valid))
+        $fatal(1, "hcpu pair dispatch lost one of its visible lanes");
+    if (pair_dispatch_valid && (pair_dispatch_slot0_pc == pair_dispatch_slot1_pc))
+        $fatal(1, "hcpu pair dispatch reused one pc across both lanes");
+    if (pair_dispatch_valid && pair_dispatch_slot0_csr_wen && !pair_dispatch_slot0_wen)
+        $fatal(1, "hcpu pair dispatch slot0 csr write lost wen alignment");
+    if (pair_dispatch_valid && pair_dispatch_slot1_csr_wen && !pair_dispatch_slot1_wen)
+        $fatal(1, "hcpu pair dispatch slot1 csr write lost wen alignment");
+    if (pair_dispatch_order_alu_then_branch && pair_dispatch_slot0_brch)
+        $fatal(1, "hcpu pair dispatch lost older-alu classification for alu-then-branch ordering");
+    if (pair_dispatch_order_alu_then_branch && !pair_dispatch_slot1_brch)
+        $fatal(1, "hcpu pair dispatch lost younger-branch classification for alu-then-branch ordering");
+    if (pair_dispatch_order_alu_then_branch && pair_dispatch_slot1_wen)
+        $fatal(1, "hcpu pair dispatch incorrectly made younger branch writable");
+    if (pair_dispatch_order_alu_then_branch && pair_dispatch_slot1_csr_wen)
+        $fatal(1, "hcpu pair dispatch incorrectly made younger branch csr-writing");
+    if (pair_dispatch_order_alu_then_branch && (pair_dispatch_slot1_load || pair_dispatch_slot1_store))
+        $fatal(1, "hcpu pair dispatch incorrectly made younger branch a memory op");
+    if (pair_dispatch_order_alu_then_branch && (pair_dispatch_slot1_jal || pair_dispatch_slot1_jalr))
+        $fatal(1, "hcpu pair dispatch incorrectly made younger branch a jump op");
+    if (pair_dispatch_order_alu_then_branch && (pair_dispatch_slot1_fence_i || pair_dispatch_slot1_ecall ||
+                                                pair_dispatch_slot1_mret || pair_dispatch_slot1_ebreak))
+        $fatal(1, "hcpu pair dispatch incorrectly made younger branch a system redirect op");
+    if (pair_dispatch_order_alu_then_branch && (pair_dispatch_slot1_muldiv || pair_dispatch_slot1_is_cop_insn))
+        $fatal(1, "hcpu pair dispatch incorrectly made younger branch an exclusive-backend op");
+    if (pair_dispatch_order_alu_then_branch && (pair_dispatch_slot1_csr_addr != 12'b0))
+        $fatal(1, "hcpu pair dispatch unexpectedly preserved younger-branch csr_addr metadata");
+    if (pair_dispatch_order_branch_then_alu && !pair_dispatch_slot0_brch)
+        $fatal(1, "hcpu pair dispatch lost older-branch classification for branch-then-alu ordering");
+    if (pair_dispatch_order_branch_then_alu && pair_dispatch_slot1_brch)
+        $fatal(1, "hcpu pair dispatch lost younger-alu classification for branch-then-alu ordering");
+    if (pair_dispatch_allow_second && !pair_dispatch_candidate_alu_branch)
+        $fatal(1, "hcpu pair dispatch allowed a second lane without a candidate pair");
+    if (pair_dispatch_allow_second && !pair_dispatch_order_alu_then_branch)
+        $fatal(1, "hcpu pair dispatch allowed a second lane without ordered alu-then-branch pairing");
+end
+`endif
+
 assign cop_refetch_flush = cop_backend_commit_fire;
 assign cop_active_pc = cop_commit_active ? cop_inflight_pc : idu2exu_pc;
 assign exu_res = cop_pipeline_active ? cop_exu_res : scalar_exu_res;
@@ -865,6 +2315,7 @@ hcpu_EXU exu1(
     .o_mem_req_addr                    (scalar_mem_req_addr       ),
     .o_mem_req_wdata                   (scalar_mem_req_wdata      ),
     .o_mem_req_size                    (scalar_mem_req_size       ),
+    .o_mem_resp_pending                (scalar_mem_resp_pending   ),
     .o_mem_resp_valid                  (scalar_mem_resp_valid     ),
     .o_mem_resp_rdata                  (scalar_mem_resp_rdata     ),
   //exu -> wbu handshake
@@ -889,8 +2340,8 @@ hcpu_cop_backend cop_backend1(
     .o_cop_mem_req_addr                (COP_MEM_ADDR              ),
     .o_cop_mem_req_wdata               (COP_MEM_WDATA             ),
     .o_cop_mem_req_size                (COP_MEM_SIZE              ),
-    .i_cop_mem_resp_valid              (COP_MEM_RESP_VALID        ),
-    .i_cop_mem_resp_rdata              (COP_MEM_RDATA             ),
+    .i_cop_mem_resp_valid              (cop_mem_service_resp_valid),
+    .i_cop_mem_resp_rdata              (cop_mem_service_resp_rdata),
     .o_pre_ready                       (cop_exu2idu_ready         ),
     .o_post_valid                      (cop_exu2wbu_valid         ),
     .o_busy                            (cop_backend_busy          ),
@@ -900,39 +2351,21 @@ hcpu_cop_backend cop_backend1(
     .o_res                             (cop_exu_res               )
 );
 
-assign LSU_ARB_AXI_AWADDR  = cop_mem_bus_active ? mem_service_req_addr : LSU_SRAM_AXI_AWADDR;
-assign LSU_ARB_AXI_AWVALID = (cop_mem_state == 2'd1) ? (cop_mem_wen_r && !cop_mem_aw_done) : LSU_SRAM_AXI_AWVALID;
-assign LSU_ARB_AXI_AWID    = cop_mem_bus_active ? 4'b0 : LSU_SRAM_AXI_AWID;
-assign LSU_ARB_AXI_AWLEN   = cop_mem_bus_active ? 8'b0 : LSU_SRAM_AXI_AWLEN;
-assign LSU_ARB_AXI_AWSIZE  = cop_mem_bus_active ? mem_service_req_size : LSU_SRAM_AXI_AWSIZE;
-assign LSU_ARB_AXI_AWBURST = cop_mem_bus_active ? 2'b00 : LSU_SRAM_AXI_AWBURST;
-assign LSU_ARB_AXI_WDATA   = cop_mem_bus_active ? mem_service_req_wdata : LSU_SRAM_AXI_WDATA;
-assign LSU_ARB_AXI_WSTRB   = cop_mem_bus_active ? 4'b0001 : LSU_SRAM_AXI_WSTRB;
-assign LSU_ARB_AXI_WVALID  = (cop_mem_state == 2'd1) ? (cop_mem_wen_r && !cop_mem_w_done) : LSU_SRAM_AXI_WVALID;
-assign LSU_ARB_AXI_WLAST   = cop_mem_bus_active ? 1'b1 : LSU_SRAM_AXI_WLAST;
-assign LSU_ARB_AXI_BREADY  = (cop_mem_state == 2'd2 || cop_mem_state == 2'd3) ? cop_mem_wen_r : LSU_SRAM_AXI_BREADY;
-assign LSU_ARB_AXI_ARADDR  = cop_mem_bus_active ? mem_service_req_addr : LSU_SRAM_AXI_ARADDR;
-assign LSU_ARB_AXI_ARVALID = (cop_mem_state == 2'd1) ? !cop_mem_wen_r : LSU_SRAM_AXI_ARVALID;
-assign LSU_ARB_AXI_ARID    = cop_mem_bus_active ? 4'b0 : LSU_SRAM_AXI_ARID;
-assign LSU_ARB_AXI_ARLEN   = cop_mem_bus_active ? 8'b0 : LSU_SRAM_AXI_ARLEN;
-assign LSU_ARB_AXI_ARSIZE  = cop_mem_bus_active ? mem_service_req_size : LSU_SRAM_AXI_ARSIZE;
-assign LSU_ARB_AXI_ARBURST = cop_mem_bus_active ? 2'b00 : LSU_SRAM_AXI_ARBURST;
-assign LSU_ARB_AXI_RREADY  = (cop_mem_state == 2'd2 || cop_mem_state == 2'd3) ? !cop_mem_wen_r : LSU_SRAM_AXI_RREADY;
-assign COP_MEM_RESP_VALID  = cop_mem_done_r && !cop_mem_killed_r;
-assign COP_MEM_RDATA       = mem_service_resp_rdata;
-assign cop_mem_new_req     = COP_MEM_REQ_VALID && (cop_mem_state == 2'd0) && !cop_mem_done_r && !mem_owner_scalar_active;
-assign cop_mem_aw_fire     = LSU_ARB_AXI_AWVALID && LSU_SRAM_AXI_AWREADY;
-assign cop_mem_w_fire      = LSU_ARB_AXI_WVALID && LSU_SRAM_AXI_WREADY;
-assign cop_mem_b_fire      = LSU_ARB_AXI_BREADY && LSU_SRAM_AXI_BVALID;
-assign cop_mem_ar_fire     = LSU_ARB_AXI_ARVALID && LSU_SRAM_AXI_ARREADY;
-assign cop_mem_r_fire      = LSU_ARB_AXI_RREADY && LSU_SRAM_AXI_RVALID && LSU_SRAM_AXI_RLAST;
+assign COP_MEM_RESP_VALID  = cop_mem_service_resp_valid;
+assign COP_MEM_RDATA       = cop_mem_service_resp_rdata;
 
 `ifdef COP_MEM_PENDING_KILL_TB
 assign tb_cop_mem_bus_active = cop_mem_bus_active;
+assign tb_cop_mem_service_req_valid = cop_mem_service_req_valid;
 assign tb_cop_mem_done = cop_mem_done_r;
 assign tb_cop_mem_killed = cop_mem_killed_r;
-assign tb_cop_mem_resp_valid = COP_MEM_RESP_VALID;
+assign tb_cop_mem_resp_valid = cop_mem_service_resp_valid;
+assign tb_mem_owner_cop_active = mem_owner_cop_active;
+assign tb_mem_service_req_valid = mem_service_req_valid;
+assign tb_mem_service_resp_pending = mem_service_resp_pending;
+assign tb_mem_service_resp_valid = mem_service_resp_valid;
 assign tb_cop_mem_state = cop_mem_state;
+assign tb_cop_mem_resp_pending = cop_mem_service_resp_pending;
 assign tb_cop_mem_store = cop_mem_wen_r;
 assign tb_cop_mem_aw_fire = cop_mem_bus_active && cop_mem_aw_fire;
 assign tb_cop_mem_w_fire = cop_mem_bus_active && cop_mem_w_fire;
@@ -940,107 +2373,24 @@ assign tb_cop_mem_b_fire = cop_mem_bus_active && cop_mem_b_fire;
 assign tb_cop_mem_ar_fire = cop_mem_bus_active && cop_mem_ar_fire;
 assign tb_cop_mem_r_fire = cop_mem_bus_active && cop_mem_r_fire;
 assign tb_cop_mem_addr = cop_mem_addr_r;
+assign tb_mem_service_addr = mem_service_req_addr;
 `endif
 
 `ifdef SCALAR_MEM_PENDING_KILL_TB
 assign tb_scalar_mem_req_valid = scalar_mem_req_valid;
+assign tb_scalar_mem_resp_pending = scalar_mem_resp_pending;
 assign tb_scalar_mem_resp_valid = scalar_mem_resp_valid;
+assign tb_scalar_mem_service_req_valid = scalar_mem_service_req_valid;
 assign tb_scalar_mem_kill_pending = exu1.lsu_kill_pending;
+assign tb_mem_owner_scalar_active = mem_owner_scalar_active;
+assign tb_mem_service_req_valid = mem_service_req_valid;
+assign tb_mem_service_resp_pending = mem_service_resp_pending;
+assign tb_mem_service_resp_valid = mem_service_resp_valid;
 assign tb_scalar_mem_ar_fire = !cop_mem_bus_active && LSU_ARB_AXI_ARVALID && LSU_SRAM_AXI_ARREADY;
 assign tb_scalar_mem_r_fire = !cop_mem_resp_active && LSU_ARB_AXI_RREADY && LSU_SRAM_AXI_RVALID && LSU_SRAM_AXI_RLAST;
 assign tb_scalar_mem_addr = scalar_mem_req_addr;
+assign tb_mem_service_addr = mem_service_req_addr;
 `endif
-
-always @(posedge clock or posedge reset) begin
-    if (reset) begin
-        cop_mem_state   <= 2'd0;
-        cop_mem_wen_r   <= 1'b0;
-        cop_mem_aw_done <= 1'b0;
-        cop_mem_w_done  <= 1'b0;
-        cop_mem_killed_r <= 1'b0;
-        cop_mem_done_r  <= 1'b0;
-        cop_mem_rdata_r <= 32'b0;
-        cop_mem_addr_r  <= 32'b0;
-        cop_mem_wdata_r <= 32'b0;
-        cop_mem_size_r  <= 3'b0;
-    end else begin
-        cop_mem_done_r <= 1'b0;
-        if (cop_kill) begin
-            if ((cop_mem_state == 2'd1) && !cop_mem_wen_r && !cop_mem_ar_fire) begin
-                cop_mem_state <= 2'd0;
-                cop_mem_killed_r <= 1'b0;
-            end else if ((cop_mem_state == 2'd1) && cop_mem_wen_r &&
-                         !(cop_mem_aw_done || cop_mem_aw_fire) && !(cop_mem_w_done || cop_mem_w_fire)) begin
-                cop_mem_state <= 2'd0;
-                cop_mem_killed_r <= 1'b0;
-            end else if (cop_mem_state != 2'd0) begin
-                cop_mem_killed_r <= 1'b1;
-                if ((cop_mem_state == 2'd2) && (cop_mem_wen_r ? cop_mem_b_fire : cop_mem_r_fire)) begin
-                    cop_mem_state <= 2'd0;
-                    cop_mem_killed_r <= 1'b0;
-                end
-                if ((cop_mem_state == 2'd1) && !cop_mem_wen_r && cop_mem_ar_fire) begin
-                    cop_mem_state <= 2'd2;
-                end
-                if ((cop_mem_state == 2'd1) && cop_mem_wen_r) begin
-                    if (cop_mem_aw_fire) begin
-                        cop_mem_aw_done <= 1'b1;
-                    end
-                    if (cop_mem_w_fire) begin
-                        cop_mem_w_done <= 1'b1;
-                    end
-                    if ((cop_mem_aw_done || cop_mem_aw_fire) && (cop_mem_w_done || cop_mem_w_fire)) begin
-                        cop_mem_state <= 2'd2;
-                    end
-                end
-            end
-        end else begin
-        case (cop_mem_state)
-            2'd0: begin
-                if (cop_mem_new_req) begin
-                    cop_mem_state   <= 2'd1;
-                    cop_mem_wen_r   <= COP_MEM_REQ_STORE;
-                    cop_mem_aw_done <= 1'b0;
-                    cop_mem_w_done  <= 1'b0;
-                    cop_mem_killed_r <= 1'b0;
-                    cop_mem_addr_r  <= COP_MEM_ADDR;
-                    cop_mem_wdata_r <= COP_MEM_WDATA;
-                    cop_mem_size_r  <= COP_MEM_SIZE;
-                end
-            end
-            2'd1: begin
-                if (cop_mem_wen_r) begin
-                    if (!cop_mem_aw_done && cop_mem_aw_fire) begin
-                        cop_mem_aw_done <= 1'b1;
-                    end
-                    if (!cop_mem_w_done && cop_mem_w_fire) begin
-                        cop_mem_w_done <= 1'b1;
-                    end
-                    if ((cop_mem_aw_done || cop_mem_aw_fire) && (cop_mem_w_done || cop_mem_w_fire)) begin
-                        cop_mem_state <= 2'd2;
-                    end
-                end else if (cop_mem_ar_fire) begin
-                    cop_mem_state <= 2'd2;
-                end
-            end
-            2'd2: begin
-                if (cop_mem_wen_r ? cop_mem_b_fire : cop_mem_r_fire) begin
-                    cop_mem_state   <= cop_mem_killed_r ? 2'd0 : 2'd3;
-                    cop_mem_rdata_r <= LSU_SRAM_AXI_RDATA;
-                end
-            end
-            2'd3: begin
-                cop_mem_state  <= 2'd0;
-                cop_mem_done_r <= 1'b1;
-                cop_mem_killed_r <= 1'b0;
-            end
-            default: begin
-                cop_mem_state <= 2'd0;
-            end
-        endcase
-        end
-    end
-end
 
 // Latch mispredict signals for one full cycle
 reg mispredict_latched;
@@ -1325,8 +2675,12 @@ hcpu_RegisterFile regfile1(
 //
     .raddr1                            (idu_addr_rs1              ),
     .raddr2                            (idu_addr_rs2              ),
+    .raddr3                            (pair_slot1_decode_rs1     ),
+    .raddr4                            (pair_slot1_decode_rs2     ),
     .rdata1                            (rs1                       ),
     .rdata2                            (rs2                       ),
+    .rdata3                            (pair_slot1_rs1_data       ),
+    .rdata4                            (pair_slot1_rs2_data       ),
     .dbg_s0                            (dbg_s0                    ),
     .dbg_s1                            (dbg_s1                    ),
     .dbg_s2                            (dbg_s2                    ),
