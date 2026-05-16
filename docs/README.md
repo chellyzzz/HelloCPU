@@ -1,5 +1,11 @@
 # HelloCPU 文档索引
 
+当前状态：
+
+- `master` 已合入 CPU lane-1 stage-3 稳定点和 partial RVV benchmark 子集稳定点。
+- CPU 主线当前入口：`cpu/cpu-evolution-roadmap.md`。
+- RVV 主线当前入口：`vector/rvv-subset-freeze.md`、`vector/rvv-mainline-merge-summary.md`。
+
 文档按职责归档为三类：
 
 1. `cpu/`：标量 CPU 微架构、性能、分支预测和 CPU 演进计划。
@@ -23,6 +29,8 @@ CPU 侧与当前性能演进直接相关的重点文档包括：
 - `vector/cop-encoding.md`
 - `vector/rvv-long-term-roadmap.md`
 - `vector/rvv-supported-subset.md`
+- `vector/rvv-subset-freeze.md`
+- `vector/rvv-mainline-merge-summary.md`
 - `vector/rvv-state-p1.md`
 - `vector/rvv-standard-decode-p2-review.md`
 
