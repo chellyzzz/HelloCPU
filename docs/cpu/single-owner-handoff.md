@@ -149,6 +149,12 @@ Immediate contract change:
 - `pair_dispatch` is therefore no longer the sink for blocked-pair observability
 - this keeps future lane-adjacent payload validation separate from frontend-only classification detail before defining a real `accept/kill` boundary
 
+Current phase interpretation:
+
+- this `Option B` payload-trim step is now treated as the final stage-2 preparation checkpoint
+- the next active phase is stage 3 decoupling / implementation prep, not more single-issue optimization
+- the next contract question is no longer whether to keep polishing observability, but how to define the first real lane-1 `accept/kill` boundary and surrounding decoupling rules
+
 ## Recommended Work Order For One Owner
 
 1. freeze the current contract and keep the branch green
@@ -175,3 +181,13 @@ Primary files for the next owner:
 ## Short Verbal Handoff
 
 The branch is no longer doing local frontend polish; it is building a staged second-lane contract from fetch truth toward a future dispatch boundary without changing architectural issue width. The current stack reaches `pair_dispatch`, which is the first dispatch-shaped but still non-executing sink. The next owner should stop thinking in terms of “more observability” and instead choose whether to define a real lane-1 `accept/kill` boundary next, or first trim the dispatch payload to the minimum future lane contract. The main risk is not raw RTL complexity; it is letting lane 1 creep into backend allocation before valid/kill/flush ownership is explicit.
+
+## Current Stage-3 Boundary Decision
+
+The current stage-3 minimum cut now treats `pair_dispatch` as the payload store and adds a separate live ownership bit on top of it.
+
+- `pair_handoff` still preserves blocked visible pairs and their block reasons as the last frontend-owned observability boundary.
+- `pair_dispatch` still only stores fireable payload, but the accept decision is now recomputed from real handoff payload plus current runtime readiness instead of trusting the stale handoff snapshot forever.
+- `lane1_issue_valid` is the first backend-adjacent live bit for lane 1.
+- `lane1_issue_valid` is set only when dispatch payload is currently executable and is cleared on `frontend_flush` or when current runtime block conditions make that dispatch payload non-executable.
+- this keeps lane 1 out of real execute/commit allocation while finally giving it an explicit `accept / kill / flush` contract.

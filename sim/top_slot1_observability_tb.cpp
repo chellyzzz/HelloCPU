@@ -199,6 +199,10 @@ struct Slot1Coverage {
   uint64_t pair_dispatch_capture_fireable_events = 0;
   uint64_t pair_dispatch_hold_cycles = 0;
   uint64_t pair_dispatch_flush_clear_events = 0;
+  uint64_t lane1_issue_accept_events = 0;
+  uint64_t lane1_issue_hold_cycles = 0;
+  uint64_t lane1_issue_kill_events = 0;
+  uint64_t lane1_issue_flush_clear_events = 0;
 };
 
 int main(int argc, char **argv) {
@@ -546,6 +550,7 @@ int main(int argc, char **argv) {
     const bool pre_pair_handoff_block_downstream_busy = root->sim_top__DOT__cpu__DOT__pair_handoff_block_downstream_busy;
     const bool pre_pair_handoff_block_cop_pipeline = root->sim_top__DOT__cpu__DOT__pair_handoff_block_cop_pipeline;
     const bool pre_pair_handoff_block_frontend_flush = root->sim_top__DOT__cpu__DOT__pair_handoff_block_frontend_flush;
+    const bool pre_handoff_scoreboard_allow_second = root->sim_top__DOT__cpu__DOT__handoff_scoreboard_allow_second;
     const bool pre_pair_dispatch_valid = root->sim_top__DOT__cpu__DOT__pair_dispatch_valid;
     const bool pre_pair_dispatch_slot0_valid = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_valid;
     const uint32_t pre_pair_dispatch_slot0_pc = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_pc;
@@ -609,6 +614,9 @@ int main(int argc, char **argv) {
     const bool pre_pair_dispatch_allow_second = root->sim_top__DOT__cpu__DOT__pair_dispatch_allow_second;
     const bool pre_pair_dispatch_order_alu_then_branch = root->sim_top__DOT__cpu__DOT__pair_dispatch_order_alu_then_branch;
     const bool pre_pair_dispatch_order_branch_then_alu = root->sim_top__DOT__cpu__DOT__pair_dispatch_order_branch_then_alu;
+    const bool pre_lane1_issue_valid = root->sim_top__DOT__cpu__DOT__lane1_issue_valid;
+    const bool pre_lane1_issue_accept = root->sim_top__DOT__cpu__DOT__lane1_issue_accept;
+    const bool pre_lane1_issue_kill = root->sim_top__DOT__cpu__DOT__lane1_issue_kill;
 
     top->clock = 1;
     top->eval();
@@ -1589,10 +1597,10 @@ int main(int argc, char **argv) {
     if (pre_frontend_flush) {
       fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_valid == 0,
                      "frontend flush clears the pair dispatch surface");
-      if (pre_pair_dispatch_valid || (pre_pair_handoff_valid && pre_pair_handoff_allow_second)) {
+      if (pre_pair_dispatch_valid || (pre_pair_handoff_valid && pre_handoff_scoreboard_allow_second)) {
         coverage.pair_dispatch_flush_clear_events++;
       }
-    } else if (pre_pair_handoff_valid && pre_pair_handoff_allow_second) {
+    } else if (pre_pair_handoff_valid && pre_handoff_scoreboard_allow_second) {
       coverage.pair_dispatch_capture_events++;
       fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_valid == 1,
                      "fireable pair handoff captures into the pair dispatch surface");
@@ -1714,8 +1722,8 @@ int main(int argc, char **argv) {
                      "pair dispatch captures slot1 rs1_addr");
       fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_candidate_alu_branch == pre_pair_handoff_candidate_alu_branch,
                      "pair dispatch captures candidate classification");
-      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_allow_second == pre_pair_handoff_allow_second,
-                     "pair dispatch captures fireability");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_allow_second == pre_handoff_scoreboard_allow_second,
+                     "pair dispatch captures runtime executable fireability");
       fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_order_alu_then_branch == pre_pair_handoff_order_alu_then_branch,
                      "pair dispatch captures alu-then-branch order");
       fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_order_branch_then_alu == pre_pair_handoff_order_branch_then_alu,
@@ -1859,6 +1867,35 @@ int main(int argc, char **argv) {
                      "pair dispatch holds branch-then-alu order stable");
     }
 
+    if (pre_frontend_flush) {
+      fail |= expect(root->sim_top__DOT__cpu__DOT__lane1_issue_valid == 0,
+                     "frontend flush clears the live lane1 issue bit");
+      if (pre_lane1_issue_valid || pre_lane1_issue_accept) {
+        coverage.lane1_issue_flush_clear_events++;
+      }
+    } else if (pre_lane1_issue_kill) {
+      coverage.lane1_issue_kill_events++;
+      fail |= expect(root->sim_top__DOT__cpu__DOT__lane1_issue_valid == 0,
+                     "runtime scoreboard kill clears the live lane1 issue bit");
+    } else if (pre_lane1_issue_accept) {
+      coverage.lane1_issue_accept_events++;
+      fail |= expect(root->sim_top__DOT__cpu__DOT__lane1_issue_valid == 1,
+                     "dispatch-visible executable pair raises the live lane1 issue bit");
+    } else if (pre_lane1_issue_valid) {
+      coverage.lane1_issue_hold_cycles++;
+      fail |= expect(root->sim_top__DOT__cpu__DOT__lane1_issue_valid == 1,
+                     "live lane1 issue bit holds without flush or kill");
+    }
+
+    if (root->sim_top__DOT__cpu__DOT__lane1_issue_valid) {
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_valid == 1,
+                     "live lane1 issue bit always has a dispatch payload behind it");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_candidate_alu_branch == 1,
+                     "live lane1 issue bit keeps alu-plus-branch candidate classification");
+      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_order_alu_then_branch == 1,
+                     "live lane1 issue bit keeps alu-then-branch ordering");
+    }
+
     top->clock = 0;
     top->eval();
     main_time++;
@@ -1928,12 +1965,18 @@ int main(int argc, char **argv) {
   fail |= expect(coverage.pair_dispatch_capture_fireable_events > 0,
                   "pair dispatch captures at least one fireable pair");
   fail |= expect(coverage.pair_dispatch_hold_cycles > 0,
-                  "pair dispatch holds a captured pair across at least one cycle");
+                   "pair dispatch holds a captured pair across at least one cycle");
   fail |= expect(coverage.pair_dispatch_flush_clear_events > 0,
-                  "pair dispatch is cleared by at least one flush event");
+                   "pair dispatch is cleared by at least one flush event");
   fail |= expect(coverage.pair_dispatch_capture_events ==
                      coverage.pair_dispatch_capture_fireable_events,
                  "pair dispatch accounting stays fireable-only");
+  fail |= expect(coverage.lane1_issue_accept_events > 0,
+                 "live lane1 issue bit accepts at least one dispatch-visible pair");
+  fail |= expect(coverage.lane1_issue_hold_cycles > 0,
+                 "live lane1 issue bit holds across at least one cycle");
+  fail |= expect(coverage.lane1_issue_flush_clear_events > 0,
+                 "live lane1 issue bit is cleared by at least one flush event");
 
   delete top;
 
@@ -1941,8 +1984,8 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  std::printf("PASS: top-level slot1 observability remains non-binding and branch-only "
-              "(slot1-events=%llu, fireable=%llu, blocked=%llu, blocked-nonflush=%llu, flushed=%llu, shadow-captures=%llu, shadow-fireable=%llu, shadow-blocked=%llu, shadow-hold=%llu, shadow-flush-clear=%llu, endpoint-captures=%llu, endpoint-fireable=%llu, endpoint-blocked=%llu, endpoint-hold=%llu, endpoint-flush-clear=%llu, pair-captures=%llu, pair-fireable=%llu, pair-blocked=%llu, pair-hold=%llu, pair-flush-clear=%llu, handoff-captures=%llu, handoff-fireable=%llu, handoff-blocked=%llu, handoff-hold=%llu, handoff-flush-clear=%llu, dispatch-captures=%llu, dispatch-fireable=%llu, dispatch-hold=%llu, dispatch-flush-clear=%llu)\n",
+  std::printf("PASS: top-level slot1 transport and live lane1 boundary stay self-consistent "
+              "(slot1-events=%llu, fireable=%llu, blocked=%llu, blocked-nonflush=%llu, flushed=%llu, shadow-captures=%llu, shadow-fireable=%llu, shadow-blocked=%llu, shadow-hold=%llu, shadow-flush-clear=%llu, endpoint-captures=%llu, endpoint-fireable=%llu, endpoint-blocked=%llu, endpoint-hold=%llu, endpoint-flush-clear=%llu, pair-captures=%llu, pair-fireable=%llu, pair-blocked=%llu, pair-hold=%llu, pair-flush-clear=%llu, handoff-captures=%llu, handoff-fireable=%llu, handoff-blocked=%llu, handoff-hold=%llu, handoff-flush-clear=%llu, dispatch-captures=%llu, dispatch-fireable=%llu, dispatch-hold=%llu, dispatch-flush-clear=%llu, lane1-accepts=%llu, lane1-hold=%llu, lane1-kills=%llu, lane1-flush-clear=%llu)\n",
               static_cast<unsigned long long>(coverage.slot1_visible_events),
               static_cast<unsigned long long>(coverage.slot1_fireable_events),
               static_cast<unsigned long long>(coverage.slot1_blocked_events),
@@ -1971,6 +2014,10 @@ int main(int argc, char **argv) {
               static_cast<unsigned long long>(coverage.pair_dispatch_capture_events),
               static_cast<unsigned long long>(coverage.pair_dispatch_capture_fireable_events),
               static_cast<unsigned long long>(coverage.pair_dispatch_hold_cycles),
-              static_cast<unsigned long long>(coverage.pair_dispatch_flush_clear_events));
+              static_cast<unsigned long long>(coverage.pair_dispatch_flush_clear_events),
+              static_cast<unsigned long long>(coverage.lane1_issue_accept_events),
+              static_cast<unsigned long long>(coverage.lane1_issue_hold_cycles),
+              static_cast<unsigned long long>(coverage.lane1_issue_kill_events),
+              static_cast<unsigned long long>(coverage.lane1_issue_flush_clear_events));
   return 0;
 }
