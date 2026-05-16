@@ -423,6 +423,7 @@ wire       decode_pair_block_frontend_flush /* verilator public_flat */;
 wire       decode_pair_distinct_pc;
 wire      decode_slot0_valid /* verilator public_flat */;
 wire [31:0] decode_slot0_pc /* verilator public_flat */;
+wire [31:0] decode_slot0_ins /* verilator public_flat */;
 wire      frontend_pair_capture /* verilator public_flat */;
 wire      decode_slot1_valid /* verilator public_flat */;
 wire [31:0] decode_slot1_pc /* verilator public_flat */;
@@ -499,6 +500,7 @@ wire      handoff_scoreboard_block_downstream_busy;
 wire      handoff_scoreboard_block_cop_pipeline;
 wire      handoff_scoreboard_block_frontend_flush;
 wire      dispatch_scoreboard_allow_second /* verilator public_flat */;
+wire      pair_dispatch_fireable /* verilator public_flat */;
 wire      lane1_issue_accept /* verilator public_flat */;
 wire      lane1_issue_kill /* verilator public_flat */;
 reg       slot1_shadow_valid /* verilator public_flat */;
@@ -769,7 +771,6 @@ reg       pair_dispatch_slot1_predict_btb_hit /* verilator public_flat */;
 reg [4:0] pair_dispatch_slot1_rs1_addr /* verilator public_flat */;
 reg [4:0] pair_dispatch_slot1_rs2_addr /* verilator public_flat */;
 reg       pair_dispatch_candidate_alu_branch /* verilator public_flat */;
-reg       pair_dispatch_allow_second /* verilator public_flat */;
 reg       pair_dispatch_order_alu_then_branch /* verilator public_flat */;
 reg       pair_dispatch_order_branch_then_alu /* verilator public_flat */;
 reg       lane1_issue_valid /* verilator public_flat */;
@@ -1292,6 +1293,7 @@ hcpu_decode_pair_policy decode_pair_policy(
 );
 assign decode_slot0_valid = ifu2idu_valid;
 assign decode_slot0_pc = ifu2idu_pc;
+assign decode_slot0_ins = ifu2idu_ins;
 assign frontend_pair_capture = decode_pair_visible && decode_slot0_valid && decode_pair_distinct_pc && !frontend_flush;
 assign pair_handoff_capture = frontend_pair_bundle_valid;
 assign pair_dispatch_ready = 1'b1;
@@ -1418,8 +1420,9 @@ hcpu_lane1_issue_scoreboard dispatch_scoreboard(
     .o_block_frontend_flush             ()
 );
 
-assign lane1_issue_accept = pair_dispatch_valid && dispatch_scoreboard_allow_second && !lane1_issue_valid;
-assign lane1_issue_kill = lane1_issue_valid && !dispatch_scoreboard_allow_second;
+assign pair_dispatch_fireable = pair_dispatch_valid && dispatch_scoreboard_allow_second;
+assign lane1_issue_accept = pair_dispatch_fireable && !lane1_issue_valid;
+assign lane1_issue_kill = lane1_issue_valid && !pair_dispatch_fireable;
 
 hcpu_IDU idu_pair_slot1(
     .clock                             (clock                     ),
@@ -1923,12 +1926,10 @@ always @(posedge clock or posedge reset) begin
         pair_dispatch_slot1_rs1_addr <= 5'b0;
         pair_dispatch_slot1_rs2_addr <= 5'b0;
         pair_dispatch_candidate_alu_branch <= 1'b0;
-        pair_dispatch_allow_second <= 1'b0;
         pair_dispatch_order_alu_then_branch <= 1'b0;
         pair_dispatch_order_branch_then_alu <= 1'b0;
     end else if (frontend_flush) begin
         pair_dispatch_valid <= 1'b0;
-        pair_dispatch_allow_second <= 1'b0;
     end else if (pair_dispatch_accept) begin
         pair_dispatch_valid <= 1'b1;
         pair_dispatch_slot0_valid <= pair_handoff_slot0_valid;
@@ -1991,7 +1992,6 @@ always @(posedge clock or posedge reset) begin
         pair_dispatch_slot1_rs1_addr <= pair_handoff_slot1_rs1_addr;
         pair_dispatch_slot1_rs2_addr <= pair_handoff_slot1_rs2_addr;
         pair_dispatch_candidate_alu_branch <= pair_handoff_candidate_alu_branch;
-        pair_dispatch_allow_second <= handoff_scoreboard_allow_second;
         pair_dispatch_order_alu_then_branch <= pair_handoff_order_alu_then_branch;
         pair_dispatch_order_branch_then_alu <= pair_handoff_order_branch_then_alu;
     end
@@ -2296,8 +2296,6 @@ always @(*) begin
         $fatal(1, "hcpu pair dispatch accepted a blocked handoff pair");
     if (pair_dispatch_valid && (!pair_dispatch_slot0_valid || !pair_dispatch_slot1_valid))
         $fatal(1, "hcpu pair dispatch lost one of its visible lanes");
-    if (pair_dispatch_valid && !pair_dispatch_allow_second)
-        $fatal(1, "hcpu pair dispatch kept a pair that was not fireable");
     if (pair_dispatch_valid && (pair_dispatch_slot0_pc == pair_dispatch_slot1_pc))
         $fatal(1, "hcpu pair dispatch reused one pc across both lanes");
     if (pair_dispatch_valid && pair_dispatch_slot0_csr_wen && !pair_dispatch_slot0_wen)
@@ -2331,10 +2329,10 @@ always @(*) begin
         $fatal(1, "hcpu pair dispatch lost older-branch classification for branch-then-alu ordering");
     if (pair_dispatch_order_branch_then_alu && pair_dispatch_slot1_brch)
         $fatal(1, "hcpu pair dispatch lost younger-alu classification for branch-then-alu ordering");
-    if (pair_dispatch_allow_second && !pair_dispatch_candidate_alu_branch)
-        $fatal(1, "hcpu pair dispatch allowed a second lane without a candidate pair");
-    if (pair_dispatch_allow_second && !pair_dispatch_order_alu_then_branch)
-        $fatal(1, "hcpu pair dispatch allowed a second lane without ordered alu-then-branch pairing");
+    if (pair_dispatch_fireable && !pair_dispatch_candidate_alu_branch)
+        $fatal(1, "hcpu pair dispatch became fireable without a candidate pair");
+    if (pair_dispatch_fireable && !pair_dispatch_order_alu_then_branch)
+        $fatal(1, "hcpu pair dispatch became fireable without ordered alu-then-branch pairing");
     if (lane1_issue_accept && !pair_dispatch_valid)
         $fatal(1, "hcpu lane1 issue accepted without a dispatch payload");
     if (lane1_issue_valid && !pair_dispatch_valid)

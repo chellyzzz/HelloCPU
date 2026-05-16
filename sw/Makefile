@@ -1,7 +1,13 @@
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+CROSS   ?= riscv64-elf-
+else
 CROSS   ?= riscv64-linux-gnu-
-CC       = $(CROSS)gcc
-OBJCOPY  = $(CROSS)objcopy
-OBJDUMP  = $(CROSS)objdump
+endif
+
+CC      = $(CROSS)gcc
+OBJCOPY = $(CROSS)objcopy
+OBJDUMP = $(CROSS)objdump
 
 CFLAGS   = -march=rv32im_zicsr -mabi=ilp32 -nostdlib -nostartfiles -ffreestanding \
            -fno-pic -fno-pie -I include -O2
@@ -24,6 +30,14 @@ SCALAR_BINS := $(addprefix $(SCALAR_BUILD_DIR)/,$(addsuffix .bin,$(SCALAR_TESTS)
 VECTOR_BINS := $(addprefix $(VECTOR_BUILD_DIR)/,$(addsuffix .bin,$(VECTOR_TESTS)))
 
 all: scalar-tests vector-tests
+
+toolchain-check:
+	@echo "Host: $$(uname -s) $$(uname -m)"
+	@echo "CROSS=$(CROSS)"
+	@command -v $(CC) >/dev/null || { echo "Missing compiler: $(CC)"; exit 1; }
+	@command -v $(OBJCOPY) >/dev/null || { echo "Missing objcopy: $(OBJCOPY)"; exit 1; }
+	@command -v $(OBJDUMP) >/dev/null || { echo "Missing objdump: $(OBJDUMP)"; exit 1; }
+	@echo "Software toolchain OK"
 
 scalar-tests: $(SCALAR_BINS)
 
@@ -88,4 +102,4 @@ $(VECTOR_BUILD_DIR)/%.bin: $(VECTOR_TEST_DIR)/%.c start.S lib/klib.c link.ld | $
 clean:
 	rm -rf $(BUILD_DIR)
 
-.PHONY: all clean scalar-tests vector-tests benchmark embench-build print-embench-subset
+.PHONY: all clean scalar-tests vector-tests benchmark embench-build print-embench-subset toolchain-check

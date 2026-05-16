@@ -58,24 +58,24 @@
 
 | Metric | Value |
 |--------|-------|
-| CoreMark/MHz | 3.032 |
-| Total cycles | 32,982,676 |
-| IPC | 0.900 |
-| Stall rate | 7.2% |
+| CoreMark/MHz | 3.098 |
+| Total cycles | 32,279,748 |
+| IPC | 0.883 |
+| Stall rate | 11.7% |
 
 当前 stall 构成：
 
 | Source | Cycles | % of stalls | 说明 |
 |--------|--------|-------------|------|
-| Frontend/empty | 1,833,135 | 77.5% | 仍主要是 redirect 之后的前端空泡 |
-| Control recovery | 521,776 | 22.1% | 仍是主要的恢复成本来源 |
+| Frontend/empty | 3,486,137 | 92.5% | 仍主要是 redirect 之后的前端空泡 |
+| Control recovery | 271,994 | 7.2% | 仍是主要的恢复成本来源 |
 | Other blocked backend | 0 | 0.0% | 当前统计下已不是热点 |
-| LSU wait | 6,913 | 0.3% | 已不再是主瓶颈 |
-| DIV wait | 2,896 | 0.1% | 已不再是主瓶颈 |
+| LSU wait | 7,562 | 0.2% | 已不再是主瓶颈 |
+| DIV wait | 2,832 | 0.1% | 已不再是主瓶颈 |
 
 ### 当前最重要的全局结论
 
-1. **单发优化已经进入收尾区。** CoreMark 仍能维持 `3.032 CoreMark/MHz`，但继续在分支/恢复上抠小分已经不再是主战场。
+1. **单发优化已经进入收尾区。** CoreMark 仍能维持 `3.098 CoreMark/MHz`，但继续在分支/恢复上抠小分已经不再是主战场。
 2. **多发准备应该成为主线。** `IPC 0.928` 说明单发已经到高位区，下一步的主要收益只能来自结构跃迁。
 3. **当前剩余工作重点是多发前置条件。** 包括边界收口、queue、scoreboard、RF/commit 带宽和验证矩阵。
 4. **“Other backend” 目前不能直接当成性能热点。** 当前统计已经给出 `Other blocked backend = 0`。
@@ -86,9 +86,9 @@
 
 ### Latest Validation Snapshot
 
-- `make bench_only ITER=100`: PASS, `3.032 CoreMark/MHz`, `32982676` cycles, `0.928 IPC`, `7.2%` stalls, redirect cost `2 avg cycles`.
+- `make bench_only ITER=100`: PASS, `3.098 CoreMark/MHz`, `32279748` cycles, `0.883 IPC`, `11.7%` stalls, redirect cost `2 avg cycles`.
 - `make run ALL=quick-sort`: PASS, `4340` cycles, `0.690 IPC`, `31.0%` stalls, redirect cost `3 avg cycles`.
-- Takeaway: the single-owner boundary cleanup is still safe; CoreMark improved about `+3.1%` over the previous freeze, while quick-sort remains control-heavy and still needs frontend/bubble reduction.
+- Takeaway: the single-owner boundary cleanup is still safe; CoreMark improved about `+5.4%` over the previous freeze, while quick-sort remains control-heavy and still needs frontend/bubble reduction.
 - The `pair_dispatch` fireable-only contract did not introduce a regression on either workload.
 
 ### 重要决策原则
@@ -272,7 +272,7 @@
 
 执行入口见 `docs/cpu/two-wide-preparation-checklist.md`。
 
-## 阶段 3：前后端解耦与局部并行（当前主阶段）
+## 阶段 3：前后端解耦与局部并行（已完成）
 
 ### 目标
 
@@ -298,6 +298,7 @@
 当前最小落地约定：
 
 - `pair_dispatch` 继续保存 dispatch-adjacent payload，但不再把 handoff 时刻拍下来的 `allow_second` 当成唯一执行真相。
+- `pair_dispatch_fireable` 是 live wire，由 `pair_dispatch_valid` 和 dispatch-side realtime scoreboard 共同决定；它不是一个被寄存下来、可长期复用的快照。
 - `pair_handoff -> pair_dispatch` 的 real accept 现在由 handoff 侧实时 executable scoreboard 决定，而不是由旧的 snapshot fireability 直接驱动。
 - lane-1 的真实 live bit 现在是独立的 `lane1_issue_valid`，不再只是依附 `pair_dispatch_valid` 的“有 payload 即算活着”。
 - `lane1_issue_accept` 语义：`pair_dispatch` 当前有有效 pair payload，且 dispatch 侧实时 scoreboard 允许第二条进入 live ownership，且当前还没有 live lane1。
@@ -310,6 +311,8 @@
 2. 明确 queue entry 里需要保存的 payload、predictor metadata、predecode sidecar
 3. 明确 queue 的 flush / replay / hold 语义
 4. 决定 real dispatch boundary 是在 `pair_dispatch` 之后新增寄存器，还是把 `pair_dispatch` 自身演进成真实 boundary
+
+当前状态：已完成最小落地，真实 dispatch boundary 继续收口在 `pair_dispatch` / `lane1_issue_valid`，decode queue 暂不引入。
 
 #### 3.3 first executable scoreboard
 
@@ -332,6 +335,8 @@
 3. 统一 scalar / COP / future vector memory 对 `request / pending / visible / killed` 的解释
 4. 确保 stage 3 不会误把 memory overlap 伪装成已经支持 dual-issue
 
+当前状态：已完成 V1 收口，scalar / COP / future vector 继续共享同一 single-owner memory service，且不引入 store buffer 或 dual ownership。
+
 #### 3.5 implementation and validation gates
 
 1. 为真实 lane1 boundary 增加 directed test
@@ -343,8 +348,8 @@
 
 1. 先完成 `3.1 lane-1 real boundary`
 2. 再完成 `3.3 first executable scoreboard`
-3. 然后决定 `3.2 decode / dispatch decoupling` 的最小落地点
-4. 同步收口 `3.4 memory and service decoupling`
+3. `3.2 decode / dispatch decoupling` 的最小落地点已确定并落在 `pair_dispatch` / `lane1_issue_valid`
+4. `3.4 memory and service decoupling` 的最小落地点已确定并落在 V1 single-owner memory service
 5. 最后用 `3.5 implementation and validation gates` 固化阶段结果
 
 ### 完成判定
@@ -370,27 +375,62 @@
 
 这一步的收益不是马上把 IPC 拉到 2，而是让“同时让两条指令在同一拍并行存在”成为可能。
 
+### 阶段结论
+
+阶段 3 的完成判定已经满足：
+
+1. lane-1 已经有真实 `accept / kill / flush` 语义，不再只是 observability sink
+2. 第一版 scoreboard / pairing matrix 已经变成 executable policy
+3. decode / dispatch decoupling 的最小实现边界已确定并落地
+4. stage-3 memory/service decoupling 约束已写清，且没有假装进入 memory overlap
+5. directed tests、flush gates 和 benchmark checkpoints 都已通过
+
+因此，阶段 3 现在视为完成，后续主线转入阶段 4。
+
 ## 阶段 4：进入双发射顺序核
 
 ### 目标
 
 正式进入 **2-wide in-order**，这是 IPC 2 目标的必要阶段。
 
-### 主要任务
+### 阶段 4 路线
 
-1. IFU 至少 2-wide fetch / predecode
-2. IDU 至少 2-wide decode / dispatch
-3. Register file / bypass / scoreboard 支持双发射依赖检查
-4. EXU 后端支持两条指令并行存在：
-   - ALU + branch
-   - ALU + LSU
-   - ALU + MUL
-5. WBU 至少 2-result commit，或者等价的双返回通路
-6. 分支和访存冲突规则明确定义
+阶段 4 不追求“一步到位的全面双发”，而是按最小可用切片逐步扩宽：
+
+1. `4.1` 前端宽化先行
+   - 把 `2-wide fetch/predecode` 落成真实结构，而不是只保留观测面
+   - 保持 slot1 仍然是 flush-safe、non-executing 的前端真值面
+   - 不新增 decode queue，不改变当前单发 execute/commit 行为
+2. `4.2` decode / issue 传输边界收紧
+   - 明确从前端双宽 surface 到 `pair_dispatch` 的真实 transport contract
+   - 继续保持 `pair_dispatch` 只是 payload store，直到更宽 issue 真的需要
+   - 保留 `visible / blocked / flushed` 的可验证分解
+3. `4.3` 第一组合法 pairing 落地
+   - 只放行 `older ALU + younger branch`
+   - scoreboard / hazard / flush / kill 规则继续作为唯一发射门
+   - 明确拒绝 `ALU + ALU`、`ALU + LSU`、`ALU + MUL`、`ALU + COP` 以及 redirect-hostile pairing
+4. `4.4` commit / writeback 带宽补齐
+   - 先确保现有单发主线不被双宽前端扰动
+   - 再决定 WBU 是双结果提交，还是等价的分阶段提交 / staging
+   - 只有当 pairing 真正成立时，才扩大 commit-side bandwidth
+5. `4.5` 验证与基准矩阵闭环
+   - directed tests 覆盖 allow / reject / flush / replay / stale-kill
+   - benchmark matrix 至少包含 CoreMark、branch-heavy、load/store-heavy、ALU-heavy、mul/div-heavy、cop/vector mixed
+   - 用这些 workload 判断阶段 4 的宽化是否真的带来结构收益
 
 ### 预期收益
 
 这一阶段完成后，IPC 目标才真正从“接近 1”切换到“可以实质性冲击 2”。
+
+### 完成判定
+
+阶段 4 完成时，至少应满足：
+
+1. `2-wide fetch/predecode` 已经是稳定的真实结构，不再只是前端观测面
+2. `pair_dispatch` / `lane1_issue_valid` 的边界能支撑真实的第一组合法 pairing
+3. `ALU + branch` 是唯一放行的 v1 pairing，其他 pairing 仍明确拒绝
+4. commit / writeback 宽度已经和新的 issue 形态匹配
+5. directed tests 和 benchmark matrix 都能稳定说明结构收益，而不是只在单一 workload 上成立
 
 ## 阶段 5：面向 IPC 2 的整体验证
 
@@ -458,7 +498,7 @@
 - 明确 queue / scoreboard / RF / commit 的第一版约束
 - 把 `2-wide` 的第一刀切成足够小的可落地 slice
 
-### 阶段 3（当前主阶段）
+### 阶段 3（已完成）
 
 - 引入 fetch/decode decoupling
 - 写清第一版 pairing matrix
@@ -467,10 +507,10 @@
 
 ### 阶段 4（正式进入双发）
 
-- IFU 至少 2-wide fetch / predecode
-- IDU 至少 2-wide decode / dispatch
-- backend 支持第一版合法 pairing
-- WBU 至少支持双结果提交或等价结构
+- 先落地 `2-wide fetch/predecode` 的真实结构
+- 再收紧 `pair_dispatch` 到真实 decode / issue transport 边界
+- 只放行 `older ALU + younger branch` 的第一版合法 pairing
+- 最后补齐 commit / writeback 带宽和验证矩阵
 
 ## 八、当前优先级
 

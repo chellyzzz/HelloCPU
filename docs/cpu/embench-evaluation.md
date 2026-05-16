@@ -69,7 +69,7 @@ Reference `CoreMark` snapshot from `docs/cpu/coremark-results.md`:
 
 | Benchmark | Result | Cycles | IPC | Stall rate | LSU wait | Control recovery | BTB mispredicts | Redirect cost |
 |-----------|--------|--------|-----|------------|----------|------------------|-----------------|---------------|
-| `CoreMark` | PASS | 32,982,676 | 0.928 | 7.2% | 6,913 | 521,776 | 521,776 | 2 avg |
+| `CoreMark` | PASS | 32,279,748 | 0.883 | 11.7% | 7,562 | 271,994 | 271,994 | 2 avg |
 
 ## Bottleneck Analysis
 

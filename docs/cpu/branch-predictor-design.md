@@ -8,12 +8,12 @@ This document records the current predictor design and the historical validation
 
 | Test | Result |
 |------|--------|
-| `make bench_only ITER=100` | Current snapshot on `41b0734`: PASS, `2.940 CoreMark/MHz`, `34,010,300` simulator cycles |
-| CoreMark ITER=100 predictor counters | `521,545` BTB mispredicts, `7.8%` mispredict rate, `0` target-bad events |
+| `make bench_only ITER=100` | Current snapshot on `master`: PASS, `3.098 CoreMark/MHz`, `32,279,748` simulator cycles |
+| CoreMark ITER=100 predictor counters | `271,994` BTB mispredicts, `5.1%` mispredict rate, `0` target-bad events |
 | `make run` | Historical snapshot: `40 passed, 0 failed` |
 | `make run ALL=quick-sort` | Historical snapshot: PASS, `6750` cycles |
 | CoreMark ITER=1 | Historical snapshot: correct CRC, `715631` simulator cycles |
-| CoreMark/MHz | Historical predictor-only snapshot: `1.404`; current CPU reference: `2.940` |
+| CoreMark/MHz | Historical predictor-only snapshot: `1.404`; current CPU reference: `3.098` |
 
 ## IFU Prediction
 
@@ -120,19 +120,19 @@ This avoids clearing correctly predicted JAL/JALR/branch paths and preserves the
 
 ## CoreMark Predictor Counters
 
-Current CoreMark `ITER=100` predictor counters on `41b0734`:
+Current CoreMark `ITER=100` predictor counters:
 
 ```text
-BTB hits          : 5779930 (86.3%)
-BTB misses        : 914458 (13.7%)
-BTB mispredicts   : 521545 (7.8%)
-  pred NT,taken   : 286597
-  pred T,NT       : 202862
+BTB hits          : 4518469 (84.8%)
+BTB misses        : 807477 (15.2%)
+BTB mispredicts   : 271994 (5.1%)
+  pred NT,taken   : 116970
+  pred T,NT       : 122698
   target bad      : 0
-RAS hits          : 194363 (100.0%)
-RAS misses        : 3
-WBU pcupdate      : 521545
-Redirect cost     : 3 avg cycles (514396 events)
+RAS hits          : 183025 (100.0%)
+RAS misses        : 4
+WBU pcupdate      : 0
+Redirect cost     : 2 avg cycles (268639 events)
 ```
 
 Historical ITER=1 predictor bring-up counters:

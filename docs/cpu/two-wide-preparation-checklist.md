@@ -34,15 +34,33 @@ Completed preparation outputs:
 4. the first narrow `2-wide` slice is explicitly scoped
 5. benchmark reference is broader than CoreMark alone (`CoreMark`, `quick-sort`)
 
-This means the project should now treat `stage 3` in `docs/cpu/cpu-evolution-roadmap.md` as the active phase.
+This means `stage 3` is now complete in `docs/cpu/cpu-evolution-roadmap.md`, and the active phase has moved on to stage 4.
 
-Current stage-3 entry order:
+Current stage-3 completion order:
 
 1. define real lane-1 `accept / kill / flush`
 2. freeze the first executable scoreboard / pairing policy
 3. decide the minimum decode / dispatch decoupling point
 4. keep memory/service decoupling explicit but still minimal
 5. close the phase with directed tests and benchmark checkpoints
+
+Notes:
+
+- `3.2 decode / dispatch decoupling` is landed at the `pair_dispatch` / `lane1_issue_valid` boundary.
+- `3.3 first executable scoreboard` is landed and regression-tested.
+- `3.4 memory and service decoupling` is landed as the V1 single-owner memory service model.
+- `3.5 implementation and validation gates` is landed, including the flush and benchmark checkpoints used for completion.
+
+## Stage 4 Launch Plan
+
+The first `2-wide` implementation slice should stay narrow and ordered:
+
+1. land real `2-wide fetch/predecode`
+2. keep slot1 flush-safe and non-executing
+3. tighten the `pair_dispatch` transport boundary
+4. enable only `older ALU + younger branch`
+5. widen commit/writeback only as far as the first pairing slice needs
+6. validate the change with directed tests plus the wider benchmark matrix
 
 ## Checklist
 

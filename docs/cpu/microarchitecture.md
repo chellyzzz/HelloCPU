@@ -15,7 +15,7 @@ ICache        ALU / LSU / Multiplier / Divider / Branch / COP backend
  +--------------+-> Xbar -> AXI RAM / MMIO
 ```
 
-Current validated throughput: `2.940 CoreMark/MHz`, `IPC=0.900`, `10.0%` stall rate.
+Current validated throughput: `3.098 CoreMark/MHz`, `IPC=0.883`, `11.7%` stall rate.
 
 ## IFU
 
@@ -28,7 +28,7 @@ The IFU owns the fetch PC and selects the next PC from these sources, in priorit
 | Predictor target | BTB/tournament/loop, RAS, or static JAL prediction |
 | `pc + 4` | Sequential fetch |
 
-The IFU reads through a 4 KB ICache. Cache hit rate on CoreMark is `99.6%`, so current frontend bottleneck is not cache capacity but redirect recovery.
+The IFU reads through a 4 KB ICache. Cache hit rate on CoreMark is `99.0%`, so current frontend bottleneck is not cache capacity but redirect recovery.
 
 ## IDU
 
@@ -71,7 +71,7 @@ The LSU contains the DCache arrays, cache hit/miss logic, refill/writeback contr
 | Uncached access | single-beat AXI path |
 | Refill completion | conservative pulsed `RREADY` |
 
-This LSU work is the main reason CoreMark improved from `2.382` to `2.853 CoreMark/MHz`; the current `2.940 CoreMark/MHz` reference adds the post-merge predictor/recovery work.
+This LSU work is the main reason CoreMark improved from `2.382` to `2.853 CoreMark/MHz`; the current `3.098 CoreMark/MHz` reference adds the post-merge predictor/recovery work.
 
 ### LSU performance status
 
@@ -79,10 +79,10 @@ CoreMark ITER=100:
 
 | Metric | Value |
 |--------|-------|
-| LSU wait | `6,826` cycles |
+| LSU wait | `7,562` cycles |
 | LSU stall share | `0.2%` |
-| Load transactions | `209` |
-| Store transactions | `600` |
+| Load transactions | `245` |
+| Store transactions | `612` |
 
 LSU is no longer a first-order performance bottleneck.
 
@@ -98,7 +98,7 @@ LSU is no longer a first-order performance bottleneck.
 - radix-2 non-restoring divider
 - `div_by_zero`, signed overflow, `div_by_one`, and `|divisor| > |dividend|` use fast paths
 
-CoreMark DIV cost is now `2,962` cycles across `114` divides.
+CoreMark DIV cost is now `2,830` cycles across `110` divides.
 
 ## WBU
 
@@ -106,10 +106,10 @@ The WBU commits register/CSR writes and generates architectural PC updates.
 
 Correctly predicted branches/JAL/JALR do not force redundant redirects. Remaining WBU redirect events on CoreMark:
 
-- total `521,545`
-- branch `489,459` (93.8%)
+- total `271,994`
+- branch `239,668` (88.1%)
 - JAL `0`
-- JALR `32,086`
+- JALR `32,326`
 
 ## Register File
 
@@ -142,12 +142,12 @@ Current CoreMark predictor status:
 
 | Metric | Value |
 |--------|-------|
-| BTB hits | `5,779,930` |
-| BTB misses | `914,458` |
-| BTB mispredicts | `521,545` |
+| BTB hits | `4,518,469` |
+| BTB misses | `807,477` |
+| BTB mispredicts | `271,994` |
 | Target-bad events | `0` |
-| RAS hits / misses | `194,363 / 3` |
-| Redirect cost | `3` avg cycles (`514,396` events) |
+| RAS hits / misses | `183,025 / 4` |
+| Redirect cost | `2` avg cycles (`268,639` events) |
 
 Redirect-related frontend refill is now the dominant bottleneck.
 
@@ -180,11 +180,11 @@ Killed or stale completions are filtered before `commit-visible`.
 
 | Source | Cycles | % of stalls | Status |
 |--------|--------|-------------|--------|
-| Frontend/empty | `1,833,135` | 77.5% | multi-issue prep target |
-| Control recovery | `521,776` | 22.1% | stable but no longer main tuning target |
-| IFU held valid | `9,582` | 0.4% | bounded |
-| LSU wait | `6,913` | 0.3% | solved enough for current phase |
-| DIV wait | `2,896` | 0.1% | solved enough for current phase |
+| Frontend/empty | `3,486,137` | 92.5% | multi-issue prep target |
+| Control recovery | `271,994` | 7.2% | stable but no longer main tuning target |
+| IFU held valid | `10,115` | 0.3% | bounded |
+| LSU wait | `7,562` | 0.2% | solved enough for current phase |
+| DIV wait | `2,832` | 0.1% | solved enough for current phase |
 | Other blocked backend | `0` | 0.0% | cleaned up |
 
 This means HelloCPU is no longer limited by LSU/cache-hit latency. The remaining stall concentration is real, but the next highest-ROI step is not more single-issue branch polish; it is moving into multi-issue preparation while keeping the current recovery path stable.

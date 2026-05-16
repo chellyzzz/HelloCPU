@@ -754,7 +754,6 @@ end
 // Load Result Mux (byte extract + sign extend)
 // ============================================================
 wire refill_hit_word = (state == S_REFILL_R) && M_AXI_RVALID && refill_rready && (refill_cnt == addr_word);
-wire [4:0] idle_shift8 = {alu_res[1:0], 3'b0};
 wire [31:0] idle_shifted_data = alu_hit_word >> idle_shift8;
 wire [31:0] idle_load_src = idle_shifted_data;
 wire [31:0] idle_load_res_next =

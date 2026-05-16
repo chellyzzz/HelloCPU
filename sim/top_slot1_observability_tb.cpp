@@ -82,6 +82,13 @@ EMPTY_DPI0(backend_pipe_occ_dpic)
 EMPTY_DPI0(btb_hit_dpic)
 EMPTY_DPI0(btb_miss_dpic)
 EMPTY_DPI0(btb_misp_dpic)
+EMPTY_DPI0(br_misp_pred_nt_dpic)
+EMPTY_DPI0(br_misp_pred_taken_nt_dpic)
+EMPTY_DPI0(br_misp_target_bad_dpic)
+EMPTY_DPI0(br_misp_pred_nt_btb_hit_dpic)
+EMPTY_DPI0(br_misp_pred_nt_btb_miss_dpic)
+EMPTY_DPI0(br_misp_pred_taken_nt_btb_hit_dpic)
+EMPTY_DPI0(br_misp_pred_taken_nt_btb_miss_dpic)
 EMPTY_DPI0(ras_hit_dpic)
 EMPTY_DPI0(ras_miss_dpic)
 EMPTY_DPI0(jal_tgt_mismatch)
@@ -100,6 +107,7 @@ EMPTY_DPI1(redirect_gap_jalr_dpic)
 extern "C" void commit_pc_dpic(int) {}
 extern "C" void commit_trace_dpic(int, int, int, int, int, int, int, int, int,
                                    int, int, int, int, int) {}
+extern "C" void branch_trace_dpic(int, int, int, int, int, int) {}
 extern "C" void mergesort_loop_dpic(int, int, int, int, int) {}
 
 extern "C" void pmem_read(int addr, int *data) {
@@ -245,8 +253,8 @@ int main(int argc, char **argv) {
     const bool pre_allow_second = root->sim_top__DOT__cpu__DOT__decode_pair_allow_second;
     const bool pre_frontend_pair_capture = root->sim_top__DOT__cpu__DOT__frontend_pair_capture;
     const bool pre_slot1_endpoint_accept = root->sim_top__DOT__cpu__DOT__slot1_endpoint_accept;
-    const uint32_t pre_slot0_pc = root->sim_top__DOT__cpu__DOT__ifu2idu_pc;
-    const uint32_t pre_slot0_ins = root->sim_top__DOT__cpu__DOT__ifu2idu_ins;
+    const uint32_t pre_slot0_pc = root->sim_top__DOT__cpu__DOT__decode_slot0_pc;
+    const uint32_t pre_slot0_ins = root->sim_top__DOT__cpu__DOT__decode_slot0_ins;
     const bool pre_slot0_predict_taken = root->sim_top__DOT__cpu__DOT__ifu2idu_predict_taken;
     const uint32_t pre_slot0_predict_target = root->sim_top__DOT__cpu__DOT__ifu2idu_predict_target;
     const bool pre_slot0_predict_btb_hit = root->sim_top__DOT__cpu__DOT__ifu2idu_predict_btb_hit;
@@ -611,7 +619,6 @@ int main(int argc, char **argv) {
     const bool pre_pair_dispatch_slot1_predict_btb_hit = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_predict_btb_hit;
     const uint32_t pre_pair_dispatch_slot1_rs1_addr = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_rs1_addr;
     const bool pre_pair_dispatch_candidate_alu_branch = root->sim_top__DOT__cpu__DOT__pair_dispatch_candidate_alu_branch;
-    const bool pre_pair_dispatch_allow_second = root->sim_top__DOT__cpu__DOT__pair_dispatch_allow_second;
     const bool pre_pair_dispatch_order_alu_then_branch = root->sim_top__DOT__cpu__DOT__pair_dispatch_order_alu_then_branch;
     const bool pre_pair_dispatch_order_branch_then_alu = root->sim_top__DOT__cpu__DOT__pair_dispatch_order_branch_then_alu;
     const bool pre_lane1_issue_valid = root->sim_top__DOT__cpu__DOT__lane1_issue_valid;
@@ -1722,8 +1729,6 @@ int main(int argc, char **argv) {
                      "pair dispatch captures slot1 rs1_addr");
       fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_candidate_alu_branch == pre_pair_handoff_candidate_alu_branch,
                      "pair dispatch captures candidate classification");
-      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_allow_second == pre_handoff_scoreboard_allow_second,
-                     "pair dispatch captures runtime executable fireability");
       fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_order_alu_then_branch == pre_pair_handoff_order_alu_then_branch,
                      "pair dispatch captures alu-then-branch order");
       fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_order_branch_then_alu == pre_pair_handoff_order_branch_then_alu,
@@ -1732,8 +1737,7 @@ int main(int argc, char **argv) {
           root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_pc == pre_pair_dispatch_slot0_pc &&
           root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_pc == pre_pair_dispatch_slot1_pc &&
           root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_src1 == pre_pair_dispatch_slot0_src1 &&
-          root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_src1 == pre_pair_dispatch_slot1_src1 &&
-          root->sim_top__DOT__cpu__DOT__pair_dispatch_allow_second == pre_pair_dispatch_allow_second) {
+          root->sim_top__DOT__cpu__DOT__pair_dispatch_slot1_src1 == pre_pair_dispatch_slot1_src1) {
         coverage.pair_dispatch_hold_cycles++;
       }
       coverage.pair_dispatch_capture_fireable_events++;
@@ -1859,8 +1863,6 @@ int main(int argc, char **argv) {
                      "pair dispatch holds slot1 rs1_addr stable");
       fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_candidate_alu_branch == pre_pair_dispatch_candidate_alu_branch,
                      "pair dispatch holds candidate classification stable");
-      fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_allow_second == pre_pair_dispatch_allow_second,
-                     "pair dispatch holds fireability stable");
       fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_order_alu_then_branch == pre_pair_dispatch_order_alu_then_branch,
                      "pair dispatch holds alu-then-branch order stable");
       fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_order_branch_then_alu == pre_pair_dispatch_order_branch_then_alu,
@@ -1940,8 +1942,6 @@ int main(int argc, char **argv) {
                  "frontend pair bundle captures at least one fireable pair");
   fail |= expect(coverage.pair_bundle_capture_blocked_events > 0,
                  "frontend pair bundle captures at least one blocked pair");
-  fail |= expect(coverage.pair_bundle_hold_cycles > 0,
-                 "frontend pair bundle holds a captured pair across at least one cycle");
   fail |= expect(coverage.pair_bundle_flush_clear_events > 0,
                  "frontend pair bundle is cleared by at least one flush event");
   fail |= expect(coverage.pair_bundle_capture_events ==

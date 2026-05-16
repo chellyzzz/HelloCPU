@@ -54,6 +54,25 @@ CoreMark/MHz     : 2.381
 make all
 ```
 
+### macOS Toolchain
+
+On macOS, install Homebrew if needed and then install the simulator and bare-metal
+RISC-V toolchain:
+
+```bash
+brew install verilator riscv64-elf-gcc
+```
+
+The software build defaults to the `riscv64-elf-` prefix on Darwin. Verify the
+host and target toolchain with:
+
+```bash
+make toolchain-check
+```
+
+If Homebrew is not on your `PATH`, make sure `/opt/homebrew/bin` is available in
+the shell you use for builds.
+
 ### Run All CPU Tests
 
 ```bash

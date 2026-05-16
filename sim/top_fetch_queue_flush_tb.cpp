@@ -82,6 +82,13 @@ EMPTY_DPI0(backend_pipe_occ_dpic)
 EMPTY_DPI0(btb_hit_dpic)
 EMPTY_DPI0(btb_miss_dpic)
 EMPTY_DPI0(btb_misp_dpic)
+EMPTY_DPI0(br_misp_pred_nt_dpic)
+EMPTY_DPI0(br_misp_pred_taken_nt_dpic)
+EMPTY_DPI0(br_misp_target_bad_dpic)
+EMPTY_DPI0(br_misp_pred_nt_btb_hit_dpic)
+EMPTY_DPI0(br_misp_pred_nt_btb_miss_dpic)
+EMPTY_DPI0(br_misp_pred_taken_nt_btb_hit_dpic)
+EMPTY_DPI0(br_misp_pred_taken_nt_btb_miss_dpic)
 EMPTY_DPI0(ras_hit_dpic)
 EMPTY_DPI0(ras_miss_dpic)
 EMPTY_DPI0(jal_tgt_mismatch)
@@ -100,6 +107,7 @@ EMPTY_DPI1(redirect_gap_jalr_dpic)
 extern "C" void commit_pc_dpic(int) {}
 extern "C" void commit_trace_dpic(int, int, int, int, int, int, int, int, int,
                                    int, int, int, int, int) {}
+extern "C" void branch_trace_dpic(int, int, int, int, int, int) {}
 extern "C" void mergesort_loop_dpic(int, int, int, int, int) {}
 
 extern "C" void pmem_read(int addr, int *data) {

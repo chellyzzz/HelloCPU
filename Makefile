@@ -7,7 +7,7 @@ SW_DIR   = sw
 BUILD_DIR = build
 
 # Verilator
-VERILATOR = verilator
+VERILATOR ?= verilator
 TOPNAME   = sim_top
 
 # Find all CPU verilog sources (via symlinks)
@@ -35,9 +35,14 @@ VECTOR_TESTS := $(basename $(notdir $(wildcard $(SW_DIR)/tests/vector-tests/*.c)
 
 # === Targets ===
 
-.PHONY: all sim sw clean run_% run_all bench bench_only branch_trace predictor_sim ifu_idu_backpressure exu_wbu_flush exu_result_visibility cop_backend_flush idu_cop_regs commit_visible_ctrl ifu_fetch_queue decode_pair_policy lane1_issue_scoreboard top_fetch_queue_flush top_pc_update_flush top_slot1_observability cop_mem_pending_kill cop_mem_store_directed cop_mem_store_kill scalar_mem_pending_kill cop_vtype_kill backend_contract_checks embench-build embench-run embench-run-one
+.PHONY: all sim sw clean run_% run_all bench bench_only branch_trace predictor_sim ifu_idu_backpressure exu_wbu_flush exu_result_visibility cop_backend_flush idu_cop_regs commit_visible_ctrl ifu_fetch_queue decode_pair_policy lane1_issue_scoreboard top_fetch_queue_flush top_pc_update_flush top_slot1_observability cop_mem_pending_kill cop_mem_store_directed cop_mem_store_kill scalar_mem_pending_kill cop_vtype_kill backend_contract_checks embench-build embench-run embench-run-one toolchain-check
 
 all: sim sw
+
+toolchain-check:
+	@echo "Host: $$(uname -s) $$(uname -m)"
+	@command -v $(VERILATOR) >/dev/null || { echo "Missing verilator: $(VERILATOR)"; exit 1; }
+	@$(MAKE) -C $(SW_DIR) toolchain-check
 
 # Build Verilator simulation
 sim: $(BUILD_DIR)/V$(TOPNAME)
