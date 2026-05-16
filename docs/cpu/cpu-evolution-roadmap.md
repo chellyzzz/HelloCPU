@@ -10,12 +10,14 @@
 2. 逐步把微架构从“局部 patch 驱动”推进到“边界清晰、结构稳定”；
 3. 为未来的 COP / RVV / vector memory 扩展预留自然接口。
 
+本文档现在是**单人统筹的 CPU 优化主路线图**。旧工作流已清理，不再作为当前入口。
+
 本文档同时给出：
 
 - 当前阶段判断；
 - 长期优化主线；
 - 分阶段目标；
-- A/B 两条 CPU 线的职责分配。
+- 分阶段职责映射。
 
 ## 二、长期性能目标
 
@@ -30,48 +32,64 @@
 1. 短期目标不再是单纯抬高当前单发射核的 IPC 上限；
 2. 中期要把当前核心演进成“可双发射、可解耦、可扩展”的结构；
 3. 长期要接受如下事实：
-   - `IPC ~0.8 -> 1.0` 可以靠当前单发射核内的局部优化实现；
-   - `IPC > 1.0` 需要显著减少 bubble 和等待；
+   - `IPC ~0.8 -> 1.0` 已经是单发收尾区，继续堆局部优化性价比很低；
+   - `IPC > 1.0` 需要进入多发结构阶段，而不是继续死磕单发微调；
    - **`IPC >= 2` 基本要求至少 2-wide in-order issue/commit 能力**，或者等价的更强结构并行性。
 
 所以本文档后续路线分为两层：
 
-- **阶段 A：把当前单发射核做到接近它的合理上限**；
-- **阶段 B：为 IPC 2 目标做结构跃迁准备，并最终进入双发射顺序核。**
+- **阶段 1：单发收尾，冻结局部微调收益；**
+- **阶段 2：直接进入多发准备，并推进到双发射顺序核。**
 
-## 三、当前全局判断
+## 三、当前统一状态
 
-当前稳定点：`codex/b-line-predictor-rtl` on top of `41b0734`
+当前稳定点：`master@7ec84cc`
+当前工作分支：`codex/lane1-future-contract`
+当前统筹方式：单人 owner。
+最新已验证收口：
 
-当前 CoreMark `ITER=100`：
+- `pair_dispatch` 只接 fireable future-lane 候选
+- blocked visible pairs 继续停在 `pair_handoff`
+- `top_slot1_observability`、`top_pc_update_flush`、`backend_contract_checks` 保持绿色
+
+### 冻结性能参考
+
+下面的 `ITER=100` 结果仍是当前性能对照基线：
 
 | Metric | Value |
 |--------|-------|
-| CoreMark/MHz | 3.031 |
-| Total cycles | 32,990,370 |
-| IPC | 0.928 |
+| CoreMark/MHz | 3.032 |
+| Total cycles | 32,982,676 |
+| IPC | 0.900 |
 | Stall rate | 7.2% |
 
 当前 stall 构成：
 
 | Source | Cycles | % of stalls | 说明 |
 |--------|--------|-------------|------|
-| Frontend/empty | 1,841,129 | 77.6% | 仍主要是 redirect 之后的前端空泡 |
-| Control recovery | 521,535 | 22.0% | 单次 redirect 成本已降到 `2-cycle` |
+| Frontend/empty | 1,833,135 | 77.5% | 仍主要是 redirect 之后的前端空泡 |
+| Control recovery | 521,776 | 22.1% | 仍是主要的恢复成本来源 |
 | Other blocked backend | 0 | 0.0% | 当前统计下已不是热点 |
-| LSU wait | 6,832 | 0.3% | 已基本解决 |
-| DIV wait | 2,962 | 0.1% | 已基本解决 |
+| LSU wait | 6,913 | 0.3% | 已不再是主瓶颈 |
+| DIV wait | 2,896 | 0.1% | 已不再是主瓶颈 |
 
 ### 当前最重要的全局结论
 
-1. **LSU 已不是主瓶颈。** same-cycle load/store hit 已经把 LSU 从 6.98M cycles 降到 6.8K。
-2. **redirect recovery 3 -> 2 已经兑现。** 当前 `Redirect cost = 2 avg cycles`，说明这条 recovery 主线已经从“待验证假设”变成了“已验证收益”。
-3. **剩余大头仍在 redirect 链，但更偏向“减少剩余方向错误次数”。** `Frontend/empty + Control recovery` 仍然占几乎全部 true stall。
+1. **单发优化已经进入收尾区。** CoreMark 仍能维持 `3.032 CoreMark/MHz`，但继续在分支/恢复上抠小分已经不再是主战场。
+2. **多发准备应该成为主线。** `IPC 0.928` 说明单发已经到高位区，下一步的主要收益只能来自结构跃迁。
+3. **当前剩余工作重点是多发前置条件。** 包括边界收口、queue、scoreboard、RF/commit 带宽和验证矩阵。
 4. **“Other backend” 目前不能直接当成性能热点。** 当前统计已经给出 `Other blocked backend = 0`。
-4. 后续优化不应再继续以 LSU 局部 patch 为主，而应转向：
-   - 前端预测与恢复；
+5. 后续优化不应再继续以 LSU 或分支微调为主，而应转向：
+   - 多发边界与 issue contract；
    - backend 语义清晰化；
    - 面向未来向量扩展的统一接口。
+
+### Latest Validation Snapshot
+
+- `make bench_only ITER=100`: PASS, `3.032 CoreMark/MHz`, `32982676` cycles, `0.928 IPC`, `7.2%` stalls, redirect cost `2 avg cycles`.
+- `make run ALL=quick-sort`: PASS, `4340` cycles, `0.690 IPC`, `31.0%` stalls, redirect cost `3 avg cycles`.
+- Takeaway: the single-owner boundary cleanup is still safe; CoreMark improved about `+3.1%` over the previous freeze, while quick-sort remains control-heavy and still needs frontend/bubble reduction.
+- The `pair_dispatch` fireable-only contract did not introduce a regression on either workload.
 
 ### 重要决策原则
 
@@ -87,19 +105,19 @@
 
 这意味着：
 
-- frontend / redirect 仍然是当前最高优先级；
-- 但 `redirect recovery -1 cycle` 这件事已经完成，下一步不应继续在同一处反复打补丁；
-- 后续必须用“先证明，再投入”的方式推进，而不是因为它最大就持续猛砸。
+- frontend / redirect 仍然要稳住，但不再是主战场；
+- `redirect recovery` 已经足够好，继续挖单发分支收益的 ROI 很低；
+- 后续必须把主精力转到多发结构准备，而不是因为局部指标还可抠分就继续猛砸。
 
 因此整体策略应该是：
 
-1. 继续探索 redirect 主线，但重点从“缩短单次恢复”切到“减少剩余方向错误次数”；
+1. 立即把主线从单发优化切到多发准备；
 2. 同时并行推进 backend / memory / interface 清晰化；
-3. 避免把所有工程精力都押在一个可能回报快速递减的热点上。
+3. 避免把所有工程精力都押在一个已经接近上限的热点上。
 
 ### 当前已验证的 redirect ROI 样例
 
-在 `8837032` 之后，B 线按“先证明，再投入”的方式完成了一轮 frontend 验证：
+在 `8837032` 之后，项目按“先证明，再投入”的方式完成了一轮 frontend 验证：
 
 1. 先给 branch mispredict 增加了更细分的归因计数：
    - `pred NT -> actual taken`
@@ -109,7 +127,7 @@
    - `BTB mispredicts = 780,786`
    - `target bad = 0`
    - 说明当前 branch redirect 的主问题是 **direction**，不是 branch target 计算错误。
-3. 基于这个证明，B 没有继续扩大 BTB 或修改前后端边界，而是采用更小结构代价的方案：
+3. 基于这个证明，没有继续扩大 BTB 或修改前后端边界，而是采用更小结构代价的方案：
    - 保留现有 tagged BTB target cache；
    - 仅在 BTB miss 时，引入独立 BHT 作为 direction fallback。
 
@@ -131,7 +149,7 @@
 
 如果跳出单点优化，HelloCPU 后续的长期性能提升应当沿着三条主线推进。
 
-### 主线 A：减少“发生多少次慢恢复”
+### 主线 1：减少“发生多少次慢恢复”
 
 这条线本质上是**降低 redirect 次数**：
 
@@ -142,7 +160,7 @@
 
 这是“减少问题发生次数”的路线。
 
-### 主线 B：减少“每次慢恢复要花多久”
+### 主线 2：减少“每次慢恢复要花多久”
 
 这条线本质上是**降低 redirect 单次成本**：
 
@@ -152,7 +170,7 @@
 
 这是“单次事故代价更低”的路线。
 
-### 主线 C：减少“正常流水也被算成等待”
+### 主线 3：减少“正常流水也被算成等待”
 
 这条线本质上是**清理后端结构边界和统计口径**：
 
@@ -185,28 +203,28 @@
 
 这一阶段说明：HelloCPU 已经不再是“被 LSU 卡死的教学核”，而是一个前端恢复成本主导的顺序核。
 
-## 阶段 1：把当前单发射核做到接近上限（接近收尾）
+## 阶段 1：单发收尾
 
 ### 目标
 
-把当前单发射核的明显浪费尽可能清掉，让 IPC 从当前 `0.928` 继续向 `~1.0` 靠近。
+把当前单发射核的最后一点结构噪声收干净，但不再把继续抬高单发 IPC 当成主目标。
 
 ### 主要任务
 
-1. 降低剩余 BTB-hit direction miss / mispredict
+1. 冻结单发主收益，不再为小分数继续扩大战线
 2. 精确区分 frontend bubble、control recovery、normal pipeline occupancy
 3. 维持 redirect / flush / valid 语义稳定，避免回归
 4. 分清 `Other backend` 中哪些是“真 stall”，哪些只是正常 EXU→WBU latency
 
 ### 预期收益
 
-这是当前仍可继续挖的小收益方向，但已经不再适合作为主战场。单发射核继续抬高 IPC 的空间还在，但回报曲线已经明显变陡。
+这个阶段的主要价值是收尾和冻结，而不是继续追求单发跑分。它的意义在于给多发准备让路。
 
-## 阶段 2：为更高 issue 宽度做结构准备（当前主阶段）
+## 阶段 2：多发准备（已完成）
 
 ### 目标
 
-把当前 CPU 从“高性能单发射核”推进成“具备双发射前提条件的顺序核”。
+把当前 CPU 从“接近单发上限”推进成“具备双发射前提条件的顺序核”。
 
 ### 主要任务
 
@@ -216,35 +234,45 @@
 4. 让 performance counters 区分：
    - normal pipe occupancy
    - true backend block
-5. 引入更明确的 issue boundary，避免“当前拍 decode、当前拍 accept、下一拍 commit”这些边界混杂
+5. 引入更明确的 multi-issue boundary，避免“单发 valid”与“第二发 ready”混在一起
 6. 明确以后 2-wide issue 时哪些结构必须扩展：
    - IFU fetch width
    - IDU decode width
    - Register file read/write 端口
    - EXU/WBU commit bandwidth
+   - scoreboard / hazard matrix
 
 ### 预期收益
 
 短期跑分不一定最大，但它决定后面能不能真的向 IPC 2 迈进，而不是被当前单发射结构卡死。
 
+### 完成判定
+
+阶段 2 现在可以视为完成，理由是：
+
+1. frontend boundary / future-lane contract 已经写清，并且当前非执行 lane-1 contract 已收口到 `pair_dispatch`
+2. backend `accept / done / commit-visible` 语义已经统一成文档与 directed gate 的共同基线
+3. queue insertion point、第一版 scoreboard scope、pairing matrix、RF / commit 带宽约束都已写成 reviewable plan
+4. 第一版 `2-wide` slice 已经定义为可落地的小步路径，而不是宽泛的“以后再说”
+5. benchmark 已不再只有 CoreMark，当前至少有 `CoreMark ITER=100` 和 `quick-sort` 两个参考点
+
 ### 阶段切换判断
 
-当前已经满足从“单发射局部优化”切向“2-wide 前置准备”的条件：
+当前已经满足从“单发收尾”切向“2-wide 前置准备”的条件：
 
 1. LSU 和 redirect recovery 这类大颗粒收益已经兑现；
-2. 剩余前端收益主要是 `BTB-hit` 上的方向细修，属于 `1%~3%` 级别空间；
-3. 当前 `IPC = 0.928`，已经接近单发射顺序核的高位区间；
-4. 后续收益越来越像“为 CoreMark 局部热点定制”，不再像全局结构收益；
-5. 长期目标已经明确是 `IPC >= 2`，因此更应该优先把 issue / flush / commit / queue 边界准备好。
+2. 当前 `IPC = 0.928` 已经接近单发射顺序核的高位区间；
+3. 后续收益越来越像“为局部 workload 做末端微调”，不再像全局结构收益；
+4. 长期目标已经明确是 `IPC >= 2`，因此更应该优先把 issue / flush / commit / queue / scoreboard 边界准备好。
 
 因此，从现在开始：
 
-- 保留低风险、小步、可快速证伪的前端补充优化；
-- 但主精力切到 2-wide 前置准备，不再把 branch hit-rate 微调当成主线。
+- 只保留低风险维护级前端改动；
+- 主精力切到 2-wide 前置准备，不再把 branch hit-rate 微调当成主线。
 
 执行入口见 `docs/cpu/two-wide-preparation-checklist.md`。
 
-## 阶段 3：前后端解耦与局部并行
+## 阶段 3：前后端解耦与局部并行（当前主阶段）
 
 ### 目标
 
@@ -258,9 +286,89 @@
 4. 将 COP / future vector memory 接口整理成 service model
 5. 统一 kill / flush / exception 传播方式
 
+### 具体执行项
+
+#### 3.1 lane-1 real boundary
+
+1. 定义 lane-1 `accept` 语义：什么条件下第二条指令从 `pair_dispatch` 进入真实 backend-adjacent ownership
+2. 定义 lane-1 `kill / flush` 语义：slot0 redirect、frontend flush、backend block 时 lane1 如何死亡
+3. 决定 lane-1 valid 是独立 bit，还是继续依附 pair-valid contract
+4. 把这些语义先写进文档，再写 assertion，再写 RTL
+
+当前最小落地约定：
+
+- `pair_dispatch` 继续保存 dispatch-adjacent payload，但不再把 handoff 时刻拍下来的 `allow_second` 当成唯一执行真相。
+- `pair_handoff -> pair_dispatch` 的 real accept 现在由 handoff 侧实时 executable scoreboard 决定，而不是由旧的 snapshot fireability 直接驱动。
+- lane-1 的真实 live bit 现在是独立的 `lane1_issue_valid`，不再只是依附 `pair_dispatch_valid` 的“有 payload 即算活着”。
+- `lane1_issue_accept` 语义：`pair_dispatch` 当前有有效 pair payload，且 dispatch 侧实时 scoreboard 允许第二条进入 live ownership，且当前还没有 live lane1。
+- `lane1_issue_kill` 语义：一旦 dispatch 侧实时 scoreboard 因 backend block 或 flush 不再允许该 payload，`lane1_issue_valid` 在下一拍清掉。
+- `frontend_flush` 仍然有最高优先级，会直接杀死 `pair_handoff`、`pair_dispatch` 和 `lane1_issue_valid`。
+
+#### 3.2 decode / dispatch decoupling
+
+1. 决定 decode queue 是否真的落地，以及第一版深度
+2. 明确 queue entry 里需要保存的 payload、predictor metadata、predecode sidecar
+3. 明确 queue 的 flush / replay / hold 语义
+4. 决定 real dispatch boundary 是在 `pair_dispatch` 之后新增寄存器，还是把 `pair_dispatch` 自身演进成真实 boundary
+
+#### 3.3 first executable scoreboard
+
+1. 把当前草案 hazard matrix 收敛成可执行规则
+2. 固化第一版 `RAW / WAW / exclusive owner / redirect-hostile` reject policy
+3. 明确第一版允许和禁止的 pairing classes
+4. 决定 scoreboard 只看 slot-local pairing，还是同时看长延迟 owner busy
+
+当前第一版 executable scoreboard 约定：
+
+- scope 仍然保持最小：slot-local `RAW/WAW`、single writeback pressure、exclusive backend owner、redirect-hostile control、一个 runtime busy view。
+- pairing class 仍然只允许最窄的 `older simple ALU + younger conditional branch`。
+- runtime busy view 当前先取 `exu2idu_ready` 和 `cop_pipeline_active`，不假装已经支持更宽的 backend occupancy model。
+- handoff 侧 scoreboard 负责决定 `pair_dispatch_accept`；dispatch 侧 scoreboard 负责决定 `lane1_issue_valid` 的 live / kill。
+
+#### 3.4 memory and service decoupling
+
+1. 明确 scalar memory 在 stage 3 是否仍保持 single-entry owner
+2. 决定 store buffer / request tracking 是文档先行还是最小 RTL skeleton 先行
+3. 统一 scalar / COP / future vector memory 对 `request / pending / visible / killed` 的解释
+4. 确保 stage 3 不会误把 memory overlap 伪装成已经支持 dual-issue
+
+#### 3.5 implementation and validation gates
+
+1. 为真实 lane1 boundary 增加 directed test
+2. 为 scoreboard reject / allow cases 增加 directed pairing tests
+3. 为 queue flush / kill / replay 增加 top-level coverage
+4. 为 dual-issue candidate workload 增加 benchmark observation point
+
+### 建议顺序
+
+1. 先完成 `3.1 lane-1 real boundary`
+2. 再完成 `3.3 first executable scoreboard`
+3. 然后决定 `3.2 decode / dispatch decoupling` 的最小落地点
+4. 同步收口 `3.4 memory and service decoupling`
+5. 最后用 `3.5 implementation and validation gates` 固化阶段结果
+
+### 完成判定
+
+阶段 3 完成时，至少应满足：
+
+1. lane-1 已经有真实 `accept / kill / flush` 语义，不再只是 observability sink
+2. 第一版 scoreboard / pairing matrix 已经变成 executable policy
+3. decode / dispatch decoupling 的最小实现边界已确定并落地
+4. stage-3 memory/service decoupling 约束已写清，且没有假装进入 memory overlap
+5. directed tests 能覆盖 allow / reject / flush / replay / stale-kill 的关键路径
+
+### 最小验证门
+
+1. `make top_slot1_observability EXTRA_VERILATOR_FLAGS='-j 1'`
+2. `make top_pc_update_flush EXTRA_VERILATOR_FLAGS='-j 1'`
+3. `make backend_contract_checks EXTRA_VERILATOR_FLAGS='-j 1'`
+4. 新增的 lane1 / pairing directed tests
+5. `make bench_only ITER=100`
+6. 至少一个 branch-heavy 或 mixed workload benchmark
+
 ### 预期收益
 
-这一步的收益不是马上把 IPC 拉到 2，而是让“同时让两类工作并行存在”成为可能。
+这一步的收益不是马上把 IPC 拉到 2，而是让“同时让两条指令在同一拍并行存在”成为可能。
 
 ## 阶段 4：进入双发射顺序核
 
@@ -305,176 +413,91 @@
 
 这一阶段输出的不是单个 patch，而是对“IPC 2 目标是否真的可行”的系统性回答。
 
-## 六、A/B 分工
+## 六、统一职责
 
-当 A/B/C 三线并行导致接口同步和整体验进方向成为瓶颈时，引入 D 线负责 architecture / integration control。D 线职责见 `docs/cpu/d-line-architecture-integration.md`。
+现在只有一个 owner，统一负责 frontend、backend、integration 和未来扩展边界。
 
-## A 线：Backend Performance And Integration
+当前职责分成四块，而不是两条分裂工作线：
 
-A 线负责：
+1. **frontend boundary / issue contract**
+   - `IFU/IDU`
+   - `IDU/EXU`
+   - redirect / flush / kill
+   - future fetch/decode queue insertion points
+2. **backend semantic cleanup**
+   - `accept / done / commit-visible`
+   - `Other blocked backend` 与正常 pipe occupancy 口径
+   - scalar / COP / future vector memory 边界一致化
+3. **multi-issue preparation**
+   - fetch/decode queue
+   - scoreboard / hazard matrix
+   - RF 读写端口
+   - WBU / commit 带宽
+4. **benchmark and validation matrix**
+   - CoreMark
+   - branch-heavy
+   - load/store-heavy
+   - integer ALU-heavy
+   - mul/div-heavy
+   - cop/vector mixed
 
-1. EXU / LSU / MUL / DIV / WBU / top-level integration
-2. performance counters 和 CoreMark 基准
-3. backend 语义统一
-4. 与 COP / vector memory 的 CPU 侧集成
+当接口同步和整体验进方向成为瓶颈时，引入 D 线负责 architecture / integration control。D 线职责见 `docs/cpu/d-line-architecture-integration.md`。
 
-### A 线当前阶段任务
+## 七、阶段化执行
 
-#### A-1：清洗 `Other backend`
+### 阶段 1（当前收尾）
 
-目标：把 `Other backend` 从“混合残项”拆成：
+- 冻结单发微调收益，不再把 branch hit-rate refinement 当成主线
+- 保持当前 gate 和 benchmark 基线稳定
+- 只修真正阻塞多发准备的问题
 
-- normal EXU→WBU pipe latency
-- true backend blocked
-- mul-high / cop / residual
+### 阶段 2（已完成）
 
-这仍然是 A 线当前最直接的工作，而且已经确认：这一桶当前大头不是 MUL 或 COP，而是普通 `ALU/other` 指令的正常一拍传递。
+- 完成 frontend boundary / future-lane contract 收口
+- 完成 backend `accept / done / commit-visible` 统一语义
+- 明确 queue / scoreboard / RF / commit 的第一版约束
+- 把 `2-wide` 的第一刀切成足够小的可落地 slice
 
-当前主线状态：这一清洗已进入稳定口径。
+### 阶段 3（当前主阶段）
 
-- `true stall` 与 `normal backend pipe occupancy` 已分开统计
-- `Other blocked backend` 保留给真正的 residual blocked case
-- 正常一拍 EXU->WBU 传递单独落到 `Backend pipe occ`
-- `Backend pipe occ` 继续细分为 `ALU/other`、`branch`、`JAL`、`JALR`、`sys/csr`
-- `mul-high` 不再作为 `Other` 残项理解；它现在在 `MUL/DIV wait` 与 multiply mix 中单独可见
+- 引入 fetch/decode decoupling
+- 写清第一版 pairing matrix
+- 明确 dual-issue 下的结构冲突与 kill/flush 规则
+- 准备 dual-issue 所需的读写带宽与 bypass 方案
 
-#### A-2：统一 backend 接口语义
+### 阶段 4（正式进入双发）
 
-把 LSU、MUL、DIV、COP 的完成/提交/flush 语义进一步统一，为未来 vector memory 接入准备。
+- IFU 至少 2-wide fetch / predecode
+- IDU 至少 2-wide decode / dispatch
+- backend 支持第一版合法 pairing
+- WBU 至少支持双结果提交或等价结构
 
-当前主线采用的统一术语是：
+## 八、当前优先级
 
-- `accept`：frontend-side payload ownership transferred into backend execution
-- `done`：backend function result has completed
-- `commit-visible`：result is allowed to reach shared WBU / architectural side effects
-
-当前 A 线约束：
-
-- `done != commit-visible`
-- `flush/kill` must be absorbed before `commit-visible`
-- scalar LSU 和 COP backend 都按这一规则表达结果可见性
-- scalar LSU has focused top-level pending-kill coverage, not just module-level visibility checks
-
-#### A-3：评估 scalar LSU 向 service model 演进
-
-不是再做快路径，而是开始考虑更清晰的 request / response 模型。
-
-当前 A 线的基线文档是 `docs/interface/cpu-memory-service-model.md`，后续 scalar LSU、COP memory、future vector memory 的 CPU 侧边界统一以该文档为参考。
-
-## B 线：Frontend Performance
-
-B 线负责：
-
-1. IFU / IDU / IFU-IDU / IDU-EXU pipeline 边界
-2. BTB / RAS / predictor 策略
-3. redirect recovery 路径
-4. frontend stall 根因和对应 RTL 改进
-
-### B 线当前阶段任务
-
-当前 B 线已经从“active frontend performance mode”切到“2-wide 前置准备 mode”。前端性能优化不停止，但降级为辅助线，而不是主战场。
-
-#### B-1：IFU/IDU/issue boundary formalization
-
-这是 B 当前第一优先级。
-
-目标：把 frontend 关键边界整理成能支撑更宽 issue 的稳定 contract：
-
-- `IFU/IDU`
-- `IDU/EXU`
-- redirect / flush / kill
-- accepted payload / registered valid
-- future fetch/decode queue insertion points
-
-执行清单见 `docs/cpu/two-wide-preparation-checklist.md`。
-
-#### B-2：frontend queue and decoupling preparation
-
-目标：在不立刻上 2-wide 的前提下，定义最小 frontend decoupling 方案：
-
-- fetch queue 是否需要、深度多少
-- decode queue 是否需要、深度多少
-- flush 时 queue 清空语义
-- predictor 与 queue 的 metadata 绑定方式
-
-#### B-3：predictor refinement as secondary work
-
-目标：只在低风险且可快速证伪的前提下，继续观察剩余 `BTB-hit` direction miss 是否还有便宜收益。
-
-当前约束：
-
-- 不再把 hit-rate 微调作为当前主线；
-- 不允许 predictor 微调阻塞 2-wide 前置准备。
-
-#### B-4：benchmark matrix for wider-issue decision
-
-目标：补齐不止 CoreMark 的 benchmark 观察面，为后续是否正式进入 2-wide RTL 提供证据。
-
-至少区分：
-
-- branch heavy
-- load/store heavy
-- integer ALU heavy
-- mul/div heavy
-- cop/vector mixed
-
-## 七、阶段化 A/B 任务映射
-
-### 阶段 1（收尾）
-
-- A：收尾 true stall / normal occupancy 口径
-- B：保留小步 predictor 补充优化，避免回归
-
-### 阶段 2（当前）
-
-- A：backend 接口统一、WBU/commit 语义清晰化
-- B：IFU/IDU/issue boundary 清晰化，准备更宽 issue
-
-### 阶段 3
-
-- A：memory service model、store buffer、COP/vector memory 接口
-- B：fetch/decode queue、frontend decoupling、predictor 与 queue 协同
-
-其中 memory service model 的当前文档入口为 `docs/interface/cpu-memory-service-model.md`。
-
-### 阶段 4
-
-- A：双发射 backend / dual writeback / bypass matrix
-- B：双发射 frontend / dual decode / issue arbitration
-
-## 八、跳出分工框架后的真正优先级
-
-如果完全不考虑 A/B 分工，只从全局收益排序，当前最合理的顺序是：
+如果只按 ROI 排序，当前最合理的顺序是：
 
 1. **为 2-wide 做前后端边界准备**
 2. **统一 backend / memory / flush 语义**
-3. **构建更广 benchmark matrix**
-4. **保持 stall 统计口径稳定**，避免假回归 / 假优化
-5. **仅作为辅助线继续观察剩余 BTB-hit direction quality**
+3. **定义 scoreboard / hazard matrix / RF 带宽**
+4. **构建更广 benchmark matrix**
+5. **只保留少量维护级单发修补**
 
 也就是说：
 
-- 单发射继续抠分还有空间，但已经不是主矛盾
+- 单发继续抠分还有一点空间，但已经不是主矛盾
 - 真正决定长期上限的，是结构边界是否清晰，以及是否能平滑过渡到更宽 issue
 
 ## 九、结论
 
-HelloCPU 的长期路线已经从“继续抠 LSU”进一步转变成：
+HelloCPU 的长期路线已经很明确：
 
-1. 保留小步、低风险的前端补充优化
-2. 主精力切到 2-wide 前置准备
-3. 同时把 backend 语义和统计口径维持清晰
-4. 最后把 CPU 结构演进成能自然接 vector / RVV 的成熟顺序核
-
-当前主阶段不是“哪里都能提点分”，而是很明确：
-
-- **B 线主攻 2-wide 前置准备、frontend boundary、queue / issue 准备**
-- **A 线主攻 backend 语义清理和 future interface**
+1. 单发优化现在进入收尾区
+2. 主精力立即切到 2-wide 前置准备
+3. backend 语义、memory service、flush/kill 规则继续收口
+4. 最终进入成熟的多发顺序核，再谈更高 IPC
 
 如果长期目标明确为 **IPC ≥ 2**，那么后续路线就必须承认：
 
-1. 当前单发射核只能作为过渡阶段继续榨干；
+1. 当前单发射核只能作为过渡阶段；
 2. 真正到 IPC 2，必须进入 **2-wide in-order** 或等价结构跃迁；
 3. 现在做的所有 frontend/backend/interface 清理，都是在为那一步降低风险，而不是可有可无的“整理代码”。
-
-这两条线如果都走通，HelloCPU 才会从“已经很快的教学核”进一步演进成“结构清晰、可持续优化、可扩展”的成熟核心。

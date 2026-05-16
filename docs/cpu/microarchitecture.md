@@ -178,13 +178,13 @@ Current backend contract semantics use three layers consistently:
 
 Killed or stale completions are filtered before `commit-visible`.
 
-| Source | Cycles | % of stalls | Owner |
-|--------|--------|-------------|-------|
-| Frontend/empty | `2,339,440` | 69.0% | B |
-| Control recovery | `1,043,090` | 30.7% | B/D |
-| IFU held valid | `9,509` | 0.3% | A/B boundary done |
-| LSU wait | `6,826` | 0.2% | A done |
-| DIV wait | `2,962` | 0.1% | A done |
-| Other blocked backend | `0` | 0.0% | A done |
+| Source | Cycles | % of stalls | Status |
+|--------|--------|-------------|--------|
+| Frontend/empty | `1,833,135` | 77.5% | multi-issue prep target |
+| Control recovery | `521,776` | 22.1% | stable but no longer main tuning target |
+| IFU held valid | `9,582` | 0.4% | bounded |
+| LSU wait | `6,913` | 0.3% | solved enough for current phase |
+| DIV wait | `2,896` | 0.1% | solved enough for current phase |
+| Other blocked backend | `0` | 0.0% | cleaned up |
 
-This means HelloCPU is no longer limited by LSU/cache-hit latency. The current bottleneck is frontend redirect recovery: predictor work reduced redirect count, but each remaining redirect still costs about 3 cycles.
+This means HelloCPU is no longer limited by LSU/cache-hit latency. The remaining stall concentration is real, but the next highest-ROI step is not more single-issue branch polish; it is moving into multi-issue preparation while keeping the current recovery path stable.

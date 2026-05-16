@@ -1,12 +1,14 @@
 # 2-Wide Preparation Checklist
 
+This checklist supports the single-owner master plan in `docs/cpu/cpu-evolution-roadmap.md`.
+
 ## Goal
 
 This checklist defines the minimum preparation work before HelloCPU starts a real `2-wide in-order` RTL implementation.
 
 Current intent:
 
-- keep small, low-risk single-issue improvements as secondary work
+- freeze single-issue micro-optimization as maintenance-only work
 - move the main effort to structure cleanup and wider-issue readiness
 - avoid starting `2-wide` RTL on top of ambiguous valid/ready/flush semantics
 
@@ -19,6 +21,28 @@ The preparation phase is complete only when all of the following are true:
 3. a minimum queue / scoreboard plan exists
 4. benchmark coverage is broader than CoreMark alone
 5. the first `2-wide` implementation slice is small and explicitly scoped
+
+## Current Status
+
+The current tree can treat this preparation checklist as complete.
+
+Completed preparation outputs:
+
+1. frontend boundaries and flush ownership are documented
+2. backend `accept / done / commit-visible` semantics are documented and regression-checked
+3. the first queue / scoreboard / pairing constraints are written down
+4. the first narrow `2-wide` slice is explicitly scoped
+5. benchmark reference is broader than CoreMark alone (`CoreMark`, `quick-sort`)
+
+This means the project should now treat `stage 3` in `docs/cpu/cpu-evolution-roadmap.md` as the active phase.
+
+Current stage-3 entry order:
+
+1. define real lane-1 `accept / kill / flush`
+2. freeze the first executable scoreboard / pairing policy
+3. decide the minimum decode / dispatch decoupling point
+4. keep memory/service decoupling explicit but still minimal
+5. close the phase with directed tests and benchmark checkpoints
 
 ## Checklist
 
@@ -37,7 +61,7 @@ Current working document:
 
 Done when:
 
-- A/B can answer boundary questions without reading RTL line by line
+ - the owner can answer boundary questions without reading RTL line by line
 - no stage relies on implicit timing assumptions that are not written down
 
 ### 2. Redirect And Flush Semantics
@@ -92,18 +116,19 @@ Done when:
 Current draft:
 
 - Stage 0 remains `2-wide fetch/predecode` with single issue preserved, so no execution-side pairing is required yet.
-- A-line backend constraints for the first issue-capable handoff are pinned in `docs/cpu/a-line-backend-constraints.md`; frontend work should treat that note as the backend truth source until those constraints change.
+- backend constraints for the first issue-capable handoff are pinned in `docs/cpu/cpu-evolution-roadmap.md`; frontend work should treat that plan as the current truth source until it changes.
 - The first issue-capable prototype must reject any same-cycle pair with slot-to-slot `RAW` dependence.
 - The first issue-capable prototype must reject any same-cycle pair with `WAW` to the same architectural `rd`.
 - The first issue-capable prototype must reject any pair that needs the same exclusive backend owner in the same cycle: `LSU`, `MUL/DIV`, `COP`, or redirect/control owner.
 - Until writeback bandwidth is widened explicitly, default policy is to reject pairs where both instructions would require normal architectural writeback.
-- The only pairing candidate worth evaluating first is `simple ALU + branch`, and even that stays draft-only until backend/control-path review is complete.
+- The first pairing candidate should be chosen for minimal structural disruption, not for squeezing more single-issue branch score; `simple ALU + branch` remains the current narrow draft.
 
 Smallest acceptable scoreboard scope:
 
 - slot-local `RAW/WAW` check between the two visible instructions
 - one busy view for long-latency exclusive backends
 - one rule that control/redirect-generating instructions are pairing-hostile by default
+- the executable gate should be derived from handoff/dispatch payload truth, not only from a frontend-captured `allow_second` snapshot
 
 Done when:
 
@@ -179,7 +204,7 @@ Done when:
 
 ## First Pairing Matrix Draft
 
-This is a conservative draft for review, not a claim that the current backend can already support these pairs.
+This is a conservative draft for review, not a claim that the current backend can already support these pairs. The purpose is to enter multi-issue in the smallest viable step, not to keep extending single-issue tuning.
 
 | Pair class | Draft status | Reason |
 |-----------|--------------|--------|

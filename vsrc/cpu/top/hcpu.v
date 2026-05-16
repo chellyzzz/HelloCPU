@@ -485,6 +485,22 @@ wire [31:0] pair_slot1_src2_data /* verilator public_flat */;
 wire      pair_handoff_capture /* verilator public_flat */;
 wire      pair_dispatch_ready /* verilator public_flat */;
 wire      pair_dispatch_accept /* verilator public_flat */;
+wire      handoff_scoreboard_candidate_alu_branch;
+wire      handoff_scoreboard_allow_second /* verilator public_flat */;
+wire      handoff_scoreboard_order_alu_then_branch;
+wire      handoff_scoreboard_order_branch_then_alu;
+wire      handoff_scoreboard_block_raw;
+wire      handoff_scoreboard_block_waw;
+wire      handoff_scoreboard_block_dual_writeback;
+wire      handoff_scoreboard_block_exclusive_backend;
+wire      handoff_scoreboard_block_redirect_control;
+wire      handoff_scoreboard_block_older_branch_first;
+wire      handoff_scoreboard_block_downstream_busy;
+wire      handoff_scoreboard_block_cop_pipeline;
+wire      handoff_scoreboard_block_frontend_flush;
+wire      dispatch_scoreboard_allow_second /* verilator public_flat */;
+wire      lane1_issue_accept /* verilator public_flat */;
+wire      lane1_issue_kill /* verilator public_flat */;
 reg       slot1_shadow_valid /* verilator public_flat */;
 reg [31:0] slot1_shadow_pc /* verilator public_flat */;
 reg [31:0] slot1_shadow_ins /* verilator public_flat */;
@@ -678,6 +694,7 @@ reg       pair_handoff_slot1_predict_taken /* verilator public_flat */;
 reg [29:0] pair_handoff_slot1_predict_target /* verilator public_flat */;
 reg       pair_handoff_slot1_predict_btb_hit /* verilator public_flat */;
 reg [4:0] pair_handoff_slot1_rs1_addr /* verilator public_flat */;
+reg [4:0] pair_handoff_slot1_rs2_addr /* verilator public_flat */;
 reg       pair_handoff_candidate_alu_branch /* verilator public_flat */;
 reg       pair_handoff_allow_second /* verilator public_flat */;
 reg       pair_handoff_order_alu_then_branch /* verilator public_flat */;
@@ -750,10 +767,12 @@ reg       pair_dispatch_slot1_predict_taken /* verilator public_flat */;
 reg [29:0] pair_dispatch_slot1_predict_target /* verilator public_flat */;
 reg       pair_dispatch_slot1_predict_btb_hit /* verilator public_flat */;
 reg [4:0] pair_dispatch_slot1_rs1_addr /* verilator public_flat */;
+reg [4:0] pair_dispatch_slot1_rs2_addr /* verilator public_flat */;
 reg       pair_dispatch_candidate_alu_branch /* verilator public_flat */;
 reg       pair_dispatch_allow_second /* verilator public_flat */;
 reg       pair_dispatch_order_alu_then_branch /* verilator public_flat */;
 reg       pair_dispatch_order_branch_then_alu /* verilator public_flat */;
+reg       lane1_issue_valid /* verilator public_flat */;
 
 hcpu_CSR_RegisterFile Csrs(
     .clock                             (clock                     ),
@@ -1276,7 +1295,7 @@ assign decode_slot0_pc = ifu2idu_pc;
 assign frontend_pair_capture = decode_pair_visible && decode_slot0_valid && decode_pair_distinct_pc && !frontend_flush;
 assign pair_handoff_capture = frontend_pair_bundle_valid;
 assign pair_dispatch_ready = 1'b1;
-assign pair_dispatch_accept = pair_handoff_valid && pair_dispatch_ready;
+assign pair_dispatch_accept = pair_handoff_valid && handoff_scoreboard_allow_second && pair_dispatch_ready;
 assign decode_slot1_valid = decode_pair_select_slot1_youngest && ifu_pair_younger_valid;
 assign decode_slot1_pc = decode_slot1_valid ? ifu_pair_younger_pc : 32'b0;
 assign decode_slot1_ins = decode_slot1_valid ? ifu_pair_younger_ins : 32'b0;
@@ -1294,6 +1313,113 @@ assign pair_slot1_src1_data = pair_slot1_decode_ecall ? mtvec :
                                                         pair_slot1_rs1_data;
 assign pair_slot1_src2_data = pair_slot1_decode_csr_wen ? pair_slot1_csr_rdata :
                                                           pair_slot1_rs2_data;
+
+hcpu_lane1_issue_scoreboard handoff_scoreboard(
+    .i_pair_valid                       (pair_handoff_valid                ),
+    .i_slot0_valid                      (pair_handoff_slot0_valid          ),
+    .i_slot1_valid                      (pair_handoff_slot1_valid          ),
+    .i_slot0_rd                         (pair_handoff_slot0_rd             ),
+    .i_slot1_rd                         (pair_handoff_slot1_rd             ),
+    .i_slot1_rs1_addr                   (pair_handoff_slot1_rs1_addr       ),
+    .i_slot1_rs2_addr                   (pair_handoff_slot1_rs2_addr      ),
+    .i_slot0_wen                        (pair_handoff_slot0_wen            ),
+    .i_slot1_wen                        (pair_handoff_slot1_wen            ),
+    .i_slot0_csr_wen                    (pair_handoff_slot0_csr_wen        ),
+    .i_slot1_csr_wen                    (pair_handoff_slot1_csr_wen        ),
+    .i_slot0_brch                       (pair_handoff_slot0_brch           ),
+    .i_slot0_jal                        (pair_handoff_slot0_jal            ),
+    .i_slot0_jalr                       (pair_handoff_slot0_jalr           ),
+    .i_slot0_load                       (pair_handoff_slot0_load           ),
+    .i_slot0_store                      (pair_handoff_slot0_store          ),
+    .i_slot0_muldiv                     (pair_handoff_slot0_muldiv         ),
+    .i_slot0_is_cop_insn                (pair_handoff_slot0_is_cop_insn    ),
+    .i_slot0_ecall                      (pair_handoff_slot0_ecall          ),
+    .i_slot0_mret                       (pair_handoff_slot0_mret           ),
+    .i_slot0_ebreak                     (pair_handoff_slot0_ebreak         ),
+    .i_slot0_fence_i                    (pair_handoff_slot0_fence_i        ),
+    .i_slot1_brch                       (pair_handoff_slot1_brch           ),
+    .i_slot1_jal                        (pair_handoff_slot1_jal            ),
+    .i_slot1_jalr                       (pair_handoff_slot1_jalr           ),
+    .i_slot1_load                       (pair_handoff_slot1_load           ),
+    .i_slot1_store                      (pair_handoff_slot1_store          ),
+    .i_slot1_muldiv                     (pair_handoff_slot1_muldiv         ),
+    .i_slot1_is_cop_insn                (pair_handoff_slot1_is_cop_insn    ),
+    .i_slot1_ecall                      (pair_handoff_slot1_ecall          ),
+    .i_slot1_mret                       (pair_handoff_slot1_mret           ),
+    .i_slot1_ebreak                     (pair_handoff_slot1_ebreak         ),
+    .i_slot1_fence_i                    (pair_handoff_slot1_fence_i        ),
+    .i_downstream_ready                 (exu2idu_ready                     ),
+    .i_cop_pipeline_active              (cop_pipeline_active               ),
+    .i_frontend_flush                   (frontend_flush                    ),
+    .o_pair_candidate_alu_branch        (handoff_scoreboard_candidate_alu_branch),
+    .o_pair_order_alu_then_branch       (handoff_scoreboard_order_alu_then_branch),
+    .o_pair_order_branch_then_alu       (handoff_scoreboard_order_branch_then_alu),
+    .o_allow_second                     (handoff_scoreboard_allow_second   ),
+    .o_block_raw                        (handoff_scoreboard_block_raw      ),
+    .o_block_waw                        (handoff_scoreboard_block_waw      ),
+    .o_block_dual_writeback             (handoff_scoreboard_block_dual_writeback),
+    .o_block_exclusive_backend          (handoff_scoreboard_block_exclusive_backend),
+    .o_block_redirect_control           (handoff_scoreboard_block_redirect_control),
+    .o_block_older_branch_first         (handoff_scoreboard_block_older_branch_first),
+    .o_block_downstream_busy            (handoff_scoreboard_block_downstream_busy),
+    .o_block_cop_pipeline               (handoff_scoreboard_block_cop_pipeline),
+    .o_block_frontend_flush             (handoff_scoreboard_block_frontend_flush)
+);
+
+hcpu_lane1_issue_scoreboard dispatch_scoreboard(
+    .i_pair_valid                       (pair_dispatch_valid               ),
+    .i_slot0_valid                      (pair_dispatch_slot0_valid         ),
+    .i_slot1_valid                      (pair_dispatch_slot1_valid         ),
+    .i_slot0_rd                         (pair_dispatch_slot0_rd            ),
+    .i_slot1_rd                         (pair_dispatch_slot1_rd            ),
+    .i_slot1_rs1_addr                   (pair_dispatch_slot1_rs1_addr      ),
+    .i_slot1_rs2_addr                   (pair_dispatch_slot1_rs2_addr     ),
+    .i_slot0_wen                        (pair_dispatch_slot0_wen           ),
+    .i_slot1_wen                        (pair_dispatch_slot1_wen           ),
+    .i_slot0_csr_wen                    (pair_dispatch_slot0_csr_wen       ),
+    .i_slot1_csr_wen                    (pair_dispatch_slot1_csr_wen       ),
+    .i_slot0_brch                       (pair_dispatch_slot0_brch          ),
+    .i_slot0_jal                        (pair_dispatch_slot0_jal           ),
+    .i_slot0_jalr                       (pair_dispatch_slot0_jalr          ),
+    .i_slot0_load                       (pair_dispatch_slot0_load          ),
+    .i_slot0_store                      (pair_dispatch_slot0_store         ),
+    .i_slot0_muldiv                     (pair_dispatch_slot0_muldiv        ),
+    .i_slot0_is_cop_insn                (pair_dispatch_slot0_is_cop_insn   ),
+    .i_slot0_ecall                      (pair_dispatch_slot0_ecall         ),
+    .i_slot0_mret                       (pair_dispatch_slot0_mret          ),
+    .i_slot0_ebreak                     (pair_dispatch_slot0_ebreak        ),
+    .i_slot0_fence_i                    (pair_dispatch_slot0_fence_i       ),
+    .i_slot1_brch                       (pair_dispatch_slot1_brch          ),
+    .i_slot1_jal                        (pair_dispatch_slot1_jal           ),
+    .i_slot1_jalr                       (pair_dispatch_slot1_jalr          ),
+    .i_slot1_load                       (pair_dispatch_slot1_load          ),
+    .i_slot1_store                      (pair_dispatch_slot1_store         ),
+    .i_slot1_muldiv                     (pair_dispatch_slot1_muldiv        ),
+    .i_slot1_is_cop_insn                (pair_dispatch_slot1_is_cop_insn   ),
+    .i_slot1_ecall                      (pair_dispatch_slot1_ecall         ),
+    .i_slot1_mret                       (pair_dispatch_slot1_mret          ),
+    .i_slot1_ebreak                     (pair_dispatch_slot1_ebreak        ),
+    .i_slot1_fence_i                    (pair_dispatch_slot1_fence_i       ),
+    .i_downstream_ready                 (exu2idu_ready                     ),
+    .i_cop_pipeline_active              (cop_pipeline_active               ),
+    .i_frontend_flush                   (frontend_flush                    ),
+    .o_pair_candidate_alu_branch        (),
+    .o_pair_order_alu_then_branch       (),
+    .o_pair_order_branch_then_alu       (),
+    .o_allow_second                     (dispatch_scoreboard_allow_second  ),
+    .o_block_raw                        (),
+    .o_block_waw                        (),
+    .o_block_dual_writeback             (),
+    .o_block_exclusive_backend          (),
+    .o_block_redirect_control           (),
+    .o_block_older_branch_first         (),
+    .o_block_downstream_busy            (),
+    .o_block_cop_pipeline               (),
+    .o_block_frontend_flush             ()
+);
+
+assign lane1_issue_accept = pair_dispatch_valid && dispatch_scoreboard_allow_second && !lane1_issue_valid;
+assign lane1_issue_kill = lane1_issue_valid && !dispatch_scoreboard_allow_second;
 
 hcpu_IDU idu_pair_slot1(
     .clock                             (clock                     ),
@@ -1640,6 +1766,7 @@ always @(posedge clock or posedge reset) begin
         pair_handoff_slot1_predict_target <= 30'b0;
         pair_handoff_slot1_predict_btb_hit <= 1'b0;
         pair_handoff_slot1_rs1_addr <= 5'b0;
+        pair_handoff_slot1_rs2_addr <= 5'b0;
         pair_handoff_candidate_alu_branch <= 1'b0;
         pair_handoff_allow_second <= 1'b0;
         pair_handoff_order_alu_then_branch <= 1'b0;
@@ -1716,6 +1843,7 @@ always @(posedge clock or posedge reset) begin
         pair_handoff_slot1_predict_target <= frontend_pair_bundle_slot1_predict_target;
         pair_handoff_slot1_predict_btb_hit <= frontend_pair_bundle_slot1_predict_btb_hit;
         pair_handoff_slot1_rs1_addr <= frontend_pair_bundle_slot1_rs1_addr;
+        pair_handoff_slot1_rs2_addr <= frontend_pair_bundle_slot1_rs2;
         pair_handoff_candidate_alu_branch <= frontend_pair_bundle_candidate_alu_branch;
         pair_handoff_allow_second <= frontend_pair_bundle_allow_second;
         pair_handoff_order_alu_then_branch <= frontend_pair_bundle_order_alu_then_branch;
@@ -1793,6 +1921,7 @@ always @(posedge clock or posedge reset) begin
         pair_dispatch_slot1_predict_target <= 30'b0;
         pair_dispatch_slot1_predict_btb_hit <= 1'b0;
         pair_dispatch_slot1_rs1_addr <= 5'b0;
+        pair_dispatch_slot1_rs2_addr <= 5'b0;
         pair_dispatch_candidate_alu_branch <= 1'b0;
         pair_dispatch_allow_second <= 1'b0;
         pair_dispatch_order_alu_then_branch <= 1'b0;
@@ -1860,10 +1989,23 @@ always @(posedge clock or posedge reset) begin
         pair_dispatch_slot1_predict_target <= pair_handoff_slot1_predict_target;
         pair_dispatch_slot1_predict_btb_hit <= pair_handoff_slot1_predict_btb_hit;
         pair_dispatch_slot1_rs1_addr <= pair_handoff_slot1_rs1_addr;
+        pair_dispatch_slot1_rs2_addr <= pair_handoff_slot1_rs2_addr;
         pair_dispatch_candidate_alu_branch <= pair_handoff_candidate_alu_branch;
-        pair_dispatch_allow_second <= pair_handoff_allow_second;
+        pair_dispatch_allow_second <= handoff_scoreboard_allow_second;
         pair_dispatch_order_alu_then_branch <= pair_handoff_order_alu_then_branch;
         pair_dispatch_order_branch_then_alu <= pair_handoff_order_branch_then_alu;
+    end
+end
+
+always @(posedge clock or posedge reset) begin
+    if (reset) begin
+        lane1_issue_valid <= 1'b0;
+    end else if (frontend_flush) begin
+        lane1_issue_valid <= 1'b0;
+    end else if (lane1_issue_kill) begin
+        lane1_issue_valid <= 1'b0;
+    end else if (lane1_issue_accept) begin
+        lane1_issue_valid <= 1'b1;
     end
 end
 
@@ -2122,6 +2264,24 @@ always @(*) begin
         $fatal(1, "hcpu pair handoff allowed a second lane without a candidate pair");
     if (pair_handoff_allow_second && !pair_handoff_order_alu_then_branch)
         $fatal(1, "hcpu pair handoff allowed a second lane without ordered alu-then-branch pairing");
+    if (pair_handoff_valid && (pair_handoff_candidate_alu_branch != handoff_scoreboard_candidate_alu_branch))
+        $fatal(1, "hcpu pair handoff candidate classification diverged from executable scoreboard");
+    if (pair_handoff_valid && (pair_handoff_order_alu_then_branch != handoff_scoreboard_order_alu_then_branch))
+        $fatal(1, "hcpu pair handoff alu-then-branch order diverged from executable scoreboard");
+    if (pair_handoff_valid && (pair_handoff_order_branch_then_alu != handoff_scoreboard_order_branch_then_alu))
+        $fatal(1, "hcpu pair handoff branch-then-alu order diverged from executable scoreboard");
+    if (pair_handoff_valid && (pair_handoff_block_raw != handoff_scoreboard_block_raw))
+        $fatal(1, "hcpu pair handoff raw block diverged from executable scoreboard");
+    if (pair_handoff_valid && (pair_handoff_block_waw != handoff_scoreboard_block_waw))
+        $fatal(1, "hcpu pair handoff waw block diverged from executable scoreboard");
+    if (pair_handoff_valid && (pair_handoff_block_dual_writeback != handoff_scoreboard_block_dual_writeback))
+        $fatal(1, "hcpu pair handoff dual-writeback block diverged from executable scoreboard");
+    if (pair_handoff_valid && (pair_handoff_block_exclusive_backend != handoff_scoreboard_block_exclusive_backend))
+        $fatal(1, "hcpu pair handoff exclusive-backend block diverged from executable scoreboard");
+    if (pair_handoff_valid && (pair_handoff_block_redirect_control != handoff_scoreboard_block_redirect_control))
+        $fatal(1, "hcpu pair handoff redirect-control block diverged from executable scoreboard");
+    if (pair_handoff_valid && (pair_handoff_block_older_branch_first != handoff_scoreboard_block_older_branch_first))
+        $fatal(1, "hcpu pair handoff older-branch block diverged from executable scoreboard");
     if (pair_handoff_allow_second && (pair_handoff_block_raw || pair_handoff_block_waw ||
                                       pair_handoff_block_dual_writeback || pair_handoff_block_exclusive_backend ||
                                       pair_handoff_block_redirect_control || pair_handoff_block_older_branch_first ||
@@ -2132,14 +2292,22 @@ always @(*) begin
         $fatal(1, "hcpu pair handoff lost branch-then-alu ordering for the older-branch block case");
     if (pair_dispatch_accept && (!pair_handoff_slot0_valid || !pair_handoff_slot1_valid))
         $fatal(1, "hcpu pair dispatch accepted without a complete handoff pair");
+    if (pair_dispatch_accept && !handoff_scoreboard_allow_second)
+        $fatal(1, "hcpu pair dispatch accepted a blocked handoff pair");
     if (pair_dispatch_valid && (!pair_dispatch_slot0_valid || !pair_dispatch_slot1_valid))
         $fatal(1, "hcpu pair dispatch lost one of its visible lanes");
+    if (pair_dispatch_valid && !pair_dispatch_allow_second)
+        $fatal(1, "hcpu pair dispatch kept a pair that was not fireable");
     if (pair_dispatch_valid && (pair_dispatch_slot0_pc == pair_dispatch_slot1_pc))
         $fatal(1, "hcpu pair dispatch reused one pc across both lanes");
     if (pair_dispatch_valid && pair_dispatch_slot0_csr_wen && !pair_dispatch_slot0_wen)
         $fatal(1, "hcpu pair dispatch slot0 csr write lost wen alignment");
     if (pair_dispatch_valid && pair_dispatch_slot1_csr_wen && !pair_dispatch_slot1_wen)
         $fatal(1, "hcpu pair dispatch slot1 csr write lost wen alignment");
+    if (pair_dispatch_valid && !pair_dispatch_candidate_alu_branch)
+        $fatal(1, "hcpu pair dispatch lost candidate alu-branch classification");
+    if (pair_dispatch_valid && !pair_dispatch_order_alu_then_branch)
+        $fatal(1, "hcpu pair dispatch lost ordered alu-then-branch classification");
     if (pair_dispatch_order_alu_then_branch && pair_dispatch_slot0_brch)
         $fatal(1, "hcpu pair dispatch lost older-alu classification for alu-then-branch ordering");
     if (pair_dispatch_order_alu_then_branch && !pair_dispatch_slot1_brch)
@@ -2167,6 +2335,14 @@ always @(*) begin
         $fatal(1, "hcpu pair dispatch allowed a second lane without a candidate pair");
     if (pair_dispatch_allow_second && !pair_dispatch_order_alu_then_branch)
         $fatal(1, "hcpu pair dispatch allowed a second lane without ordered alu-then-branch pairing");
+    if (lane1_issue_accept && !pair_dispatch_valid)
+        $fatal(1, "hcpu lane1 issue accepted without a dispatch payload");
+    if (lane1_issue_valid && !pair_dispatch_valid)
+        $fatal(1, "hcpu lane1 issue valid lost its dispatch payload");
+    if (lane1_issue_valid && !pair_dispatch_candidate_alu_branch)
+        $fatal(1, "hcpu lane1 issue valid lost candidate alu-branch classification");
+    if (lane1_issue_valid && !pair_dispatch_order_alu_then_branch)
+        $fatal(1, "hcpu lane1 issue valid lost alu-then-branch ordering");
 end
 `endif
 
