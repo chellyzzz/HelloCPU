@@ -95,13 +95,13 @@ assign o_csr_rdata  = i_csr_raddr == 12'hf11 ? mvendorid :
                       i_csr_raddr == 12'hf12 ? marchid :
                       i_csr_raddr == 12'h300 ? {19'b0, mstatus} :
                       i_csr_raddr == 12'h341 ? mepc :
-                       i_csr_raddr == 12'h342 ? mcause :
-                       i_csr_raddr == 12'h305 ? mtvec :
-                       i_csr_raddr == 12'hb00 ? mcycle :
-                       i_csr_raddr == 12'hc20 ? vl :
-                       i_csr_raddr == 12'hc21 ? vtype :
-                       i_csr_raddr == 12'h008 ? vstart :
-                       32'b0;
+                        i_csr_raddr == 12'h342 ? mcause :
+                        i_csr_raddr == 12'h305 ? mtvec :
+                        i_csr_raddr == 12'hb00 ? mcycle :
+                        i_csr_raddr == 12'hc20 ? vl :
+                        i_csr_raddr == 12'hc21 ? vtype :
+                        i_csr_raddr == 12'h008 ? vstart :
+                        32'b0;
 
 assign o_csr_rdata2 = i_csr_raddr2 == 12'hf11 ? mvendorid :
                       i_csr_raddr2 == 12'hf12 ? marchid :

@@ -247,6 +247,15 @@ cop_mem_store_kill: sw
 		-o $(abspath $(BUILD_DIR)/Vcop_mem_store_kill_tb)
 	@$(BUILD_DIR)/Vcop_mem_store_kill_tb $(SW_DIR)/build/vector/cop-vstore-repeat-mem.bin
 
+cop_vtype_kill:
+	$(VERILATOR) --top-module hcpu_cop_backend --cc --exe --build -Wno-fatal -Wno-style \
+		$(EXTRA_VERILATOR_FLAGS) \
+		vsrc/vector/cop/cop_backend.v vsrc/vector/cop/dummy_coprocessor.v vsrc/vector/cop/vector_cop_decode.v vsrc/vector/cop/vector_lane_alu.v \
+		$(abspath $(SIM_DIR)/cop_backend_vtype_flush_tb.cpp) \
+		--Mdir $(BUILD_DIR)/cop_backend_vtype_flush_tb \
+		-o $(abspath $(BUILD_DIR)/Vcop_backend_vtype_flush_tb)
+	@$(BUILD_DIR)/Vcop_backend_vtype_flush_tb
+
 scalar_mem_pending_kill: sw
 	$(VERILATOR) --top-module scalar_mem_pending_kill_top +incdir+vsrc/cpu/include --cc --exe --build -Wno-fatal -Wno-style \
 		--timescale "1ns/1ns" --no-timing \
