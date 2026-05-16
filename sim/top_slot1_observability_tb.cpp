@@ -558,8 +558,9 @@ int main(int argc, char **argv) {
     const bool pre_pair_handoff_block_downstream_busy = root->sim_top__DOT__cpu__DOT__pair_handoff_block_downstream_busy;
     const bool pre_pair_handoff_block_cop_pipeline = root->sim_top__DOT__cpu__DOT__pair_handoff_block_cop_pipeline;
     const bool pre_pair_handoff_block_frontend_flush = root->sim_top__DOT__cpu__DOT__pair_handoff_block_frontend_flush;
-    const bool pre_handoff_scoreboard_allow_second = root->sim_top__DOT__cpu__DOT__handoff_scoreboard_allow_second;
+    const bool pre_pair_handoff_fireable = root->sim_top__DOT__cpu__DOT__pair_handoff_fireable;
     const bool pre_pair_dispatch_valid = root->sim_top__DOT__cpu__DOT__pair_dispatch_valid;
+    const bool pre_pair_dispatch_accept = root->sim_top__DOT__cpu__DOT__pair_dispatch_accept;
     const bool pre_pair_dispatch_slot0_valid = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_valid;
     const uint32_t pre_pair_dispatch_slot0_pc = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_pc;
     const uint32_t pre_pair_dispatch_slot0_ins = root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_ins;
@@ -1604,11 +1605,13 @@ int main(int argc, char **argv) {
     if (pre_frontend_flush) {
       fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_valid == 0,
                      "frontend flush clears the pair dispatch surface");
-      if (pre_pair_dispatch_valid || (pre_pair_handoff_valid && pre_handoff_scoreboard_allow_second)) {
+      if (pre_pair_dispatch_valid || pre_pair_handoff_fireable) {
         coverage.pair_dispatch_flush_clear_events++;
       }
-    } else if (pre_pair_handoff_valid && pre_handoff_scoreboard_allow_second) {
+    } else if (pre_pair_handoff_fireable) {
       coverage.pair_dispatch_capture_events++;
+      fail |= expect(pre_pair_dispatch_accept == pre_pair_handoff_fireable,
+                     "dispatch accept mirrors the live fireable handoff gate");
       fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_valid == 1,
                      "fireable pair handoff captures into the pair dispatch surface");
       fail |= expect(root->sim_top__DOT__cpu__DOT__pair_dispatch_slot0_valid == pre_pair_handoff_slot0_valid,

@@ -658,6 +658,12 @@ Current dispatch-ready sink refinement:
 4. only minimal pair classification is preserved into this sink: `candidate_alu_branch`, `allow_second`, and directional order remain visible so the future narrow pairing candidate is still structurally checkable
 5. top-level regression now checks dispatch capture, hold, flush-clear, and self-consistent `fireable` vs `blocked` accounting against the handoff source
 
+Current stage-4 entry point:
+
+1. `4.1` is the real two-wide fetch/predecode surface already carried by the two-entry queue plus the frontend bundle that mirrors both visible lanes
+2. `4.2` is the transport cut from `pair_handoff_fireable` into `pair_dispatch`, so only a live fireable handoff payload may enter the dispatch sink
+3. blocked or flushed lane-1 candidates still remain visible above that cut, but they stop at `pair_handoff` instead of leaking into the dispatch contract
+
 This keeps the policy executable while preserving the current single-issue machine behavior.
 
 ## Immediate Follow-Up

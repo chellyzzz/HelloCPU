@@ -432,6 +432,12 @@
 4. commit / writeback 宽度已经和新的 issue 形态匹配
 5. directed tests 和 benchmark matrix 都能稳定说明结构收益，而不是只在单一 workload 上成立
 
+Current branch validation on 2026-05-17:
+
+- `CoreMark ITER=100` revalidated at `3.098 CoreMark/MHz` and `32,279,748` simulator cycles
+- `quick-sort`, `load-store`, `sum`, `div`, and `rvv-acceptance-subset` all passed as local workload proxies for the branch-heavy, load/store-heavy, ALU-heavy, mul/div-heavy, and cop/vector-mixed categories
+- the Embench checkout is not available on this host, so the repository tests above act as the local wider-matrix proxy until that source tree is restored
+
 ## 阶段 5：面向 IPC 2 的整体验证
 
 ### 目标

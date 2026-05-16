@@ -40,6 +40,8 @@ CoreMark/MHz     : 3.098
 [HelloCPU] PASS (cycles: 32279748)
 ```
 
+This result was revalidated on the current stage-4 frontend-boundary branch on 2026-05-17, and it matched the existing validated baseline: `3.098 CoreMark/MHz` with `32,279,748` simulator cycles.
+
 ## Current Benchmark Summary
 
 | Run | Result | CoreMark cycles | Simulator cycles | CoreMark/MHz | IPC | Stall rate |

@@ -328,6 +328,7 @@ wire pair_order_alu_then_branch = pair0_is_simple_alu && pair1_brch;
 wire pair_order_branch_then_alu = pair0_brch && pair1_is_simple_alu;
 wire pair_candidate_alu_branch = pair_order_alu_then_branch || pair_order_branch_then_alu;
 
+// This is the first queue-backed two-wide fetch/predecode surface.
 assign o_pair_valid = (count == DEPTH);
 assign o_pair_candidate_alu_branch = o_pair_valid && pair_candidate_alu_branch && !pair_has_raw &&
                                      !pair_has_waw && !pair_has_dual_writeback &&

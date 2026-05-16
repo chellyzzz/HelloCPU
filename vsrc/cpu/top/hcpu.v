@@ -484,6 +484,7 @@ wire [31:0] pair_slot1_csr_rdata /* verilator public_flat */;
 wire [31:0] pair_slot1_src1_data /* verilator public_flat */;
 wire [31:0] pair_slot1_src2_data /* verilator public_flat */;
 wire      pair_handoff_capture /* verilator public_flat */;
+wire      pair_handoff_fireable /* verilator public_flat */;
 wire      pair_dispatch_ready /* verilator public_flat */;
 wire      pair_dispatch_accept /* verilator public_flat */;
 wire      handoff_scoreboard_candidate_alu_branch;
@@ -1296,8 +1297,9 @@ assign decode_slot0_pc = ifu2idu_pc;
 assign decode_slot0_ins = ifu2idu_ins;
 assign frontend_pair_capture = decode_pair_visible && decode_slot0_valid && decode_pair_distinct_pc && !frontend_flush;
 assign pair_handoff_capture = frontend_pair_bundle_valid;
+assign pair_handoff_fireable = pair_handoff_valid && handoff_scoreboard_allow_second;
 assign pair_dispatch_ready = 1'b1;
-assign pair_dispatch_accept = pair_handoff_valid && handoff_scoreboard_allow_second && pair_dispatch_ready;
+assign pair_dispatch_accept = pair_handoff_fireable && pair_dispatch_ready;
 assign decode_slot1_valid = decode_pair_select_slot1_youngest && ifu_pair_younger_valid;
 assign decode_slot1_pc = decode_slot1_valid ? ifu_pair_younger_pc : 32'b0;
 assign decode_slot1_ins = decode_slot1_valid ? ifu_pair_younger_ins : 32'b0;
@@ -2292,8 +2294,8 @@ always @(*) begin
         $fatal(1, "hcpu pair handoff lost branch-then-alu ordering for the older-branch block case");
     if (pair_dispatch_accept && (!pair_handoff_slot0_valid || !pair_handoff_slot1_valid))
         $fatal(1, "hcpu pair dispatch accepted without a complete handoff pair");
-    if (pair_dispatch_accept && !handoff_scoreboard_allow_second)
-        $fatal(1, "hcpu pair dispatch accepted a blocked handoff pair");
+    if (pair_dispatch_accept && !pair_handoff_fireable)
+        $fatal(1, "hcpu pair dispatch accepted a non-fireable handoff pair");
     if (pair_dispatch_valid && (!pair_dispatch_slot0_valid || !pair_dispatch_slot1_valid))
         $fatal(1, "hcpu pair dispatch lost one of its visible lanes");
     if (pair_dispatch_valid && (pair_dispatch_slot0_pc == pair_dispatch_slot1_pc))

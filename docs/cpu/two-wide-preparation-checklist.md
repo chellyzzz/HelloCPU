@@ -62,6 +62,25 @@ The first `2-wide` implementation slice should stay narrow and ordered:
 5. widen commit/writeback only as far as the first pairing slice needs
 6. validate the change with directed tests plus the wider benchmark matrix
 
+Current active interpretation:
+
+1. `4.1` is the queue-backed two-wide fetch/predecode surface plus the frontend bundle that carries both visible lanes
+2. `4.2` is the explicit live gate from `pair_handoff_fireable` into `pair_dispatch`
+3. blocked and flushed lane-1 candidates stay observable above the transport cut, but they do not enter dispatch
+
+Current stage-4 validation snapshot on this Mac:
+
+| Workload | Category | Result | Cycles | IPC | Stall rate | Key takeaway |
+|----------|----------|--------|--------|-----|------------|--------------|
+| `CoreMark ITER=100` | scalar baseline | PASS | `32279748` | `0.883` | `11.7%` | Revalidated current throughput baseline |
+| `quick-sort` | branch-heavy | PASS | `4308` | `0.659` | `34.2%` | Redirect cost stays visible at `3 avg cycles` |
+| `load-store` | load/store-heavy | PASS | `939` | `0.255` | `74.7%` | LSU wait dominates this small memory test |
+| `sum` | ALU-heavy proxy | PASS | `741` | `0.696` | `30.5%` | Simple scalar loop remains near the single-issue ceiling |
+| `div` | mul/div-heavy | PASS | `3860` | `0.212` | `78.8%` | DIV wait is the dominant stall source |
+| `rvv-acceptance-subset` | cop/vector mixed | PASS | `533` | `0.113` | `88.9%` | COP wait is the dominant stall source |
+
+The Embench checkout is not available on this new host, so this local matrix uses the repository's scalar and vector regression workloads as proxies for the wider category coverage described below.
+
 ## Checklist
 
 ### 1. Frontend Boundary Contract
